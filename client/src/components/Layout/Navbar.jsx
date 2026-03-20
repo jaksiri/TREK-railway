@@ -1,18 +1,38 @@
 import React, { useState, useEffect } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useLocation } from 'react-router-dom'
 import { useAuthStore } from '../../store/authStore'
 import { useSettingsStore } from '../../store/settingsStore'
 import { useTranslation } from '../../i18n'
-import { Plane, LogOut, Settings, ChevronDown, Shield, ArrowLeft, Users, Moon, Sun } from 'lucide-react'
+import { addonsApi } from '../../api/client'
+import { Plane, LogOut, Settings, ChevronDown, Shield, ArrowLeft, Users, Moon, Sun, CalendarDays, Briefcase, Globe } from 'lucide-react'
+
+const ADDON_ICONS = { CalendarDays, Briefcase, Globe }
 
 export default function Navbar({ tripTitle, tripId, onBack, showBack, onShare }) {
   const { user, logout } = useAuthStore()
   const { settings, updateSetting } = useSettingsStore()
   const { t, locale } = useTranslation()
   const navigate = useNavigate()
+  const location = useLocation()
   const [userMenuOpen, setUserMenuOpen] = useState(false)
   const [appVersion, setAppVersion] = useState(null)
+  const [globalAddons, setGlobalAddons] = useState([])
   const dark = settings.dark_mode
+
+  const loadAddons = () => {
+    if (user) {
+      addonsApi.enabled().then(data => {
+        setGlobalAddons(data.addons.filter(a => a.type === 'global'))
+      }).catch(() => {})
+    }
+  }
+  useEffect(loadAddons, [user, location.pathname])
+  // Listen for addon changes from AddonManager
+  useEffect(() => {
+    const handler = () => loadAddons()
+    window.addEventListener('addons-changed', handler)
+    return () => window.removeEventListener('addons-changed', handler)
+  }, [user])
 
   useEffect(() => {
     import('../../api/client').then(({ authApi }) => {
@@ -35,6 +55,7 @@ export default function Navbar({ tripTitle, tripId, onBack, showBack, onShare })
       backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)',
       borderBottom: `1px solid ${dark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.07)'}`,
       boxShadow: dark ? '0 1px 12px rgba(0,0,0,0.2)' : '0 1px 12px rgba(0,0,0,0.05)',
+      touchAction: 'manipulation',
     }} className="h-14 flex items-center px-4 gap-4 fixed top-0 left-0 right-0 z-[200]">
       {/* Left side */}
       <div className="flex items-center gap-3 min-w-0">
@@ -54,6 +75,42 @@ export default function Navbar({ tripTitle, tripId, onBack, showBack, onShare })
           <Plane className="w-5 h-5" style={{ color: 'var(--text-primary)' }} />
           <span className="font-bold text-sm hidden sm:inline">NOMAD</span>
         </Link>
+
+        {/* Global addon nav items */}
+        {globalAddons.length > 0 && !tripTitle && (
+          <>
+            <span style={{ color: 'var(--text-faint)' }}>|</span>
+            <Link to="/dashboard"
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium transition-colors flex-shrink-0"
+              style={{
+                color: location.pathname === '/dashboard' ? 'var(--text-primary)' : 'var(--text-muted)',
+                background: location.pathname === '/dashboard' ? 'var(--bg-hover)' : 'transparent',
+              }}
+              onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-hover)'}
+              onMouseLeave={e => { if (location.pathname !== '/dashboard') e.currentTarget.style.background = 'transparent' }}>
+              <Briefcase className="w-3.5 h-3.5" />
+              <span className="hidden md:inline">{t('nav.myTrips')}</span>
+            </Link>
+            {globalAddons.map(addon => {
+              const Icon = ADDON_ICONS[addon.icon] || CalendarDays
+              const path = `/${addon.id}`
+              const isActive = location.pathname === path
+              return (
+                <Link key={addon.id} to={path}
+                  className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium transition-colors flex-shrink-0"
+                  style={{
+                    color: isActive ? 'var(--text-primary)' : 'var(--text-muted)',
+                    background: isActive ? 'var(--bg-hover)' : 'transparent',
+                  }}
+                  onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-hover)'}
+                  onMouseLeave={e => { if (!isActive) e.currentTarget.style.background = 'transparent' }}>
+                  <Icon className="w-3.5 h-3.5" />
+                  <span className="hidden md:inline">{addon.name}</span>
+                </Link>
+              )
+            })}
+          </>
+        )}
 
         {tripTitle && (
           <>

@@ -141,4 +141,26 @@ function broadcast(tripId, eventType, payload, excludeSid) {
   }
 }
 
-module.exports = { setupWebSocket, broadcast };
+function broadcastToUser(userId, payload) {
+  if (!wss) return;
+  for (const ws of wss.clients) {
+    if (ws.readyState !== 1) continue;
+    const user = socketUser.get(ws);
+    if (user && user.id === userId) {
+      ws.send(JSON.stringify(payload));
+    }
+  }
+}
+
+function getOnlineUserIds() {
+  const ids = new Set();
+  if (!wss) return ids;
+  for (const ws of wss.clients) {
+    if (ws.readyState !== 1) continue;
+    const user = socketUser.get(ws);
+    if (user) ids.add(user.id);
+  }
+  return ids;
+}
+
+module.exports = { setupWebSocket, broadcast, broadcastToUser, getOnlineUserIds };

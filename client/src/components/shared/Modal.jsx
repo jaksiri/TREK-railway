@@ -39,8 +39,8 @@ export default function Modal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center px-4 modal-backdrop"
-      style={{ backgroundColor: 'rgba(15, 23, 42, 0.5)', paddingTop: 70, paddingBottom: 20 }}
+      className="fixed inset-0 z-50 flex items-start sm:items-center justify-center px-4 modal-backdrop"
+      style={{ backgroundColor: 'rgba(15, 23, 42, 0.5)', paddingTop: 70, paddingBottom: 20, overflow: 'hidden' }}
       onMouseDown={e => { mouseDownTarget.current = e.target }}
       onClick={e => {
         if (e.target === e.currentTarget && mouseDownTarget.current === e.currentTarget) onClose()
@@ -50,7 +50,7 @@ export default function Modal({
       <div
         className={`
           rounded-2xl shadow-2xl w-full ${sizeClasses[size] || sizeClasses.md}
-          flex flex-col max-h-[90vh]
+          flex flex-col max-h-[calc(100vh-90px)]
           animate-in fade-in zoom-in-95 duration-200
         `}
         style={{

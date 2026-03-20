@@ -91,6 +91,21 @@ app.use('/api', assignmentsRoutes);
 app.use('/api/tags', tagsRoutes);
 app.use('/api/categories', categoriesRoutes);
 app.use('/api/admin', adminRoutes);
+
+// Public addons endpoint (authenticated but not admin-only)
+const { authenticate: addonAuth } = require('./middleware/auth');
+const { db: addonDb } = require('./db/database');
+app.get('/api/addons', addonAuth, (req, res) => {
+  const addons = addonDb.prepare('SELECT id, name, type, icon, enabled FROM addons WHERE enabled = 1 ORDER BY sort_order').all();
+  res.json({ addons: addons.map(a => ({ ...a, enabled: !!a.enabled })) });
+});
+
+// Addon routes
+const vacayRoutes = require('./routes/vacay');
+app.use('/api/addons/vacay', vacayRoutes);
+const atlasRoutes = require('./routes/atlas');
+app.use('/api/addons/atlas', atlasRoutes);
+
 app.use('/api/maps', mapsRoutes);
 app.use('/api/weather', weatherRoutes);
 app.use('/api/settings', settingsRoutes);

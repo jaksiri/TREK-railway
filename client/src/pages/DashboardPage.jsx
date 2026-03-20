@@ -2,15 +2,17 @@ import React, { useEffect, useState, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { tripsApi } from '../api/client'
 import { useAuthStore } from '../store/authStore'
+import { useSettingsStore } from '../store/settingsStore'
 import { useTranslation } from '../i18n'
 import Navbar from '../components/Layout/Navbar'
 import DemoBanner from '../components/Layout/DemoBanner'
-import TravelStats from '../components/Dashboard/TravelStats'
+import CurrencyWidget from '../components/Dashboard/CurrencyWidget'
+import TimezoneWidget from '../components/Dashboard/TimezoneWidget'
 import TripFormModal from '../components/Trips/TripFormModal'
 import { useToast } from '../components/shared/Toast'
 import {
   Plus, Calendar, Trash2, Edit2, Map, ChevronDown, ChevronUp,
-  Archive, ArchiveRestore, Clock, MapPin,
+  Archive, ArchiveRestore, Clock, MapPin, Settings, X, ArrowRightLeft,
 } from 'lucide-react'
 
 const font = { fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui, sans-serif" }
@@ -345,11 +347,25 @@ export default function DashboardPage() {
   const [showForm, setShowForm] = useState(false)
   const [editingTrip, setEditingTrip] = useState(null)
   const [showArchived, setShowArchived] = useState(false)
+  const [showWidgetSettings, setShowWidgetSettings] = useState(false)
 
   const navigate = useNavigate()
   const toast = useToast()
   const { t, locale } = useTranslation()
   const { demoMode } = useAuthStore()
+  const { settings, updateSetting } = useSettingsStore()
+  const showCurrency = settings.dashboard_currency !== 'off'
+  const showTimezone = settings.dashboard_timezone !== 'off'
+  const showSidebar = showCurrency || showTimezone
+
+  useEffect(() => {
+    if (showWidgetSettings === 'mobile') {
+      document.body.style.overflow = 'hidden'
+    } else {
+      document.body.style.overflow = ''
+    }
+    return () => { document.body.style.overflow = '' }
+  }, [showWidgetSettings])
 
   useEffect(() => { loadTrips() }, [])
 
@@ -437,10 +453,10 @@ export default function DashboardPage() {
   const rest = spotlight ? trips.filter(t => t.id !== spotlight.id) : trips
 
   return (
-    <div style={{ minHeight: '100vh', background: 'var(--bg-secondary)', ...font }}>
+    <div style={{ position: 'fixed', inset: 0, display: 'flex', flexDirection: 'column', background: 'var(--bg-secondary)', ...font }}>
       <Navbar />
       {demoMode && <DemoBanner />}
-      <div style={{ paddingTop: 56 }}>
+      <div style={{ flex: 1, overflow: 'auto', overscrollBehavior: 'contain', marginTop: 56 }}>
         <div style={{ maxWidth: 1300, margin: '0 auto', padding: '32px 20px 60px' }}>
 
           {/* Header */}
@@ -453,20 +469,74 @@ export default function DashboardPage() {
                   : t('dashboard.subtitle.empty')}
               </p>
             </div>
-            <button
-              onClick={() => { setEditingTrip(null); setShowForm(true) }}
-              style={{
-                display: 'flex', alignItems: 'center', gap: 7, padding: '9px 18px',
-                background: 'var(--accent)', color: 'var(--accent-text)', border: 'none', borderRadius: 12,
-                fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
-                boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
-              }}
-              onMouseEnter={e => e.currentTarget.style.opacity = '0.85'}
+            <div style={{ display: 'flex', gap: 8, alignItems: 'stretch' }}>
+              {/* Widget settings */}
+              <button
+                onClick={() => setShowWidgetSettings(s => s ? false : true)}
+                style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  padding: '0 14px',
+                  background: 'var(--bg-card)', border: '1px solid var(--border-primary)', borderRadius: 12,
+                  cursor: 'pointer', color: 'var(--text-faint)', fontFamily: 'inherit',
+                  transition: 'background 0.15s, border-color 0.15s',
+                }}
+                onMouseEnter={e => { e.currentTarget.style.background = 'var(--bg-hover)'; e.currentTarget.style.borderColor = 'var(--text-faint)' }}
+                onMouseLeave={e => { e.currentTarget.style.background = 'var(--bg-card)'; e.currentTarget.style.borderColor = 'var(--border-primary)' }}
+              >
+                <Settings size={15} />
+              </button>
+              <button
+                onClick={() => { setEditingTrip(null); setShowForm(true) }}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 7, padding: '9px 18px',
+                  background: 'var(--accent)', color: 'var(--accent-text)', border: 'none', borderRadius: 12,
+                  fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+                }}
+                onMouseEnter={e => e.currentTarget.style.opacity = '0.85'}
               onMouseLeave={e => e.currentTarget.style.opacity = '1'}
             >
               <Plus size={15} /> {t('dashboard.newTrip')}
-            </button>
+              </button>
+            </div>
           </div>
+
+          {/* Widget settings dropdown */}
+          {showWidgetSettings && (
+            <div className="rounded-xl border p-3 mb-4 flex items-center gap-4" style={{ background: 'var(--bg-card)', borderColor: 'var(--border-primary)' }}>
+              <span className="text-xs font-semibold" style={{ color: 'var(--text-muted)' }}>Widgets:</span>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <button onClick={() => updateSetting('dashboard_currency', showCurrency ? 'off' : 'on')}
+                  className="relative inline-flex h-5 w-9 items-center rounded-full transition-colors"
+                  style={{ background: showCurrency ? 'var(--text-primary)' : 'var(--border-primary)' }}>
+                  <span className="absolute left-0.5 h-4 w-4 rounded-full transition-transform duration-200"
+                    style={{ background: 'var(--bg-card)', transform: showCurrency ? 'translateX(16px)' : 'translateX(0)' }} />
+                </button>
+                <span className="text-xs" style={{ color: 'var(--text-primary)' }}>{t('dashboard.currency')}</span>
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <button onClick={() => updateSetting('dashboard_timezone', showTimezone ? 'off' : 'on')}
+                  className="relative inline-flex h-5 w-9 items-center rounded-full transition-colors"
+                  style={{ background: showTimezone ? 'var(--text-primary)' : 'var(--border-primary)' }}>
+                  <span className="absolute left-0.5 h-4 w-4 rounded-full transition-transform duration-200"
+                    style={{ background: 'var(--bg-card)', transform: showTimezone ? 'translateX(16px)' : 'translateX(0)' }} />
+                </button>
+                <span className="text-xs" style={{ color: 'var(--text-primary)' }}>{t('dashboard.timezone')}</span>
+              </label>
+            </div>
+          )}
+
+          {/* Mobile widgets button */}
+          {showSidebar && (
+            <button
+              onClick={() => setShowWidgetSettings('mobile')}
+              className="lg:hidden flex items-center justify-center gap-2 w-full py-2.5 rounded-xl text-xs font-semibold mb-4"
+              style={{ background: 'var(--bg-card)', border: '1px solid var(--border-primary)', color: 'var(--text-primary)' }}
+            >
+              <ArrowRightLeft size={13} style={{ color: 'var(--text-faint)' }} />
+              {showCurrency && showTimezone ? `${t('dashboard.currency')} & ${t('dashboard.timezone')}` : showCurrency ? t('dashboard.currency') : t('dashboard.timezone')}
+            </button>
+          )}
 
           <div style={{ display: 'flex', gap: 24, alignItems: 'flex-start' }}>
           {/* Main content */}
@@ -562,13 +632,36 @@ export default function DashboardPage() {
           )}
           </div>
 
-          {/* Stats sidebar */}
-          <div className="hidden lg:block" style={{ position: 'sticky', top: 80, flexShrink: 0 }}>
-            <TravelStats />
-          </div>
+          {/* Widgets sidebar */}
+          {showSidebar && (
+            <div className="hidden lg:flex flex-col gap-4" style={{ position: 'sticky', top: 80, flexShrink: 0, width: 280 }}>
+              {showCurrency && <CurrencyWidget />}
+              {showTimezone && <TimezoneWidget />}
+            </div>
+          )}
           </div>
         </div>
       </div>
+
+      {/* Mobile widgets bottom sheet */}
+      {showWidgetSettings === 'mobile' && (
+        <div className="lg:hidden fixed inset-0 z-50" style={{ background: 'rgba(0,0,0,0.3)', touchAction: 'none' }} onClick={() => setShowWidgetSettings(false)}>
+          <div className="absolute bottom-0 left-0 right-0 flex flex-col overflow-hidden"
+            style={{ maxHeight: '80vh', background: 'var(--bg-card)', borderRadius: '20px 20px 0 0', overscrollBehavior: 'contain' }}
+            onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-4 py-3" style={{ borderBottom: '1px solid var(--border-secondary)' }}>
+              <span className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Widgets</span>
+              <button onClick={() => setShowWidgetSettings(false)} className="w-7 h-7 rounded-full flex items-center justify-center" style={{ background: 'var(--bg-secondary)' }}>
+                <X size={14} style={{ color: 'var(--text-primary)' }} />
+              </button>
+            </div>
+            <div className="flex-1 overflow-auto p-4 space-y-4">
+              {showCurrency && <CurrencyWidget />}
+              {showTimezone && <TimezoneWidget />}
+            </div>
+          </div>
+        </div>
+      )}
 
       <TripFormModal
         isOpen={showForm}

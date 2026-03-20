@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react'
+import ReactDOM from 'react-dom'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useTripStore } from '../store/tripStore'
 import { useSettingsStore } from '../store/settingsStore'
@@ -19,6 +20,7 @@ import { useToast } from '../components/shared/Toast'
 import { Map, X, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen } from 'lucide-react'
 import { useTranslation } from '../i18n'
 import { joinTrip, leaveTrip, addListener, removeListener } from '../api/websocket'
+import { addonsApi } from '../api/client'
 
 const MIN_SIDEBAR = 200
 const MAX_SIDEBAR = 520
@@ -32,12 +34,22 @@ export default function TripPlannerPage() {
   const tripStore = useTripStore()
   const { trip, days, places, assignments, packingItems, categories, reservations, budgetItems, files, selectedDayId, isLoading } = tripStore
 
+  const [enabledAddons, setEnabledAddons] = useState({ packing: true, budget: true, documents: true })
+
+  useEffect(() => {
+    addonsApi.enabled().then(data => {
+      const map = {}
+      data.addons.forEach(a => { map[a.id] = true })
+      setEnabledAddons({ packing: !!map.packing, budget: !!map.budget, documents: !!map.documents })
+    }).catch(() => {})
+  }, [])
+
   const TRIP_TABS = [
     { id: 'plan', label: t('trip.tabs.plan') },
-    { id: 'buchungen', label: t('trip.tabs.reservations') },
-    { id: 'packliste', label: t('trip.tabs.packing'), shortLabel: t('trip.tabs.packingShort') },
-    { id: 'finanzplan', label: t('trip.tabs.budget') },
-    { id: 'dateien', label: t('trip.tabs.files') },
+    { id: 'buchungen', label: t('trip.tabs.reservations'), shortLabel: t('trip.tabs.reservationsShort') },
+    ...(enabledAddons.packing ? [{ id: 'packliste', label: t('trip.tabs.packing'), shortLabel: t('trip.tabs.packingShort') }] : []),
+    ...(enabledAddons.budget ? [{ id: 'finanzplan', label: t('trip.tabs.budget') }] : []),
+    ...(enabledAddons.documents ? [{ id: 'dateien', label: t('trip.tabs.files') }] : []),
   ]
 
   const [activeTab, setActiveTab] = useState('plan')
@@ -287,7 +299,7 @@ export default function TripPlannerPage() {
       </div>
 
       {/* Offset by navbar (56px) + tab bar (44px) */}
-      <div style={{ flex: 1, overflow: 'hidden', marginTop: 100, position: 'relative' }}>
+      <div style={{ position: 'fixed', top: 100, left: 0, right: 0, bottom: 0, overflow: 'hidden', overscrollBehavior: 'contain' }}>
 
         {activeTab === 'plan' && (
           <div style={{ position: 'absolute', inset: 0 }}>
@@ -422,16 +434,20 @@ export default function TripPlannerPage() {
               </div>
             </div>
 
-            <div className="flex md:hidden" style={{ position: 'absolute', top: 12, left: 12, right: 12, justifyContent: 'space-between', zIndex: 30 }}>
-              <button onClick={() => setMobileSidebarOpen('left')}
-                style={{ background: 'var(--bg-card)', color: 'var(--text-primary)', backdropFilter: 'blur(12px)', border: '1px solid var(--border-primary)', borderRadius: 24, padding: '11px 24px', fontSize: 15, fontWeight: 600, cursor: 'pointer', boxShadow: '0 2px 12px rgba(0,0,0,0.15)', minHeight: 44, fontFamily: 'inherit' }}>
-                {t('trip.mobilePlan')}
-              </button>
-              <button onClick={() => setMobileSidebarOpen('right')}
-                style={{ background: 'var(--bg-card)', color: 'var(--text-primary)', backdropFilter: 'blur(12px)', border: '1px solid var(--border-primary)', borderRadius: 24, padding: '11px 24px', fontSize: 15, fontWeight: 600, cursor: 'pointer', boxShadow: '0 2px 12px rgba(0,0,0,0.15)', minHeight: 44, fontFamily: 'inherit' }}>
-                {t('trip.mobilePlaces')}
-              </button>
-            </div>
+            {/* Mobile sidebar buttons — portal to body to escape Leaflet touch handling */}
+            {activeTab === 'plan' && !mobileSidebarOpen && !showPlaceForm && !showMembersModal && !showReservationModal && ReactDOM.createPortal(
+              <div className="flex md:hidden" style={{ position: 'fixed', top: 112, left: 12, right: 12, justifyContent: 'space-between', zIndex: 100, pointerEvents: 'none' }}>
+                <button onClick={() => setMobileSidebarOpen('left')}
+                  style={{ pointerEvents: 'auto', background: 'var(--bg-card)', color: 'var(--text-primary)', backdropFilter: 'blur(12px)', border: '1px solid var(--border-primary)', borderRadius: 24, padding: '11px 24px', fontSize: 15, fontWeight: 600, cursor: 'pointer', boxShadow: '0 2px 12px rgba(0,0,0,0.15)', minHeight: 44, fontFamily: 'inherit', touchAction: 'manipulation' }}>
+                  {t('trip.mobilePlan')}
+                </button>
+                <button onClick={() => setMobileSidebarOpen('right')}
+                  style={{ pointerEvents: 'auto', background: 'var(--bg-card)', color: 'var(--text-primary)', backdropFilter: 'blur(12px)', border: '1px solid var(--border-primary)', borderRadius: 24, padding: '11px 24px', fontSize: 15, fontWeight: 600, cursor: 'pointer', boxShadow: '0 2px 12px rgba(0,0,0,0.15)', minHeight: 44, fontFamily: 'inherit', touchAction: 'manipulation' }}>
+                  {t('trip.mobilePlaces')}
+                </button>
+              </div>,
+              document.body
+            )}
 
             {selectedPlace && (
               <PlaceInspector
@@ -450,9 +466,9 @@ export default function TripPlannerPage() {
               />
             )}
 
-            {mobileSidebarOpen && (
-              <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.3)', zIndex: 50 }} onClick={() => setMobileSidebarOpen(null)}>
-                <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, background: 'var(--bg-card)', borderRadius: '20px 20px 0 0', maxHeight: '80vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }} onClick={e => e.stopPropagation()}>
+            {mobileSidebarOpen && ReactDOM.createPortal(
+              <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.3)', zIndex: 9999 }} onClick={() => setMobileSidebarOpen(null)}>
+                <div style={{ position: 'absolute', top: 56, left: 0, right: 0, bottom: 0, background: 'var(--bg-card)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }} onClick={e => e.stopPropagation()}>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 16px', borderBottom: '1px solid var(--border-secondary)' }}>
                     <span style={{ fontWeight: 600, fontSize: 14, color: 'var(--text-primary)' }}>{mobileSidebarOpen === 'left' ? t('trip.mobilePlan') : t('trip.mobilePlaces')}</span>
                     <button onClick={() => setMobileSidebarOpen(null)} style={{ background: 'var(--bg-tertiary)', border: 'none', borderRadius: '50%', width: 28, height: 28, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-primary)' }}>
@@ -466,13 +482,14 @@ export default function TripPlannerPage() {
                     }
                   </div>
                 </div>
-              </div>
+              </div>,
+              document.body
             )}
           </div>
         )}
 
         {activeTab === 'buchungen' && (
-          <div style={{ height: '100%', maxWidth: 1200, margin: '0 auto', width: '100%', display: 'flex', flexDirection: 'column' }}>
+          <div style={{ height: '100%', maxWidth: 1200, margin: '0 auto', width: '100%', display: 'flex', flexDirection: 'column', overflowY: 'auto', overscrollBehavior: 'contain' }}>
             <ReservationsPanel
               tripId={tripId}
               reservations={reservations}
@@ -488,19 +505,19 @@ export default function TripPlannerPage() {
         )}
 
         {activeTab === 'packliste' && (
-          <div style={{ height: '100%', overflowY: 'auto', maxWidth: 1200, margin: '0 auto', width: '100%', padding: '8px 0' }}>
+          <div style={{ height: '100%', overflowY: 'auto', overscrollBehavior: 'contain', maxWidth: 1200, margin: '0 auto', width: '100%', padding: '8px 0' }}>
             <PackingListPanel tripId={tripId} items={packingItems} />
           </div>
         )}
 
         {activeTab === 'finanzplan' && (
-          <div style={{ height: '100%', overflowY: 'auto', maxWidth: 1400, margin: '0 auto', width: '100%', padding: '8px 0' }}>
+          <div style={{ height: '100%', overflowY: 'auto', overscrollBehavior: 'contain', maxWidth: 1400, margin: '0 auto', width: '100%', padding: '8px 0' }}>
             <BudgetPanel tripId={tripId} />
           </div>
         )}
 
         {activeTab === 'dateien' && (
-          <div style={{ height: '100%', overflow: 'hidden' }}>
+          <div style={{ height: '100%', overflow: 'hidden', overscrollBehavior: 'contain' }}>
             <FileManager
               files={files || []}
               onUpload={(fd) => tripStore.addFile(tripId, fd)}

@@ -38,7 +38,11 @@ A self-hosted, real-time collaborative travel planner for organizing trips with 
 - **Document Manager** — Attach documents, tickets, and PDFs to trips, places, or reservations (up to 50 MB per file)
 - **PDF Export** — Export complete trip plans as PDF with images and notes
 - **Multi-User** — Invite members to collaborate on shared trips with role-based access
-- **Admin Panel** — User management, create users, global categories, API key configuration, and backups
+- **Addon System** — Modular features that admins can enable/disable: Packing Lists, Budget, Documents, and global addons
+- **Vacay** — Personal vacation day planner with calendar view, public holidays (100+ countries), company holidays, user fusion with WebSocket live sync, and carry-over tracking
+- **Atlas** — Interactive world map showing visited countries with travel stats, continent breakdown, streak tracking, and country details on click
+- **Dashboard Widgets** — Currency converter and timezone clock, toggleable per user
+- **Admin Panel** — User management with online status, global categories, addon management, API key configuration, and backups
 - **Auto-Backups** — Scheduled backups with configurable interval and retention
 - **Route Optimization** — Auto-optimize place order and export to Google Maps
 - **Day Notes** — Add timestamped notes to individual days

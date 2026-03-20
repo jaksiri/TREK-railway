@@ -2,6 +2,99 @@
 @tailwind components;
 @tailwind utilities;
 
+html { height: 100%; overflow: hidden; }
+body { height: 100%; overflow: auto; overscroll-behavior: none; -webkit-overflow-scrolling: touch; }
+
+.atlas-tooltip {
+  background: rgba(10, 10, 20, 0.6) !important;
+  backdrop-filter: blur(20px) saturate(180%) !important;
+  -webkit-backdrop-filter: blur(20px) saturate(180%) !important;
+  color: #f1f5f9 !important;
+  border: 1px solid rgba(255,255,255,0.1) !important;
+  border-radius: 14px !important;
+  padding: 10px 14px !important;
+  font-size: 12px !important;
+  font-family: inherit !important;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.25) !important;
+  transition: none !important;
+}
+.atlas-tooltip::before { border-top-color: rgba(10, 10, 20, 0.6) !important; }
+html:not(.dark) .atlas-tooltip {
+  background: rgba(255, 255, 255, 0.75) !important;
+  color: #0f172a !important;
+  border: 1px solid rgba(0,0,0,0.08) !important;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.1) !important;
+}
+html:not(.dark) .atlas-tooltip::before { border-top-color: rgba(255, 255, 255, 0.75) !important; }
+.leaflet-tooltip.atlas-tooltip { opacity: 1 !important; }
+.leaflet-tooltip-pane { transition: none !important; }
+.leaflet-fade-anim .leaflet-tooltip { transition: none !important; opacity: 1 !important; }
+
+.dark .leaflet-control-zoom a {
+  background: rgba(10, 10, 20, 0.7) !important;
+  color: #e2e8f0 !important;
+  border-color: rgba(255, 255, 255, 0.1) !important;
+  backdrop-filter: blur(12px);
+}
+.dark .leaflet-control-zoom a:hover {
+  background: rgba(30, 30, 40, 0.8) !important;
+}
+@media (max-width: 767px) {
+  .leaflet-control-zoom { display: none !important; }
+}
+
+/* Dark mode overrides for pages using hardcoded slate-* Tailwind classes */
+html.dark .bg-slate-50 { background-color: var(--bg-secondary) !important; }
+html.dark .bg-white { background-color: var(--bg-card) !important; }
+html.dark .bg-slate-100 { background-color: var(--bg-secondary) !important; }
+html.dark .bg-slate-900.text-white { background-color: #e2e8f0 !important; color: #0f172a !important; }
+html.dark .border-slate-200, html.dark .border-slate-300 { border-color: var(--border-primary) !important; }
+html.dark .border-slate-100, html.dark .border-b-slate-100 { border-color: var(--border-secondary) !important; }
+html.dark .text-slate-900 { color: var(--text-primary) !important; }
+html.dark .text-slate-700 { color: var(--text-secondary) !important; }
+html.dark .text-slate-600 { color: var(--text-muted) !important; }
+html.dark .text-slate-500 { color: var(--text-muted) !important; }
+html.dark .text-slate-400 { color: var(--text-faint) !important; }
+html.dark .hover\:bg-slate-50:hover, html.dark .hover\:bg-slate-100:hover { background-color: var(--bg-hover) !important; }
+html.dark .hover\:text-slate-900:hover { color: var(--text-primary) !important; }
+html.dark .hover\:bg-slate-700:hover { background-color: var(--bg-hover) !important; }
+html.dark .divide-slate-100 > :not([hidden]) ~ :not([hidden]) { border-color: var(--border-secondary) !important; }
+html.dark .focus\:ring-slate-400:focus { --tw-ring-color: var(--text-faint) !important; }
+html.dark input[class*="border-slate"], html.dark input[class*="text-slate"] { background: var(--bg-secondary) !important; color: var(--text-primary) !important; border-color: var(--border-primary) !important; }
+html.dark .text-amber-900 { color: #fbbf24 !important; }
+html.dark .text-amber-700 { color: #f59e0b !important; }
+html.dark .bg-amber-50 { background-color: rgba(245,158,11,0.1) !important; }
+html.dark .border-amber-200 { border-color: rgba(245,158,11,0.2) !important; }
+html.dark .disabled\:bg-slate-400:disabled { background-color: var(--text-faint) !important; }
+html.dark button.bg-slate-900 { background-color: #e2e8f0 !important; color: #0f172a !important; opacity: 1 !important; }
+html.dark button.bg-slate-900:hover { background-color: #cbd5e1 !important; }
+html.dark button.bg-slate-900:disabled { background-color: #ffffff !important; color: #000000 !important; opacity: 0.4 !important; }
+html.dark span.bg-slate-900 { background-color: #e2e8f0 !important; color: #0f172a !important; }
+html.dark span.bg-slate-100 { background-color: var(--bg-secondary) !important; color: var(--text-muted) !important; }
+html.dark .border-b { border-bottom-color: var(--border-secondary) !important; }
+/* Gray variants (CategoryManager, BackupPanel) */
+html.dark .bg-gray-50 { background-color: var(--bg-secondary) !important; }
+html.dark .bg-gray-100 { background-color: var(--bg-secondary) !important; }
+html.dark .border-gray-200, html.dark .border-gray-300 { border-color: var(--border-primary) !important; }
+html.dark .border-gray-100 { border-color: var(--border-secondary) !important; }
+html.dark .text-gray-900 { color: var(--text-primary) !important; }
+html.dark .text-gray-700 { color: var(--text-secondary) !important; }
+html.dark .text-gray-600 { color: var(--text-muted) !important; }
+html.dark .text-gray-500 { color: var(--text-muted) !important; }
+html.dark .text-gray-400 { color: var(--text-faint) !important; }
+html.dark .text-gray-300 { color: var(--text-faint) !important; }
+html.dark .hover\:bg-gray-50:hover, html.dark .hover\:bg-gray-200:hover { background-color: var(--bg-hover) !important; }
+html.dark .hover\:border-gray-200:hover, html.dark .hover\:border-gray-400:hover { border-color: var(--border-primary) !important; }
+html.dark input.bg-white, html.dark input[class*="bg-white"] { background: var(--bg-secondary) !important; color: var(--text-primary) !important; }
+html.dark .bg-gray-200 { background-color: var(--border-primary) !important; }
+html.dark .border-gray-300.border-t-slate-600 { border-color: var(--border-primary) !important; border-top-color: var(--text-primary) !important; }
+/* Modal buttons */
+html.dark button[class*="text-slate-600"][class*="border-slate-200"] { color: var(--text-muted) !important; border-color: var(--border-primary) !important; }
+html.dark button[class*="text-slate-600"][class*="border-slate-200"]:hover { background: var(--bg-hover) !important; }
+/* Dashed borders */
+html.dark .border-dashed.border-gray-300 { border-color: var(--border-primary) !important; }
+html.dark .bg-slate-50\/60, html.dark [class*="bg-slate-50/"] { background-color: transparent !important; }
+
 /* Reorder buttons: desktop = original style; mobile = always visible, larger touch targets */
 .reorder-buttons {
   flex-direction: column;

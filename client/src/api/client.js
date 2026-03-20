@@ -127,6 +127,12 @@ export const adminApi = {
   saveDemoBaseline: () => apiClient.post('/admin/save-demo-baseline').then(r => r.data),
   getOidc: () => apiClient.get('/admin/oidc').then(r => r.data),
   updateOidc: (data) => apiClient.put('/admin/oidc', data).then(r => r.data),
+  addons: () => apiClient.get('/admin/addons').then(r => r.data),
+  updateAddon: (id, data) => apiClient.put(`/admin/addons/${id}`, data).then(r => r.data),
+}
+
+export const addonsApi = {
+  enabled: () => apiClient.get('/addons').then(r => r.data),
 }
 
 export const mapsApi = {

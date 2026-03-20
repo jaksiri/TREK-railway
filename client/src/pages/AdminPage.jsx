@@ -9,6 +9,7 @@ import Modal from '../components/shared/Modal'
 import { useToast } from '../components/shared/Toast'
 import CategoryManager from '../components/Admin/CategoryManager'
 import BackupPanel from '../components/Admin/BackupPanel'
+import AddonManager from '../components/Admin/AddonManager'
 import { Users, Map, Briefcase, Shield, Trash2, Edit2, Camera, FileText, Eye, EyeOff, Save, CheckCircle, XCircle, Loader2, UserPlus } from 'lucide-react'
 import CustomSelect from '../components/shared/CustomSelect'
 
@@ -19,6 +20,7 @@ export default function AdminPage() {
   const TABS = [
     { id: 'users', label: t('admin.tabs.users') },
     { id: 'categories', label: t('admin.tabs.categories') },
+    { id: 'addons', label: t('admin.tabs.addons') },
     { id: 'settings', label: t('admin.tabs.settings') },
     { id: 'backup', label: t('admin.tabs.backup') },
   ]
@@ -204,7 +206,7 @@ export default function AdminPage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen" style={{ background: 'var(--bg-secondary)' }}>
       <Navbar />
 
       <div className="pt-14">
@@ -266,12 +268,12 @@ export default function AdminPage() {
           )}
 
           {/* Tabs */}
-          <div className="flex gap-1 mb-6 bg-white border border-slate-200 rounded-xl p-1 w-fit">
+          <div className="grid grid-cols-3 sm:flex gap-1 mb-6 rounded-xl p-1" style={{ background: 'var(--bg-card)', border: '1px solid var(--border-primary)' }}>
             {TABS.map(tab => (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
+                className={`px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium rounded-lg transition-colors ${
                   activeTab === tab.id
                     ? 'bg-slate-900 text-white'
                     : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
@@ -286,7 +288,10 @@ export default function AdminPage() {
           {activeTab === 'users' && (
             <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
               <div className="p-5 border-b border-slate-100 flex items-center justify-between">
-                <h2 className="font-semibold text-slate-900">{t('admin.tabs.users')} ({users.length})</h2>
+                <div>
+                  <h2 className="font-semibold text-slate-900">{t('admin.tabs.users')}</h2>
+                  <p className="text-xs text-slate-400 mt-1">{users.length} {t('admin.stats.users')}</p>
+                </div>
                 <button
                   onClick={() => setShowCreateUser(true)}
                   className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-slate-900 text-white rounded-lg hover:bg-slate-700 transition-colors"
@@ -318,8 +323,11 @@ export default function AdminPage() {
                         <tr key={u.id} className={`hover:bg-slate-50 transition-colors ${u.id === currentUser?.id ? 'bg-slate-50/60' : ''}`}>
                           <td className="px-5 py-3">
                             <div className="flex items-center gap-2">
-                              <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-sm font-medium text-slate-700">
-                                {u.username.charAt(0).toUpperCase()}
+                              <div className="relative">
+                                <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-sm font-medium text-slate-700">
+                                  {u.username.charAt(0).toUpperCase()}
+                                </div>
+                                <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2" style={{ borderColor: 'var(--bg-card)', background: u.online ? '#22c55e' : '#94a3b8' }} />
                               </div>
                               <div>
                                 <p className="text-sm font-medium text-slate-900">{u.username}</p>
@@ -376,6 +384,8 @@ export default function AdminPage() {
 
           {activeTab === 'categories' && <CategoryManager />}
 
+          {activeTab === 'addons' && <AddonManager />}
+
           {activeTab === 'settings' && (
             <div className="space-y-6">
               {/* Registration Toggle */}
@@ -409,6 +419,7 @@ export default function AdminPage() {
               <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
                 <div className="px-6 py-4 border-b border-slate-100">
                   <h2 className="font-semibold text-slate-900">{t('admin.apiKeys')}</h2>
+                  <p className="text-xs text-slate-400 mt-1">{t('admin.apiKeysHint')}</p>
                 </div>
                 <div className="p-6 space-y-4">
                   {/* Google Maps Key */}
@@ -529,7 +540,7 @@ export default function AdminPage() {
               <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
                 <div className="px-6 py-4 border-b border-slate-100">
                   <h2 className="font-semibold text-slate-900">{t('admin.oidcTitle')}</h2>
-                  <p className="text-xs text-slate-400 mt-0.5">{t('admin.oidcSubtitle')}</p>
+                  <p className="text-xs text-slate-400 mt-1">{t('admin.oidcSubtitle')}</p>
                 </div>
                 <div className="p-6 space-y-4">
                   <div>

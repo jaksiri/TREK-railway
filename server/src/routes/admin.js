@@ -13,7 +13,14 @@ router.get('/users', (req, res) => {
   const users = db.prepare(
     'SELECT id, username, email, role, created_at, updated_at, last_login FROM users ORDER BY created_at DESC'
   ).all();
-  res.json({ users });
+  // Add online status from WebSocket connections
+  let onlineUserIds = new Set();
+  try {
+    const { getOnlineUserIds } = require('../websocket');
+    onlineUserIds = getOnlineUserIds();
+  } catch { /* */ }
+  const usersWithStatus = users.map(u => ({ ...u, online: onlineUserIds.has(u.id) }));
+  res.json({ users: usersWithStatus });
 });
 
 // POST /api/admin/users
@@ -143,6 +150,23 @@ router.post('/save-demo-baseline', (req, res) => {
   } catch (err) {
     res.status(500).json({ error: 'Failed to save baseline: ' + err.message });
   }
+});
+
+// ── Addons ─────────────────────────────────────────────────
+
+router.get('/addons', (req, res) => {
+  const addons = db.prepare('SELECT * FROM addons ORDER BY sort_order, id').all();
+  res.json({ addons: addons.map(a => ({ ...a, enabled: !!a.enabled, config: JSON.parse(a.config || '{}') })) });
+});
+
+router.put('/addons/:id', (req, res) => {
+  const addon = db.prepare('SELECT * FROM addons WHERE id = ?').get(req.params.id);
+  if (!addon) return res.status(404).json({ error: 'Addon not found' });
+  const { enabled, config } = req.body;
+  if (enabled !== undefined) db.prepare('UPDATE addons SET enabled = ? WHERE id = ?').run(enabled ? 1 : 0, req.params.id);
+  if (config !== undefined) db.prepare('UPDATE addons SET config = ? WHERE id = ?').run(JSON.stringify(config), req.params.id);
+  const updated = db.prepare('SELECT * FROM addons WHERE id = ?').get(req.params.id);
+  res.json({ addon: { ...updated, enabled: !!updated.enabled, config: JSON.parse(updated.config || '{}') } });
 });
 
 module.exports = router;

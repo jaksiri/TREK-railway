@@ -10,6 +10,8 @@ import TripPlannerPage from './pages/TripPlannerPage'
 import FilesPage from './pages/FilesPage'
 import AdminPage from './pages/AdminPage'
 import SettingsPage from './pages/SettingsPage'
+import VacayPage from './pages/VacayPage'
+import AtlasPage from './pages/AtlasPage'
 import { ToastContainer } from './components/shared/Toast'
 import { TranslationProvider } from './i18n'
 import DemoBanner from './components/Layout/DemoBanner'
@@ -33,7 +35,7 @@ function ProtectedRoute({ children, adminRequired = false }) {
     return <Navigate to="/login" replace />
   }
 
-  if (adminRequired && user?.role !== 'admin') {
+  if (adminRequired && user && user.role !== 'admin') {
     return <Navigate to="/dashboard" replace />
   }
 
@@ -129,6 +131,22 @@ export default function App() {
           element={
             <ProtectedRoute>
               <SettingsPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/vacay"
+          element={
+            <ProtectedRoute>
+              <VacayPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/atlas"
+          element={
+            <ProtectedRoute>
+              <AtlasPage />
             </ProtectedRoute>
           }
         />

@@ -190,13 +190,14 @@ export default function CategoryManager() {
     <div className="bg-white rounded-2xl border border-gray-200 p-6">
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h2 className="text-lg font-semibold text-gray-900">{t('categories.title')}</h2>
-          <p className="text-sm text-gray-500 mt-0.5">{t('categories.subtitle')}</p>
+          <h2 className="font-semibold" style={{ color: 'var(--text-primary)' }}>{t('categories.title')}</h2>
+          <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>{t('categories.subtitle')}</p>
         </div>
         <button onClick={handleStartCreate}
-          className="flex items-center gap-2 bg-slate-900 text-white px-4 py-2 rounded-lg hover:bg-slate-700 text-sm font-medium">
+          className="flex items-center gap-2 bg-slate-900 text-white px-3 sm:px-4 py-2 rounded-lg hover:bg-slate-700 text-sm font-medium">
           <Plus className="w-4 h-4" />
-          {t('categories.new')}
+          <span className="hidden sm:inline">{t('categories.new')}</span>
+          <span className="sm:hidden">Add</span>
         </button>
       </div>
 

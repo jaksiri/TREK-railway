@@ -300,9 +300,9 @@ export default function PlaceFormModal({
 
         {/* Reservation */}
         <div className="border border-gray-200 rounded-xl p-3 space-y-3">
-          <div className="flex items-center gap-3">
-            <label className="block text-sm font-medium text-gray-700">{t('places.formReservation')}</label>
-            <div className="flex gap-2">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
+            <label className="block text-sm font-medium text-gray-700 shrink-0">{t('places.formReservation')}</label>
+            <div className="flex gap-2 flex-wrap">
               {['none', 'pending', 'confirmed'].map(status => (
                 <button
                   key={status}

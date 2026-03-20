@@ -211,6 +211,82 @@ function initDb() {
       sort_order INTEGER DEFAULT 0,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
+
+    -- Addon system
+    CREATE TABLE IF NOT EXISTS addons (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      description TEXT,
+      type TEXT NOT NULL DEFAULT 'global',
+      icon TEXT DEFAULT 'Puzzle',
+      enabled INTEGER DEFAULT 0,
+      config TEXT DEFAULT '{}',
+      sort_order INTEGER DEFAULT 0
+    );
+
+    -- Vacay addon tables
+    CREATE TABLE IF NOT EXISTS vacay_plans (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      owner_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      block_weekends INTEGER DEFAULT 1,
+      holidays_enabled INTEGER DEFAULT 0,
+      holidays_region TEXT DEFAULT '',
+      company_holidays_enabled INTEGER DEFAULT 1,
+      carry_over_enabled INTEGER DEFAULT 1,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(owner_id)
+    );
+
+    CREATE TABLE IF NOT EXISTS vacay_plan_members (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      plan_id INTEGER NOT NULL REFERENCES vacay_plans(id) ON DELETE CASCADE,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      status TEXT DEFAULT 'pending',
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(plan_id, user_id)
+    );
+
+    CREATE TABLE IF NOT EXISTS vacay_user_colors (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      plan_id INTEGER NOT NULL REFERENCES vacay_plans(id) ON DELETE CASCADE,
+      color TEXT DEFAULT '#6366f1',
+      UNIQUE(user_id, plan_id)
+    );
+
+    CREATE TABLE IF NOT EXISTS vacay_years (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      plan_id INTEGER NOT NULL REFERENCES vacay_plans(id) ON DELETE CASCADE,
+      year INTEGER NOT NULL,
+      UNIQUE(plan_id, year)
+    );
+
+    CREATE TABLE IF NOT EXISTS vacay_user_years (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      plan_id INTEGER NOT NULL REFERENCES vacay_plans(id) ON DELETE CASCADE,
+      year INTEGER NOT NULL,
+      vacation_days INTEGER DEFAULT 30,
+      carried_over INTEGER DEFAULT 0,
+      UNIQUE(user_id, plan_id, year)
+    );
+
+    CREATE TABLE IF NOT EXISTS vacay_entries (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      plan_id INTEGER NOT NULL REFERENCES vacay_plans(id) ON DELETE CASCADE,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      date TEXT NOT NULL,
+      note TEXT DEFAULT '',
+      UNIQUE(user_id, plan_id, date)
+    );
+
+    CREATE TABLE IF NOT EXISTS vacay_company_holidays (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      plan_id INTEGER NOT NULL REFERENCES vacay_plans(id) ON DELETE CASCADE,
+      date TEXT NOT NULL,
+      note TEXT DEFAULT '',
+      UNIQUE(plan_id, date)
+    );
   `);
 
   // Create indexes for performance
@@ -306,6 +382,25 @@ function initDb() {
     }
   } catch (err) {
     console.error('Error seeding categories:', err.message);
+  }
+
+  // Seed: default addons
+  try {
+    const existingAddons = _db.prepare('SELECT COUNT(*) as count FROM addons').get();
+    if (existingAddons.count === 0) {
+      const defaultAddons = [
+        { id: 'packing', name: 'Packing List', description: 'Pack your bags with checklists per trip', type: 'trip', icon: 'ListChecks', sort_order: 0 },
+        { id: 'budget', name: 'Budget Planner', description: 'Track expenses and plan your travel budget', type: 'trip', icon: 'Wallet', sort_order: 1 },
+        { id: 'documents', name: 'Documents', description: 'Store and manage travel documents', type: 'trip', icon: 'FileText', sort_order: 2 },
+        { id: 'vacay', name: 'Vacay', description: 'Personal vacation day planner with calendar view', type: 'global', icon: 'CalendarDays', sort_order: 10 },
+        { id: 'atlas', name: 'Atlas', description: 'World map of your visited countries with travel stats', type: 'global', icon: 'Globe', sort_order: 11 },
+      ];
+      const insertAddon = _db.prepare('INSERT INTO addons (id, name, description, type, icon, enabled, sort_order) VALUES (?, ?, ?, ?, ?, 1, ?)');
+      for (const a of defaultAddons) insertAddon.run(a.id, a.name, a.description, a.type, a.icon, a.sort_order);
+      console.log('Default addons seeded');
+    }
+  } catch (err) {
+    console.error('Error seeding addons:', err.message);
   }
 }
 

@@ -153,8 +153,8 @@ export default function BackupPanel() {
           <div className="flex items-center gap-3">
             <HardDrive className="w-5 h-5 text-gray-400" />
             <div>
-              <h2 className="text-lg font-semibold text-gray-900">{t('backup.title')}</h2>
-              <p className="text-sm text-gray-500 mt-0.5">{t('backup.subtitle')}</p>
+              <h2 className="font-semibold" style={{ color: 'var(--text-primary)' }}>{t('backup.title')}</h2>
+              <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>{t('backup.subtitle')}</p>
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -179,26 +179,28 @@ export default function BackupPanel() {
               onClick={() => fileInputRef.current?.click()}
               disabled={isUploading}
               className="flex items-center gap-2 border border-gray-200 text-gray-700 px-3 py-2 rounded-lg hover:bg-gray-50 text-sm font-medium disabled:opacity-60"
+              title={isUploading ? t('backup.uploading') : t('backup.upload')}
             >
               {isUploading ? (
                 <div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
               ) : (
                 <Upload className="w-4 h-4" />
               )}
-              {isUploading ? t('backup.uploading') : t('backup.upload')}
+              <span className="hidden sm:inline">{isUploading ? t('backup.uploading') : t('backup.upload')}</span>
             </button>
 
             <button
               onClick={handleCreate}
               disabled={isCreating}
-              className="flex items-center gap-2 bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 px-4 py-2 rounded-lg hover:bg-slate-900 text-sm font-medium disabled:opacity-60"
+              className="flex items-center gap-2 bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 px-3 sm:px-4 py-2 rounded-lg hover:bg-slate-900 text-sm font-medium disabled:opacity-60"
+              title={isCreating ? t('backup.creating') : t('backup.create')}
             >
               {isCreating ? (
                 <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
               ) : (
                 <Plus className="w-4 h-4" />
               )}
-              {isCreating ? t('backup.creating') : t('backup.create')}
+              <span className="hidden sm:inline">{isCreating ? t('backup.creating') : t('backup.create')}</span>
             </button>
           </div>
         </div>
@@ -275,23 +277,23 @@ export default function BackupPanel() {
         <div className="flex items-center gap-3 mb-6">
           <Clock className="w-5 h-5 text-gray-400" />
           <div>
-            <h2 className="text-lg font-semibold text-gray-900">{t('backup.auto.title')}</h2>
-            <p className="text-sm text-gray-500 mt-0.5">{t('backup.auto.subtitle')}</p>
+            <h2 className="font-semibold" style={{ color: 'var(--text-primary)' }}>{t('backup.auto.title')}</h2>
+            <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>{t('backup.auto.subtitle')}</p>
           </div>
         </div>
 
         <div className="flex flex-col gap-5">
           {/* Enable toggle */}
-          <label className="flex items-center justify-between cursor-pointer">
-            <div>
+          <label className="flex items-center justify-between gap-4 cursor-pointer">
+            <div className="min-w-0">
               <span className="text-sm font-medium text-gray-900">{t('backup.auto.enable')}</span>
               <p className="text-xs text-gray-500 mt-0.5">{t('backup.auto.enableHint')}</p>
             </div>
             <button
               onClick={() => handleAutoSettingsChange('enabled', !autoSettings.enabled)}
-              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${autoSettings.enabled ? 'bg-slate-900 dark:bg-slate-100' : 'bg-gray-200 dark:bg-gray-600'}`}
+              className={`relative shrink-0 inline-flex h-6 w-11 items-center rounded-full transition-colors ${autoSettings.enabled ? 'bg-slate-900 dark:bg-slate-100' : 'bg-gray-200 dark:bg-gray-600'}`}
             >
-              <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${autoSettings.enabled ? 'translate-x-6' : 'translate-x-1'}`} />
+              <span className={`absolute left-1 h-4 w-4 rounded-full bg-white shadow transition-transform duration-200 ${autoSettings.enabled ? 'translate-x-5' : 'translate-x-0'}`} />
             </button>
           </label>
 
