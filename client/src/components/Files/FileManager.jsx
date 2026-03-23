@@ -1,4 +1,5 @@
 import React, { useState, useCallback } from 'react'
+import ReactDOM from 'react-dom'
 import { useDropzone } from 'react-dropzone'
 import { Upload, Trash2, ExternalLink, X, FileText, FileImage, File, MapPin, Ticket } from 'lucide-react'
 import { useToast } from '../shared/Toast'
@@ -138,14 +139,14 @@ export default function FileManager({ files = [], onUpload, onDelete, onUpdate, 
       {/* Lightbox */}
       {lightboxFile && <ImageLightbox file={lightboxFile} onClose={() => setLightboxFile(null)} />}
 
-      {/* Datei-Vorschau Modal */}
-      {previewFile && (
+      {/* Datei-Vorschau Modal — portal to body to escape stacking context */}
+      {previewFile && ReactDOM.createPortal(
         <div
-          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 8 }}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}
           onClick={() => setPreviewFile(null)}
         >
           <div
-            style={{ width: '100%', maxWidth: 950, height: '95vh', background: 'var(--bg-card)', borderRadius: 12, overflow: 'hidden', display: 'flex', flexDirection: 'column', boxShadow: '0 20px 60px rgba(0,0,0,0.3)' }}
+            style={{ width: '100%', maxWidth: 950, height: '94vh', background: 'var(--bg-card)', borderRadius: 12, overflow: 'hidden', display: 'flex', flexDirection: 'column', boxShadow: '0 20px 60px rgba(0,0,0,0.3)' }}
             onClick={e => e.stopPropagation()}
           >
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 16px', borderBottom: '1px solid var(--border-primary)', flexShrink: 0 }}>
@@ -176,7 +177,8 @@ export default function FileManager({ files = [], onUpload, onDelete, onUpdate, 
               </p>
             </object>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Header */}
