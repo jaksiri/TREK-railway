@@ -226,9 +226,6 @@ export default function DayDetailPanel({ day, days, places, categories = [], tri
             )
           )}
 
-          {/* Divider */}
-          {day.date && lat && lng && <div style={{ height: 1, background: 'var(--border-faint)', margin: '12px 0' }} />}
-
           {/* ── Reservations for this day's assignments ── */}
           {(() => {
             const dayAssignments = assignments[String(day.id)] || []
@@ -236,6 +233,7 @@ export default function DayDetailPanel({ day, days, places, categories = [], tri
             if (dayReservations.length === 0) return null
             return (
               <div style={{ marginBottom: 0 }}>
+                {day.date && lat && lng && <div style={{ height: 1, background: 'var(--border-faint)', margin: '12px 0' }} />}
                 <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-faint)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>{t('day.reservations')}</div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                   {dayReservations.map(r => {
