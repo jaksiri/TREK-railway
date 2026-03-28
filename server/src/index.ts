@@ -63,6 +63,7 @@ app.use(helmet({
     }
   },
   crossOriginEmbedderPolicy: false,
+  hsts: process.env.FORCE_HTTPS === 'true' ? { maxAge: 31536000, includeSubDomains: false } : false,
 }));
 // Redirect HTTP to HTTPS (opt-in via FORCE_HTTPS=true)
 if (process.env.FORCE_HTTPS === 'true') {
