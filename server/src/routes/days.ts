@@ -4,7 +4,7 @@ import { authenticate } from '../middleware/auth';
 import { requireTripAccess } from '../middleware/tripAccess';
 import { broadcast } from '../websocket';
 import { loadTagsByPlaceIds, loadParticipantsByAssignmentIds, formatAssignmentWithPlace } from '../services/queryHelpers';
-import { StringParams, AuthRequest, AssignmentRow, Day, DayNote } from '../types';
+import { AuthRequest, AssignmentRow, Day, DayNote } from '../types';
 
 const router = express.Router({ mergeParams: true });
 
@@ -68,7 +68,7 @@ function getAssignmentsForDay(dayId: number | string) {
   });
 }
 
-router.get('/', authenticate, requireTripAccess, (req: Request<StringParams>, res: Response) => {
+router.get('/', authenticate, requireTripAccess, (req: Request, res: Response) => {
   const { tripId } = req.params;
 
   const days = db.prepare('SELECT * FROM days WHERE trip_id = ? ORDER BY day_number ASC').all(tripId) as Day[];
@@ -125,7 +125,7 @@ router.get('/', authenticate, requireTripAccess, (req: Request<StringParams>, re
   res.json({ days: daysWithAssignments });
 });
 
-router.post('/', authenticate, requireTripAccess, (req: Request<StringParams>, res: Response) => {
+router.post('/', authenticate, requireTripAccess, (req: Request, res: Response) => {
   const { tripId } = req.params;
   const { date, notes } = req.body;
 
@@ -143,7 +143,7 @@ router.post('/', authenticate, requireTripAccess, (req: Request<StringParams>, r
   broadcast(tripId, 'day:created', { day: dayResult }, req.headers['x-socket-id'] as string);
 });
 
-router.put('/:id', authenticate, requireTripAccess, (req: Request<StringParams>, res: Response) => {
+router.put('/:id', authenticate, requireTripAccess, (req: Request, res: Response) => {
   const { tripId, id } = req.params;
 
   const day = db.prepare('SELECT * FROM days WHERE id = ? AND trip_id = ?').get(id, tripId) as Day | undefined;
@@ -160,7 +160,7 @@ router.put('/:id', authenticate, requireTripAccess, (req: Request<StringParams>,
   broadcast(tripId, 'day:updated', { day: dayWithAssignments }, req.headers['x-socket-id'] as string);
 });
 
-router.delete('/:id', authenticate, requireTripAccess, (req: Request<StringParams>, res: Response) => {
+router.delete('/:id', authenticate, requireTripAccess, (req: Request, res: Response) => {
   const { tripId, id } = req.params;
 
   const day = db.prepare('SELECT * FROM days WHERE id = ? AND trip_id = ?').get(id, tripId);
@@ -184,7 +184,7 @@ function getAccommodationWithPlace(id: number | bigint) {
   `).get(id);
 }
 
-accommodationsRouter.get('/', authenticate, requireTripAccess, (req: Request<StringParams>, res: Response) => {
+accommodationsRouter.get('/', authenticate, requireTripAccess, (req: Request, res: Response) => {
   const { tripId } = req.params;
 
   const accommodations = db.prepare(`
@@ -198,7 +198,7 @@ accommodationsRouter.get('/', authenticate, requireTripAccess, (req: Request<Str
   res.json({ accommodations });
 });
 
-accommodationsRouter.post('/', authenticate, requireTripAccess, (req: Request<StringParams>, res: Response) => {
+accommodationsRouter.post('/', authenticate, requireTripAccess, (req: Request, res: Response) => {
   const { tripId } = req.params;
   const { place_id, start_day_id, end_day_id, check_in, check_out, confirmation, notes } = req.body;
 
@@ -242,7 +242,7 @@ accommodationsRouter.post('/', authenticate, requireTripAccess, (req: Request<St
   broadcast(tripId, 'reservation:created', {}, req.headers['x-socket-id'] as string);
 });
 
-accommodationsRouter.put('/:id', authenticate, requireTripAccess, (req: Request<StringParams>, res: Response) => {
+accommodationsRouter.put('/:id', authenticate, requireTripAccess, (req: Request, res: Response) => {
   const { tripId, id } = req.params;
 
   interface DayAccommodation { id: number; trip_id: number; place_id: number; start_day_id: number; end_day_id: number; check_in: string | null; check_out: string | null; confirmation: string | null; notes: string | null; }
@@ -293,7 +293,7 @@ accommodationsRouter.put('/:id', authenticate, requireTripAccess, (req: Request<
   broadcast(tripId, 'accommodation:updated', { accommodation }, req.headers['x-socket-id'] as string);
 });
 
-accommodationsRouter.delete('/:id', authenticate, requireTripAccess, (req: Request<StringParams>, res: Response) => {
+accommodationsRouter.delete('/:id', authenticate, requireTripAccess, (req: Request, res: Response) => {
   const { tripId, id } = req.params;
 
   const existing = db.prepare('SELECT * FROM day_accommodations WHERE id = ? AND trip_id = ?').get(id, tripId);

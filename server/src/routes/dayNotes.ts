@@ -3,7 +3,7 @@ import { db, canAccessTrip } from '../db/database';
 import { authenticate } from '../middleware/auth';
 import { broadcast } from '../websocket';
 import { validateStringLengths } from '../middleware/validate';
-import { StringParams, AuthRequest, DayNote } from '../types';
+import { AuthRequest, DayNote } from '../types';
 
 const router = express.Router({ mergeParams: true });
 
@@ -11,7 +11,7 @@ function verifyAccess(tripId: string | number, userId: number) {
   return canAccessTrip(tripId, userId);
 }
 
-router.get('/', authenticate, (req: Request<StringParams>, res: Response) => {
+router.get('/', authenticate, (req: Request, res: Response) => {
   const authReq = req as AuthRequest;
   const { tripId, dayId } = req.params;
   if (!verifyAccess(tripId, authReq.user.id)) return res.status(404).json({ error: 'Trip not found' });
@@ -23,7 +23,7 @@ router.get('/', authenticate, (req: Request<StringParams>, res: Response) => {
   res.json({ notes });
 });
 
-router.post('/', authenticate, validateStringLengths({ text: 500, time: 150 }), (req: Request<StringParams>, res: Response) => {
+router.post('/', authenticate, validateStringLengths({ text: 500, time: 150 }), (req: Request, res: Response) => {
   const authReq = req as AuthRequest;
   const { tripId, dayId } = req.params;
   if (!verifyAccess(tripId, authReq.user.id)) return res.status(404).json({ error: 'Trip not found' });
@@ -43,7 +43,7 @@ router.post('/', authenticate, validateStringLengths({ text: 500, time: 150 }), 
   broadcast(tripId, 'dayNote:created', { dayId: Number(dayId), note }, req.headers['x-socket-id'] as string);
 });
 
-router.put('/:id', authenticate, validateStringLengths({ text: 500, time: 150 }), (req: Request<StringParams>, res: Response) => {
+router.put('/:id', authenticate, validateStringLengths({ text: 500, time: 150 }), (req: Request, res: Response) => {
   const authReq = req as AuthRequest;
   const { tripId, dayId, id } = req.params;
   if (!verifyAccess(tripId, authReq.user.id)) return res.status(404).json({ error: 'Trip not found' });
@@ -67,7 +67,7 @@ router.put('/:id', authenticate, validateStringLengths({ text: 500, time: 150 })
   broadcast(tripId, 'dayNote:updated', { dayId: Number(dayId), note: updated }, req.headers['x-socket-id'] as string);
 });
 
-router.delete('/:id', authenticate, (req: Request<StringParams>, res: Response) => {
+router.delete('/:id', authenticate, (req: Request, res: Response) => {
   const authReq = req as AuthRequest;
   const { tripId, dayId, id } = req.params;
   if (!verifyAccess(tripId, authReq.user.id)) return res.status(404).json({ error: 'Trip not found' });

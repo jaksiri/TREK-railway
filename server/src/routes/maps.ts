@@ -2,7 +2,7 @@ import express, { Request, Response } from 'express';
 import fetch from 'node-fetch';
 import { db } from '../db/database';
 import { authenticate } from '../middleware/auth';
-import { StringParams, AuthRequest } from '../types';
+import { AuthRequest } from '../types';
 
 interface NominatimResult {
   osm_type: string;
@@ -247,7 +247,7 @@ async function searchNominatim(query: string, lang?: string) {
   }));
 }
 
-router.post('/search', authenticate, async (req: Request<StringParams>, res: Response) => {
+router.post('/search', authenticate, async (req: Request, res: Response) => {
   const authReq = req as AuthRequest;
   const { query } = req.body;
 
@@ -301,7 +301,7 @@ router.post('/search', authenticate, async (req: Request<StringParams>, res: Res
   }
 });
 
-router.get('/details/:placeId', authenticate, async (req: Request<StringParams>, res: Response) => {
+router.get('/details/:placeId', authenticate, async (req: Request, res: Response) => {
   const authReq = req as AuthRequest;
   const { placeId } = req.params;
 
@@ -372,7 +372,7 @@ router.get('/details/:placeId', authenticate, async (req: Request<StringParams>,
   }
 });
 
-router.get('/place-photo/:placeId', authenticate, async (req: Request<StringParams>, res: Response) => {
+router.get('/place-photo/:placeId', authenticate, async (req: Request, res: Response) => {
   const authReq = req as AuthRequest;
   const { placeId } = req.params;
 
@@ -453,7 +453,7 @@ router.get('/place-photo/:placeId', authenticate, async (req: Request<StringPara
 });
 
 // Reverse geocoding via Nominatim
-router.get('/reverse', authenticate, async (req: Request<StringParams>, res: Response) => {
+router.get('/reverse', authenticate, async (req: Request, res: Response) => {
   const { lat, lng, lang } = req.query as { lat: string; lng: string; lang?: string };
   if (!lat || !lng) return res.status(400).json({ error: 'lat and lng required' });
   try {

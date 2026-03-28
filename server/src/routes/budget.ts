@@ -2,7 +2,7 @@ import express, { Request, Response } from 'express';
 import { db, canAccessTrip } from '../db/database';
 import { authenticate } from '../middleware/auth';
 import { broadcast } from '../websocket';
-import { StringParams, AuthRequest, BudgetItem, BudgetItemMember } from '../types';
+import { AuthRequest, BudgetItem, BudgetItemMember } from '../types';
 
 const router = express.Router({ mergeParams: true });
 
@@ -23,7 +23,7 @@ function avatarUrl(user: { avatar?: string | null }): string | null {
   return user.avatar ? `/uploads/avatars/${user.avatar}` : null;
 }
 
-router.get('/', authenticate, (req: Request<StringParams>, res: Response) => {
+router.get('/', authenticate, (req: Request, res: Response) => {
   const authReq = req as AuthRequest;
   const { tripId } = req.params;
 
@@ -55,7 +55,7 @@ router.get('/', authenticate, (req: Request<StringParams>, res: Response) => {
   res.json({ items });
 });
 
-router.get('/summary/per-person', authenticate, (req: Request<StringParams>, res: Response) => {
+router.get('/summary/per-person', authenticate, (req: Request, res: Response) => {
   const authReq = req as AuthRequest;
   const { tripId } = req.params;
   if (!canAccessTrip(Number(tripId), authReq.user.id)) return res.status(404).json({ error: 'Trip not found' });
@@ -75,7 +75,7 @@ router.get('/summary/per-person', authenticate, (req: Request<StringParams>, res
   res.json({ summary: summary.map(s => ({ ...s, avatar_url: avatarUrl(s) })) });
 });
 
-router.post('/', authenticate, (req: Request<StringParams>, res: Response) => {
+router.post('/', authenticate, (req: Request, res: Response) => {
   const authReq = req as AuthRequest;
   const { tripId } = req.params;
   const { category, name, total_price, persons, days, note } = req.body;
@@ -107,7 +107,7 @@ router.post('/', authenticate, (req: Request<StringParams>, res: Response) => {
   broadcast(tripId, 'budget:created', { item }, req.headers['x-socket-id'] as string);
 });
 
-router.put('/:id', authenticate, (req: Request<StringParams>, res: Response) => {
+router.put('/:id', authenticate, (req: Request, res: Response) => {
   const authReq = req as AuthRequest;
   const { tripId, id } = req.params;
   const { category, name, total_price, persons, days, note, sort_order } = req.body;
@@ -145,7 +145,7 @@ router.put('/:id', authenticate, (req: Request<StringParams>, res: Response) => 
   broadcast(tripId, 'budget:updated', { item: updated }, req.headers['x-socket-id'] as string);
 });
 
-router.put('/:id/members', authenticate, (req: Request<StringParams>, res: Response) => {
+router.put('/:id/members', authenticate, (req: Request, res: Response) => {
   const authReq = req as AuthRequest;
   const { tripId, id } = req.params;
   if (!canAccessTrip(Number(tripId), authReq.user.id)) return res.status(404).json({ error: 'Trip not found' });
@@ -175,7 +175,7 @@ router.put('/:id/members', authenticate, (req: Request<StringParams>, res: Respo
   broadcast(Number(tripId), 'budget:members-updated', { itemId: Number(id), members, persons: (updated as BudgetItem).persons }, req.headers['x-socket-id'] as string);
 });
 
-router.put('/:id/members/:userId/paid', authenticate, (req: Request<StringParams>, res: Response) => {
+router.put('/:id/members/:userId/paid', authenticate, (req: Request, res: Response) => {
   const authReq = req as AuthRequest;
   const { tripId, id, userId } = req.params;
   if (!canAccessTrip(Number(tripId), authReq.user.id)) return res.status(404).json({ error: 'Trip not found' });
@@ -195,7 +195,7 @@ router.put('/:id/members/:userId/paid', authenticate, (req: Request<StringParams
   broadcast(Number(tripId), 'budget:member-paid-updated', { itemId: Number(id), userId: Number(userId), paid: paid ? 1 : 0 }, req.headers['x-socket-id'] as string);
 });
 
-router.delete('/:id', authenticate, (req: Request<StringParams>, res: Response) => {
+router.delete('/:id', authenticate, (req: Request, res: Response) => {
   const authReq = req as AuthRequest;
   const { tripId, id } = req.params;
 

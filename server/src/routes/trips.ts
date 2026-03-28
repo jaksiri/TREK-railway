@@ -6,7 +6,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { db, canAccessTrip, isOwner } from '../db/database';
 import { authenticate, demoUploadBlock } from '../middleware/auth';
 import { broadcast } from '../websocket';
-import { StringParams, AuthRequest, Trip, User } from '../types';
+import { AuthRequest, Trip, User } from '../types';
 
 const router = express.Router();
 
@@ -120,7 +120,7 @@ function generateDays(tripId: number | bigint | string, startDate: string | null
   }
 }
 
-router.get('/', authenticate, (req: Request<StringParams>, res: Response) => {
+router.get('/', authenticate, (req: Request, res: Response) => {
   const authReq = req as AuthRequest;
   const archived = req.query.archived === '1' ? 1 : 0;
   const userId = authReq.user.id;
@@ -133,7 +133,7 @@ router.get('/', authenticate, (req: Request<StringParams>, res: Response) => {
   res.json({ trips });
 });
 
-router.post('/', authenticate, (req: Request<StringParams>, res: Response) => {
+router.post('/', authenticate, (req: Request, res: Response) => {
   const authReq = req as AuthRequest;
   const { title, description, start_date, end_date, currency } = req.body;
   if (!title) return res.status(400).json({ error: 'Title is required' });
@@ -151,7 +151,7 @@ router.post('/', authenticate, (req: Request<StringParams>, res: Response) => {
   res.status(201).json({ trip });
 });
 
-router.get('/:id', authenticate, (req: Request<StringParams>, res: Response) => {
+router.get('/:id', authenticate, (req: Request, res: Response) => {
   const authReq = req as AuthRequest;
   const userId = authReq.user.id;
   const trip = db.prepare(`
@@ -163,7 +163,7 @@ router.get('/:id', authenticate, (req: Request<StringParams>, res: Response) => 
   res.json({ trip });
 });
 
-router.put('/:id', authenticate, (req: Request<StringParams>, res: Response) => {
+router.put('/:id', authenticate, (req: Request, res: Response) => {
   const authReq = req as AuthRequest;
   const access = canAccessTrip(req.params.id, authReq.user.id);
   if (!access) return res.status(404).json({ error: 'Trip not found' });
@@ -201,7 +201,7 @@ router.put('/:id', authenticate, (req: Request<StringParams>, res: Response) => 
   broadcast(req.params.id, 'trip:updated', { trip: updatedTrip }, req.headers['x-socket-id'] as string);
 });
 
-router.post('/:id/cover', authenticate, demoUploadBlock, uploadCover.single('cover'), (req: Request<StringParams>, res: Response) => {
+router.post('/:id/cover', authenticate, demoUploadBlock, uploadCover.single('cover'), (req: Request, res: Response) => {
   const authReq = req as AuthRequest;
   if (!isOwner(req.params.id, authReq.user.id))
     return res.status(403).json({ error: 'Only the owner can change the cover image' });
@@ -224,7 +224,7 @@ router.post('/:id/cover', authenticate, demoUploadBlock, uploadCover.single('cov
   res.json({ cover_image: coverUrl });
 });
 
-router.delete('/:id', authenticate, (req: Request<StringParams>, res: Response) => {
+router.delete('/:id', authenticate, (req: Request, res: Response) => {
   const authReq = req as AuthRequest;
   if (!isOwner(req.params.id, authReq.user.id))
     return res.status(403).json({ error: 'Only the owner can delete the trip' });
@@ -234,7 +234,7 @@ router.delete('/:id', authenticate, (req: Request<StringParams>, res: Response) 
   broadcast(deletedTripId, 'trip:deleted', { id: deletedTripId }, req.headers['x-socket-id'] as string);
 });
 
-router.get('/:id/members', authenticate, (req: Request<StringParams>, res: Response) => {
+router.get('/:id/members', authenticate, (req: Request, res: Response) => {
   const authReq = req as AuthRequest;
   if (!canAccessTrip(req.params.id, authReq.user.id))
     return res.status(404).json({ error: 'Trip not found' });
@@ -261,7 +261,7 @@ router.get('/:id/members', authenticate, (req: Request<StringParams>, res: Respo
   });
 });
 
-router.post('/:id/members', authenticate, (req: Request<StringParams>, res: Response) => {
+router.post('/:id/members', authenticate, (req: Request, res: Response) => {
   const authReq = req as AuthRequest;
   if (!canAccessTrip(req.params.id, authReq.user.id))
     return res.status(404).json({ error: 'Trip not found' });
@@ -287,7 +287,7 @@ router.post('/:id/members', authenticate, (req: Request<StringParams>, res: Resp
   res.status(201).json({ member: { ...target, role: 'member', avatar_url: target.avatar ? `/uploads/avatars/${target.avatar}` : null } });
 });
 
-router.delete('/:id/members/:userId', authenticate, (req: Request<StringParams>, res: Response) => {
+router.delete('/:id/members/:userId', authenticate, (req: Request, res: Response) => {
   const authReq = req as AuthRequest;
   if (!canAccessTrip(req.params.id, authReq.user.id))
     return res.status(404).json({ error: 'Trip not found' });

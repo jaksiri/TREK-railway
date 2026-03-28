@@ -4,7 +4,7 @@ import { authenticate } from '../middleware/auth';
 import { requireTripAccess } from '../middleware/tripAccess';
 import { broadcast } from '../websocket';
 import { loadTagsByPlaceIds, loadParticipantsByAssignmentIds, formatAssignmentWithPlace } from '../services/queryHelpers';
-import { StringParams, AuthRequest, AssignmentRow, DayAssignment, Tag, Participant } from '../types';
+import { AuthRequest, AssignmentRow, DayAssignment, Tag, Participant } from '../types';
 
 const router = express.Router({ mergeParams: true });
 
@@ -75,7 +75,7 @@ function getAssignmentWithPlace(assignmentId: number | bigint) {
   };
 }
 
-router.get('/trips/:tripId/days/:dayId/assignments', authenticate, requireTripAccess, (req: Request<StringParams>, res: Response) => {
+router.get('/trips/:tripId/days/:dayId/assignments', authenticate, requireTripAccess, (req: Request, res: Response) => {
   const { tripId, dayId } = req.params;
 
   const day = db.prepare('SELECT id FROM days WHERE id = ? AND trip_id = ?').get(dayId, tripId);
@@ -109,7 +109,7 @@ router.get('/trips/:tripId/days/:dayId/assignments', authenticate, requireTripAc
   res.json({ assignments: result });
 });
 
-router.post('/trips/:tripId/days/:dayId/assignments', authenticate, requireTripAccess, (req: Request<StringParams>, res: Response) => {
+router.post('/trips/:tripId/days/:dayId/assignments', authenticate, requireTripAccess, (req: Request, res: Response) => {
   const { tripId, dayId } = req.params;
   const { place_id, notes } = req.body;
 
@@ -131,7 +131,7 @@ router.post('/trips/:tripId/days/:dayId/assignments', authenticate, requireTripA
   broadcast(tripId, 'assignment:created', { assignment }, req.headers['x-socket-id'] as string);
 });
 
-router.delete('/trips/:tripId/days/:dayId/assignments/:id', authenticate, requireTripAccess, (req: Request<StringParams>, res: Response) => {
+router.delete('/trips/:tripId/days/:dayId/assignments/:id', authenticate, requireTripAccess, (req: Request, res: Response) => {
   const { tripId, dayId, id } = req.params;
 
   const assignment = db.prepare(
@@ -145,7 +145,7 @@ router.delete('/trips/:tripId/days/:dayId/assignments/:id', authenticate, requir
   broadcast(tripId, 'assignment:deleted', { assignmentId: Number(id), dayId: Number(dayId) }, req.headers['x-socket-id'] as string);
 });
 
-router.put('/trips/:tripId/days/:dayId/assignments/reorder', authenticate, requireTripAccess, (req: Request<StringParams>, res: Response) => {
+router.put('/trips/:tripId/days/:dayId/assignments/reorder', authenticate, requireTripAccess, (req: Request, res: Response) => {
   const { tripId, dayId } = req.params;
   const { orderedIds } = req.body;
 
@@ -167,7 +167,7 @@ router.put('/trips/:tripId/days/:dayId/assignments/reorder', authenticate, requi
   broadcast(tripId, 'assignment:reordered', { dayId: Number(dayId), orderedIds }, req.headers['x-socket-id'] as string);
 });
 
-router.put('/trips/:tripId/assignments/:id/move', authenticate, requireTripAccess, (req: Request<StringParams>, res: Response) => {
+router.put('/trips/:tripId/assignments/:id/move', authenticate, requireTripAccess, (req: Request, res: Response) => {
   const { tripId, id } = req.params;
   const { new_day_id, order_index } = req.body;
 
@@ -190,7 +190,7 @@ router.put('/trips/:tripId/assignments/:id/move', authenticate, requireTripAcces
   broadcast(tripId, 'assignment:moved', { assignment: updated, oldDayId: Number(oldDayId), newDayId: Number(new_day_id) }, req.headers['x-socket-id'] as string);
 });
 
-router.get('/trips/:tripId/assignments/:id/participants', authenticate, requireTripAccess, (req: Request<StringParams>, res: Response) => {
+router.get('/trips/:tripId/assignments/:id/participants', authenticate, requireTripAccess, (req: Request, res: Response) => {
   const { tripId, id } = req.params;
 
   const participants = db.prepare(`
@@ -203,7 +203,7 @@ router.get('/trips/:tripId/assignments/:id/participants', authenticate, requireT
   res.json({ participants });
 });
 
-router.put('/trips/:tripId/assignments/:id/time', authenticate, requireTripAccess, (req: Request<StringParams>, res: Response) => {
+router.put('/trips/:tripId/assignments/:id/time', authenticate, requireTripAccess, (req: Request, res: Response) => {
   const { tripId, id } = req.params;
 
   const assignment = db.prepare(`
@@ -222,7 +222,7 @@ router.put('/trips/:tripId/assignments/:id/time', authenticate, requireTripAcces
   broadcast(Number(tripId), 'assignment:updated', { assignment: updated }, req.headers['x-socket-id'] as string);
 });
 
-router.put('/trips/:tripId/assignments/:id/participants', authenticate, requireTripAccess, (req: Request<StringParams>, res: Response) => {
+router.put('/trips/:tripId/assignments/:id/participants', authenticate, requireTripAccess, (req: Request, res: Response) => {
   const { tripId, id } = req.params;
 
   const { user_ids } = req.body;

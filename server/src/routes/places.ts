@@ -6,7 +6,7 @@ import { requireTripAccess } from '../middleware/tripAccess';
 import { broadcast } from '../websocket';
 import { loadTagsByPlaceIds } from '../services/queryHelpers';
 import { validateStringLengths } from '../middleware/validate';
-import { StringParams, AuthRequest, Place } from '../types';
+import { AuthRequest, Place } from '../types';
 
 interface PlaceWithCategory extends Place {
   category_name: string | null;
@@ -21,7 +21,7 @@ interface UnsplashSearchResponse {
 
 const router = express.Router({ mergeParams: true });
 
-router.get('/', authenticate, requireTripAccess, (req: Request<StringParams>, res: Response) => {
+router.get('/', authenticate, requireTripAccess, (req: Request, res: Response) => {
   const { tripId } = req.params 
   const { search, category, tag } = req.query;
 
@@ -72,7 +72,7 @@ router.get('/', authenticate, requireTripAccess, (req: Request<StringParams>, re
   res.json({ places: placesWithTags });
 });
 
-router.post('/', authenticate, requireTripAccess, validateStringLengths({ name: 200, description: 2000, address: 500, notes: 2000 }), (req: Request<StringParams>, res: Response) => {
+router.post('/', authenticate, requireTripAccess, validateStringLengths({ name: 200, description: 2000, address: 500, notes: 2000 }), (req: Request, res: Response) => {
   const { tripId } = req.params 
 
   const {
@@ -112,7 +112,7 @@ router.post('/', authenticate, requireTripAccess, validateStringLengths({ name: 
   broadcast(tripId, 'place:created', { place }, req.headers['x-socket-id'] as string);
 });
 
-router.get('/:id', authenticate, requireTripAccess, (req: Request<StringParams>, res: Response) => {
+router.get('/:id', authenticate, requireTripAccess, (req: Request, res: Response) => {
   const { tripId, id } = req.params 
 
   const placeCheck = db.prepare('SELECT id FROM places WHERE id = ? AND trip_id = ?').get(id, tripId);
@@ -124,7 +124,7 @@ router.get('/:id', authenticate, requireTripAccess, (req: Request<StringParams>,
   res.json({ place });
 });
 
-router.get('/:id/image', authenticate, requireTripAccess, async (req: Request<StringParams>, res: Response) => {
+router.get('/:id/image', authenticate, requireTripAccess, async (req: Request, res: Response) => {
   const authReq = req as AuthRequest;
   const { tripId, id } = req.params 
 
@@ -165,7 +165,7 @@ router.get('/:id/image', authenticate, requireTripAccess, async (req: Request<St
   }
 });
 
-router.put('/:id', authenticate, requireTripAccess, validateStringLengths({ name: 200, description: 2000, address: 500, notes: 2000 }), (req: Request<StringParams>, res: Response) => {
+router.put('/:id', authenticate, requireTripAccess, validateStringLengths({ name: 200, description: 2000, address: 500, notes: 2000 }), (req: Request, res: Response) => {
   const { tripId, id } = req.params 
 
   const existingPlace = db.prepare('SELECT * FROM places WHERE id = ? AND trip_id = ?').get(id, tripId) as Place | undefined;
@@ -237,7 +237,7 @@ router.put('/:id', authenticate, requireTripAccess, validateStringLengths({ name
   broadcast(tripId, 'place:updated', { place }, req.headers['x-socket-id'] as string);
 });
 
-router.delete('/:id', authenticate, requireTripAccess, (req: Request<StringParams>, res: Response) => {
+router.delete('/:id', authenticate, requireTripAccess, (req: Request, res: Response) => {
   const { tripId, id } = req.params 
 
   const place = db.prepare('SELECT id FROM places WHERE id = ? AND trip_id = ?').get(id, tripId);

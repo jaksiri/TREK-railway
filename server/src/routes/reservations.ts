@@ -2,7 +2,7 @@ import express, { Request, Response } from 'express';
 import { db, canAccessTrip } from '../db/database';
 import { authenticate } from '../middleware/auth';
 import { broadcast } from '../websocket';
-import { StringParams, AuthRequest, Reservation } from '../types';
+import { AuthRequest, Reservation } from '../types';
 
 const router = express.Router({ mergeParams: true });
 
@@ -10,7 +10,7 @@ function verifyTripOwnership(tripId: string | number, userId: number) {
   return canAccessTrip(tripId, userId);
 }
 
-router.get('/', authenticate, (req: Request<StringParams>, res: Response) => {
+router.get('/', authenticate, (req: Request, res: Response) => {
   const authReq = req as AuthRequest;
   const { tripId } = req.params;
 
@@ -32,7 +32,7 @@ router.get('/', authenticate, (req: Request<StringParams>, res: Response) => {
   res.json({ reservations });
 });
 
-router.post('/', authenticate, (req: Request<StringParams>, res: Response) => {
+router.post('/', authenticate, (req: Request, res: Response) => {
   const authReq = req as AuthRequest;
   const { tripId } = req.params;
   const { title, reservation_time, reservation_end_time, location, confirmation_number, notes, day_id, place_id, assignment_id, status, type, accommodation_id, metadata, create_accommodation } = req.body;
@@ -103,7 +103,7 @@ router.post('/', authenticate, (req: Request<StringParams>, res: Response) => {
   broadcast(tripId, 'reservation:created', { reservation }, req.headers['x-socket-id'] as string);
 });
 
-router.put('/:id', authenticate, (req: Request<StringParams>, res: Response) => {
+router.put('/:id', authenticate, (req: Request, res: Response) => {
   const authReq = req as AuthRequest;
   const { tripId, id } = req.params;
   const { title, reservation_time, reservation_end_time, location, confirmation_number, notes, day_id, place_id, assignment_id, status, type, accommodation_id, metadata, create_accommodation } = req.body;
@@ -195,7 +195,7 @@ router.put('/:id', authenticate, (req: Request<StringParams>, res: Response) => 
   broadcast(tripId, 'reservation:updated', { reservation: updated }, req.headers['x-socket-id'] as string);
 });
 
-router.delete('/:id', authenticate, (req: Request<StringParams>, res: Response) => {
+router.delete('/:id', authenticate, (req: Request, res: Response) => {
   const authReq = req as AuthRequest;
   const { tripId, id } = req.params;
 

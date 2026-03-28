@@ -1,9 +1,5 @@
 import { Request } from 'express';
 
-// Route params from Express 4 are always strings at runtime.
-// Use this with Request<StringParams> to get string-typed req.params.
-export type StringParams = Record<string, string>;
-
 export interface User {
   id: number;
   username: string;

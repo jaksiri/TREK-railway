@@ -1,7 +1,7 @@
 import express, { Request, Response } from 'express';
 import { db } from '../db/database';
 import { authenticate } from '../middleware/auth';
-import { StringParams, AuthRequest } from '../types';
+import { AuthRequest } from '../types';
 
 interface VacayPlan {
   id: number;
@@ -100,7 +100,7 @@ function getPlanUsers(planId: number) {
   return [owner, ...members];
 }
 
-router.get('/plan', (req: Request<StringParams>, res: Response) => {
+router.get('/plan', (req: Request, res: Response) => {
   const authReq = req as AuthRequest;
   const plan = getActivePlan(authReq.user.id);
   const activePlanId = plan.id;
@@ -140,7 +140,7 @@ router.get('/plan', (req: Request<StringParams>, res: Response) => {
   });
 });
 
-router.put('/plan', async (req: Request<StringParams>, res: Response) => {
+router.put('/plan', async (req: Request, res: Response) => {
   const authReq = req as AuthRequest;
   const planId = getActivePlanId(authReq.user.id);
   const { block_weekends, holidays_enabled, holidays_region, company_holidays_enabled, carry_over_enabled } = req.body;
@@ -222,7 +222,7 @@ router.put('/plan', async (req: Request<StringParams>, res: Response) => {
   });
 });
 
-router.put('/color', (req: Request<StringParams>, res: Response) => {
+router.put('/color', (req: Request, res: Response) => {
   const authReq = req as AuthRequest;
   const { color, target_user_id } = req.body;
   const planId = getActivePlanId(authReq.user.id);
@@ -239,7 +239,7 @@ router.put('/color', (req: Request<StringParams>, res: Response) => {
   res.json({ success: true });
 });
 
-router.post('/invite', (req: Request<StringParams>, res: Response) => {
+router.post('/invite', (req: Request, res: Response) => {
   const authReq = req as AuthRequest;
   const { user_id } = req.body;
   if (!user_id) return res.status(400).json({ error: 'user_id required' });
@@ -273,7 +273,7 @@ router.post('/invite', (req: Request<StringParams>, res: Response) => {
   res.json({ success: true });
 });
 
-router.post('/invite/accept', (req: Request<StringParams>, res: Response) => {
+router.post('/invite/accept', (req: Request, res: Response) => {
   const authReq = req as AuthRequest;
   const { plan_id } = req.body;
   const invite = db.prepare("SELECT * FROM vacay_plan_members WHERE plan_id = ? AND user_id = ? AND status = 'pending'").get(plan_id, authReq.user.id) as VacayPlanMember | undefined;
@@ -318,7 +318,7 @@ router.post('/invite/accept', (req: Request<StringParams>, res: Response) => {
   res.json({ success: true });
 });
 
-router.post('/invite/decline', (req: Request<StringParams>, res: Response) => {
+router.post('/invite/decline', (req: Request, res: Response) => {
   const authReq = req as AuthRequest;
   const { plan_id } = req.body;
   db.prepare("DELETE FROM vacay_plan_members WHERE plan_id = ? AND user_id = ? AND status = 'pending'").run(plan_id, authReq.user.id);
@@ -326,7 +326,7 @@ router.post('/invite/decline', (req: Request<StringParams>, res: Response) => {
   res.json({ success: true });
 });
 
-router.post('/invite/cancel', (req: Request<StringParams>, res: Response) => {
+router.post('/invite/cancel', (req: Request, res: Response) => {
   const authReq = req as AuthRequest;
   const { user_id } = req.body;
   const plan = getActivePlan(authReq.user.id);
@@ -340,7 +340,7 @@ router.post('/invite/cancel', (req: Request<StringParams>, res: Response) => {
   res.json({ success: true });
 });
 
-router.post('/dissolve', (req: Request<StringParams>, res: Response) => {
+router.post('/dissolve', (req: Request, res: Response) => {
   const authReq = req as AuthRequest;
   const plan = getActivePlan(authReq.user.id);
   const isOwnerFlag = plan.owner_id === authReq.user.id;
@@ -375,7 +375,7 @@ router.post('/dissolve', (req: Request<StringParams>, res: Response) => {
   res.json({ success: true });
 });
 
-router.get('/available-users', (req: Request<StringParams>, res: Response) => {
+router.get('/available-users', (req: Request, res: Response) => {
   const authReq = req as AuthRequest;
   const planId = getActivePlanId(authReq.user.id);
   const users = db.prepare(`
@@ -391,14 +391,14 @@ router.get('/available-users', (req: Request<StringParams>, res: Response) => {
   res.json({ users });
 });
 
-router.get('/years', (req: Request<StringParams>, res: Response) => {
+router.get('/years', (req: Request, res: Response) => {
   const authReq = req as AuthRequest;
   const planId = getActivePlanId(authReq.user.id);
   const years = db.prepare('SELECT year FROM vacay_years WHERE plan_id = ? ORDER BY year').all(planId) as { year: number }[];
   res.json({ years: years.map(y => y.year) });
 });
 
-router.post('/years', (req: Request<StringParams>, res: Response) => {
+router.post('/years', (req: Request, res: Response) => {
   const authReq = req as AuthRequest;
   const { year } = req.body;
   if (!year) return res.status(400).json({ error: 'Year required' });
@@ -426,7 +426,7 @@ router.post('/years', (req: Request<StringParams>, res: Response) => {
   res.json({ years: years.map(y => y.year) });
 });
 
-router.delete('/years/:year', (req: Request<StringParams>, res: Response) => {
+router.delete('/years/:year', (req: Request, res: Response) => {
   const authReq = req as AuthRequest;
   const year = parseInt(req.params.year);
   const planId = getActivePlanId(authReq.user.id);
@@ -438,7 +438,7 @@ router.delete('/years/:year', (req: Request<StringParams>, res: Response) => {
   res.json({ years: years.map(y => y.year) });
 });
 
-router.get('/entries/:year', (req: Request<StringParams>, res: Response) => {
+router.get('/entries/:year', (req: Request, res: Response) => {
   const authReq = req as AuthRequest;
   const year = req.params.year;
   const planId = getActivePlanId(authReq.user.id);
@@ -453,7 +453,7 @@ router.get('/entries/:year', (req: Request<StringParams>, res: Response) => {
   res.json({ entries, companyHolidays });
 });
 
-router.post('/entries/toggle', (req: Request<StringParams>, res: Response) => {
+router.post('/entries/toggle', (req: Request, res: Response) => {
   const authReq = req as AuthRequest;
   const { date, target_user_id } = req.body;
   if (!date) return res.status(400).json({ error: 'date required' });
@@ -479,7 +479,7 @@ router.post('/entries/toggle', (req: Request<StringParams>, res: Response) => {
   }
 });
 
-router.post('/entries/company-holiday', (req: Request<StringParams>, res: Response) => {
+router.post('/entries/company-holiday', (req: Request, res: Response) => {
   const authReq = req as AuthRequest;
   const { date, note } = req.body;
   const planId = getActivePlanId(authReq.user.id);
@@ -496,7 +496,7 @@ router.post('/entries/company-holiday', (req: Request<StringParams>, res: Respon
   }
 });
 
-router.get('/stats/:year', (req: Request<StringParams>, res: Response) => {
+router.get('/stats/:year', (req: Request, res: Response) => {
   const authReq = req as AuthRequest;
   const year = parseInt(req.params.year);
   const planId = getActivePlanId(authReq.user.id);
@@ -532,7 +532,7 @@ router.get('/stats/:year', (req: Request<StringParams>, res: Response) => {
   res.json({ stats });
 });
 
-router.put('/stats/:year', (req: Request<StringParams>, res: Response) => {
+router.put('/stats/:year', (req: Request, res: Response) => {
   const authReq = req as AuthRequest;
   const year = parseInt(req.params.year);
   const { vacation_days, target_user_id } = req.body;
@@ -564,7 +564,7 @@ router.get('/holidays/countries', async (_req: Request, res: Response) => {
   }
 });
 
-router.get('/holidays/:year/:country', async (req: Request<StringParams>, res: Response) => {
+router.get('/holidays/:year/:country', async (req: Request, res: Response) => {
   const { year, country } = req.params;
   const cacheKey = `${year}-${country}`;
   const cached = holidayCache.get(cacheKey);

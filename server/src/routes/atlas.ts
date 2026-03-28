@@ -1,7 +1,7 @@
 import express, { Request, Response } from 'express';
 import { db } from '../db/database';
 import { authenticate } from '../middleware/auth';
-import { StringParams, AuthRequest, Trip, Place } from '../types';
+import { AuthRequest, Trip, Place } from '../types';
 
 const router = express.Router();
 router.use(authenticate);
@@ -83,7 +83,7 @@ const CONTINENT_MAP: Record<string, string> = {
   SE:'Europe',CH:'Europe',TH:'Asia',TR:'Europe',UA:'Europe',AE:'Asia',GB:'Europe',US:'North America',VN:'Asia',NG:'Africa',
 };
 
-router.get('/stats', (req: Request<StringParams>, res: Response) => {
+router.get('/stats', (req: Request, res: Response) => {
   const authReq = req as AuthRequest;
   const userId = authReq.user.id;
 
@@ -208,7 +208,7 @@ router.get('/stats', (req: Request<StringParams>, res: Response) => {
   });
 });
 
-router.get('/country/:code', (req: Request<StringParams>, res: Response) => {
+router.get('/country/:code', (req: Request, res: Response) => {
   const authReq = req as AuthRequest;
   const userId = authReq.user.id;
   const code = req.params.code.toUpperCase();

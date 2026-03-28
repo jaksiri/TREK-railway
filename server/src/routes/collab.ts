@@ -7,7 +7,7 @@ import { db, canAccessTrip } from '../db/database';
 import { authenticate } from '../middleware/auth';
 import { broadcast } from '../websocket';
 import { validateStringLengths } from '../middleware/validate';
-import { StringParams, AuthRequest, CollabNote, CollabPoll, CollabMessage, TripFile } from '../types';
+import { AuthRequest, CollabNote, CollabPoll, CollabMessage, TripFile } from '../types';
 
 interface ReactionRow {
   emoji: string;
@@ -90,7 +90,7 @@ function formatMessage(msg: CollabMessage, reactions?: { emoji: string; users: {
   return { ...msg, user_avatar: avatarUrl(msg), avatar_url: avatarUrl(msg), reactions: reactions || [] };
 }
 
-router.get('/notes', authenticate, (req: Request<StringParams>, res: Response) => {
+router.get('/notes', authenticate, (req: Request, res: Response) => {
   const authReq = req as AuthRequest;
   const { tripId } = req.params;
   if (!verifyTripAccess(tripId, authReq.user.id)) return res.status(404).json({ error: 'Trip not found' });
@@ -106,7 +106,7 @@ router.get('/notes', authenticate, (req: Request<StringParams>, res: Response) =
   res.json({ notes: notes.map(formatNote) });
 });
 
-router.post('/notes', authenticate, (req: Request<StringParams>, res: Response) => {
+router.post('/notes', authenticate, (req: Request, res: Response) => {
   const authReq = req as AuthRequest;
   const { tripId } = req.params;
   const { title, content, category, color, website } = req.body;
@@ -127,7 +127,7 @@ router.post('/notes', authenticate, (req: Request<StringParams>, res: Response) 
   broadcast(tripId, 'collab:note:created', { note: formatted }, req.headers['x-socket-id'] as string);
 });
 
-router.put('/notes/:id', authenticate, (req: Request<StringParams>, res: Response) => {
+router.put('/notes/:id', authenticate, (req: Request, res: Response) => {
   const authReq = req as AuthRequest;
   const { tripId, id } = req.params;
   const { title, content, category, color, pinned, website } = req.body;
@@ -165,7 +165,7 @@ router.put('/notes/:id', authenticate, (req: Request<StringParams>, res: Respons
   broadcast(tripId, 'collab:note:updated', { note: formatted }, req.headers['x-socket-id'] as string);
 });
 
-router.delete('/notes/:id', authenticate, (req: Request<StringParams>, res: Response) => {
+router.delete('/notes/:id', authenticate, (req: Request, res: Response) => {
   const authReq = req as AuthRequest;
   const { tripId, id } = req.params;
   if (!verifyTripAccess(tripId, authReq.user.id)) return res.status(404).json({ error: 'Trip not found' });
@@ -185,7 +185,7 @@ router.delete('/notes/:id', authenticate, (req: Request<StringParams>, res: Resp
   broadcast(tripId, 'collab:note:deleted', { noteId: Number(id) }, req.headers['x-socket-id'] as string);
 });
 
-router.post('/notes/:id/files', authenticate, noteUpload.single('file'), (req: Request<StringParams>, res: Response) => {
+router.post('/notes/:id/files', authenticate, noteUpload.single('file'), (req: Request, res: Response) => {
   const authReq = req as AuthRequest;
   const { tripId, id } = req.params;
   if (!verifyTripAccess(Number(tripId), authReq.user.id)) return res.status(404).json({ error: 'Trip not found' });
@@ -203,7 +203,7 @@ router.post('/notes/:id/files', authenticate, noteUpload.single('file'), (req: R
   broadcast(Number(tripId), 'collab:note:updated', { note: formatNote(db.prepare('SELECT n.*, u.username, u.avatar FROM collab_notes n JOIN users u ON n.user_id = u.id WHERE n.id = ?').get(id) as CollabNote) }, req.headers['x-socket-id'] as string);
 });
 
-router.delete('/notes/:id/files/:fileId', authenticate, (req: Request<StringParams>, res: Response) => {
+router.delete('/notes/:id/files/:fileId', authenticate, (req: Request, res: Response) => {
   const authReq = req as AuthRequest;
   const { tripId, id, fileId } = req.params;
   if (!verifyTripAccess(Number(tripId), authReq.user.id)) return res.status(404).json({ error: 'Trip not found' });
@@ -254,7 +254,7 @@ function getPollWithVotes(pollId: number | bigint | string) {
   };
 }
 
-router.get('/polls', authenticate, (req: Request<StringParams>, res: Response) => {
+router.get('/polls', authenticate, (req: Request, res: Response) => {
   const authReq = req as AuthRequest;
   const { tripId } = req.params;
   if (!verifyTripAccess(tripId, authReq.user.id)) return res.status(404).json({ error: 'Trip not found' });
@@ -267,7 +267,7 @@ router.get('/polls', authenticate, (req: Request<StringParams>, res: Response) =
   res.json({ polls });
 });
 
-router.post('/polls', authenticate, (req: Request<StringParams>, res: Response) => {
+router.post('/polls', authenticate, (req: Request, res: Response) => {
   const authReq = req as AuthRequest;
   const { tripId } = req.params;
   const { question, options, multiple, multiple_choice, deadline } = req.body;
@@ -289,7 +289,7 @@ router.post('/polls', authenticate, (req: Request<StringParams>, res: Response) 
   broadcast(tripId, 'collab:poll:created', { poll }, req.headers['x-socket-id'] as string);
 });
 
-router.post('/polls/:id/vote', authenticate, (req: Request<StringParams>, res: Response) => {
+router.post('/polls/:id/vote', authenticate, (req: Request, res: Response) => {
   const authReq = req as AuthRequest;
   const { tripId, id } = req.params;
   const { option_index } = req.body;
@@ -322,7 +322,7 @@ router.post('/polls/:id/vote', authenticate, (req: Request<StringParams>, res: R
   broadcast(tripId, 'collab:poll:voted', { poll: updatedPoll }, req.headers['x-socket-id'] as string);
 });
 
-router.put('/polls/:id/close', authenticate, (req: Request<StringParams>, res: Response) => {
+router.put('/polls/:id/close', authenticate, (req: Request, res: Response) => {
   const authReq = req as AuthRequest;
   const { tripId, id } = req.params;
   if (!verifyTripAccess(tripId, authReq.user.id)) return res.status(404).json({ error: 'Trip not found' });
@@ -337,7 +337,7 @@ router.put('/polls/:id/close', authenticate, (req: Request<StringParams>, res: R
   broadcast(tripId, 'collab:poll:closed', { poll: updatedPoll }, req.headers['x-socket-id'] as string);
 });
 
-router.delete('/polls/:id', authenticate, (req: Request<StringParams>, res: Response) => {
+router.delete('/polls/:id', authenticate, (req: Request, res: Response) => {
   const authReq = req as AuthRequest;
   const { tripId, id } = req.params;
   if (!verifyTripAccess(tripId, authReq.user.id)) return res.status(404).json({ error: 'Trip not found' });
@@ -350,7 +350,7 @@ router.delete('/polls/:id', authenticate, (req: Request<StringParams>, res: Resp
   broadcast(tripId, 'collab:poll:deleted', { pollId: Number(id) }, req.headers['x-socket-id'] as string);
 });
 
-router.get('/messages', authenticate, (req: Request<StringParams>, res: Response) => {
+router.get('/messages', authenticate, (req: Request, res: Response) => {
   const authReq = req as AuthRequest;
   const { tripId } = req.params;
   const { before } = req.query;
@@ -390,7 +390,7 @@ router.get('/messages', authenticate, (req: Request<StringParams>, res: Response
   res.json({ messages: messages.map(m => formatMessage(m, groupReactions(reactionsByMsg[m.id] || []))) });
 });
 
-router.post('/messages', authenticate, validateStringLengths({ text: 5000 }), (req: Request<StringParams>, res: Response) => {
+router.post('/messages', authenticate, validateStringLengths({ text: 5000 }), (req: Request, res: Response) => {
   const authReq = req as AuthRequest;
   const { tripId } = req.params;
   const { text, reply_to } = req.body;
@@ -421,7 +421,7 @@ router.post('/messages', authenticate, validateStringLengths({ text: 5000 }), (r
   broadcast(tripId, 'collab:message:created', { message: formatted }, req.headers['x-socket-id'] as string);
 });
 
-router.post('/messages/:id/react', authenticate, (req: Request<StringParams>, res: Response) => {
+router.post('/messages/:id/react', authenticate, (req: Request, res: Response) => {
   const authReq = req as AuthRequest;
   const { tripId, id } = req.params;
   const { emoji } = req.body;
@@ -443,7 +443,7 @@ router.post('/messages/:id/react', authenticate, (req: Request<StringParams>, re
   broadcast(Number(tripId), 'collab:message:reacted', { messageId: Number(id), reactions }, req.headers['x-socket-id'] as string);
 });
 
-router.delete('/messages/:id', authenticate, (req: Request<StringParams>, res: Response) => {
+router.delete('/messages/:id', authenticate, (req: Request, res: Response) => {
   const authReq = req as AuthRequest;
   const { tripId, id } = req.params;
   if (!verifyTripAccess(tripId, authReq.user.id)) return res.status(404).json({ error: 'Trip not found' });
@@ -457,7 +457,7 @@ router.delete('/messages/:id', authenticate, (req: Request<StringParams>, res: R
   broadcast(tripId, 'collab:message:deleted', { messageId: Number(id), username: message.username || authReq.user.username }, req.headers['x-socket-id'] as string);
 });
 
-router.get('/link-preview', authenticate, async (req: Request<StringParams>, res: Response) => {
+router.get('/link-preview', authenticate, async (req: Request, res: Response) => {
   const { url } = req.query as { url?: string };
   if (!url) return res.status(400).json({ error: 'URL is required' });
 

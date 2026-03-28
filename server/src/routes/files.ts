@@ -7,7 +7,7 @@ import { db, canAccessTrip } from '../db/database';
 import { authenticate, demoUploadBlock } from '../middleware/auth';
 import { requireTripAccess } from '../middleware/tripAccess';
 import { broadcast } from '../websocket';
-import { StringParams, AuthRequest, TripFile } from '../types';
+import { AuthRequest, TripFile } from '../types';
 
 const router = express.Router({ mergeParams: true });
 
@@ -72,7 +72,7 @@ function formatFile(file: TripFile) {
 }
 
 // List files (excludes soft-deleted by default)
-router.get('/', authenticate, (req: Request<StringParams>, res: Response) => {
+router.get('/', authenticate, (req: Request, res: Response) => {
   const authReq = req as AuthRequest;
   const { tripId } = req.params;
   const showTrash = req.query.trash === 'true';
@@ -86,7 +86,7 @@ router.get('/', authenticate, (req: Request<StringParams>, res: Response) => {
 });
 
 // Upload file
-router.post('/', authenticate, requireTripAccess, demoUploadBlock, upload.single('file'), (req: Request<StringParams>, res: Response) => {
+router.post('/', authenticate, requireTripAccess, demoUploadBlock, upload.single('file'), (req: Request, res: Response) => {
   const authReq = req as AuthRequest;
   const { tripId } = req.params;
   const { place_id, description, reservation_id } = req.body;
@@ -116,7 +116,7 @@ router.post('/', authenticate, requireTripAccess, demoUploadBlock, upload.single
 });
 
 // Update file metadata
-router.put('/:id', authenticate, (req: Request<StringParams>, res: Response) => {
+router.put('/:id', authenticate, (req: Request, res: Response) => {
   const authReq = req as AuthRequest;
   const { tripId, id } = req.params;
   const { description, place_id, reservation_id } = req.body;
@@ -146,7 +146,7 @@ router.put('/:id', authenticate, (req: Request<StringParams>, res: Response) => 
 });
 
 // Toggle starred
-router.patch('/:id/star', authenticate, (req: Request<StringParams>, res: Response) => {
+router.patch('/:id/star', authenticate, (req: Request, res: Response) => {
   const authReq = req as AuthRequest;
   const { tripId, id } = req.params;
 
@@ -165,7 +165,7 @@ router.patch('/:id/star', authenticate, (req: Request<StringParams>, res: Respon
 });
 
 // Soft-delete (move to trash)
-router.delete('/:id', authenticate, (req: Request<StringParams>, res: Response) => {
+router.delete('/:id', authenticate, (req: Request, res: Response) => {
   const authReq = req as AuthRequest;
   const { tripId, id } = req.params;
 
@@ -181,7 +181,7 @@ router.delete('/:id', authenticate, (req: Request<StringParams>, res: Response) 
 });
 
 // Restore from trash
-router.post('/:id/restore', authenticate, (req: Request<StringParams>, res: Response) => {
+router.post('/:id/restore', authenticate, (req: Request, res: Response) => {
   const authReq = req as AuthRequest;
   const { tripId, id } = req.params;
 
@@ -199,7 +199,7 @@ router.post('/:id/restore', authenticate, (req: Request<StringParams>, res: Resp
 });
 
 // Permanently delete from trash
-router.delete('/:id/permanent', authenticate, (req: Request<StringParams>, res: Response) => {
+router.delete('/:id/permanent', authenticate, (req: Request, res: Response) => {
   const authReq = req as AuthRequest;
   const { tripId, id } = req.params;
 
@@ -220,7 +220,7 @@ router.delete('/:id/permanent', authenticate, (req: Request<StringParams>, res: 
 });
 
 // Empty entire trash
-router.delete('/trash/empty', authenticate, (req: Request<StringParams>, res: Response) => {
+router.delete('/trash/empty', authenticate, (req: Request, res: Response) => {
   const authReq = req as AuthRequest;
   const { tripId } = req.params;
 
