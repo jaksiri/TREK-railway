@@ -270,6 +270,10 @@ export default function SettingsPage(): React.ReactElement {
                   { value: 'de', label: 'Deutsch' },
                   { value: 'en', label: 'English' },
                   { value: 'es', label: 'Español' },
+                  { value: 'fr', label: 'Français' },
+                  { value: 'nl', label: 'Nederlands' },
+                  { value: 'ru', label: 'Русский' },
+                  { value: 'zh', label: '中文' },
                 ].map(opt => (
                   <button
                     key={opt.value}
