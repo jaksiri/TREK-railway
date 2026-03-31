@@ -632,6 +632,7 @@ export default function DayPlanSidebar({
 
   const handleDropOnDay = (e, dayId) => {
     e.preventDefault()
+    e.stopPropagation()
     setDragOverDayId(null)
     const { placeId, assignmentId, noteId, fromDayId } = getDragData(e)
     if (placeId) {
@@ -886,6 +887,7 @@ export default function DayPlanSidebar({
                   onDragOver={e => { e.preventDefault(); const cur = dropTargetRef.current; if (draggingId && (!cur || cur.startsWith('end-'))) setDropTargetKey(`end-${day.id}`) }}
                   onDrop={e => {
                     e.preventDefault()
+                    e.stopPropagation()
                     const { placeId, assignmentId, noteId, fromDayId } = getDragData(e)
                     // Drop on transport card (detected via dropTargetRef for sync accuracy)
                     if (dropTargetRef.current?.startsWith('transport-')) {
