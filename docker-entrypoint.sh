@@ -2,28 +2,24 @@
 set -e
 
 # Railway provides a single volume. We mount it at /app/storage
-# and symlink /app/data and /app/uploads into it so the app
-# works without code changes.
+# for SQLite data. Uploads go to S3 object storage.
 
 STORAGE=/app/storage
 
-# Ensure subdirectories exist on the volume
+# Ensure data directories exist on the volume (SQLite + backups)
 mkdir -p "$STORAGE/data/backups" \
-         "$STORAGE/data/tmp" \
-         "$STORAGE/uploads/files" \
-         "$STORAGE/uploads/covers" \
-         "$STORAGE/uploads/avatars" \
-         "$STORAGE/uploads/photos"
+         "$STORAGE/data/tmp"
 
-# Remove any existing dirs/symlinks and point to the volume
-rm -rf /app/data /app/uploads
+# Symlink data into the app directory
+rm -rf /app/data
 ln -sf "$STORAGE/data" /app/data
-ln -sf "$STORAGE/uploads" /app/uploads
 
-# Maintain backward-compat symlinks (old paths under /app/server/)
+# Backward-compat symlinks for /app/server/ paths
 mkdir -p /app/server
-rm -rf /app/server/uploads /app/server/data
-ln -sf "$STORAGE/uploads" /app/server/uploads
+rm -rf /app/server/data
 ln -sf "$STORAGE/data" /app/server/data
+
+# Temp directory for multer uploads (before S3 transfer)
+mkdir -p /app/.tmp-uploads
 
 exec "$@"
