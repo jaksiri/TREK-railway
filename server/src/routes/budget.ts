@@ -195,6 +195,77 @@ router.put('/:id/members/:userId/paid', authenticate, (req: Request, res: Respon
   broadcast(Number(tripId), 'budget:member-paid-updated', { itemId: Number(id), userId: Number(userId), paid: paid ? 1 : 0 }, req.headers['x-socket-id'] as string);
 });
 
+// Settlement calculation: who owes whom
+router.get('/settlement', authenticate, (req: Request, res: Response) => {
+  const authReq = req as AuthRequest;
+  const { tripId } = req.params;
+  if (!canAccessTrip(Number(tripId), authReq.user.id)) return res.status(404).json({ error: 'Trip not found' });
+
+  const items = db.prepare('SELECT * FROM budget_items WHERE trip_id = ?').all(tripId) as BudgetItem[];
+  const allMembers = db.prepare(`
+    SELECT bm.budget_item_id, bm.user_id, bm.paid, u.username, u.avatar
+    FROM budget_item_members bm
+    JOIN users u ON bm.user_id = u.id
+    WHERE bm.budget_item_id IN (SELECT id FROM budget_items WHERE trip_id = ?)
+  `).all(tripId) as (BudgetItemMember & { budget_item_id: number })[];
+
+  // Calculate net balance per user: positive = is owed money, negative = owes money
+  const balances: Record<number, { user_id: number; username: string; avatar_url: string | null; balance: number }> = {};
+
+  for (const item of items) {
+    const members = allMembers.filter(m => m.budget_item_id === item.id);
+    if (members.length === 0) continue;
+
+    const payers = members.filter(m => m.paid);
+    if (payers.length === 0) continue; // no one marked as paid
+
+    const sharePerMember = item.total_price / members.length;
+    const paidPerPayer = item.total_price / payers.length;
+
+    for (const m of members) {
+      if (!balances[m.user_id]) {
+        balances[m.user_id] = { user_id: m.user_id, username: m.username, avatar_url: avatarUrl(m), balance: 0 };
+      }
+      // Everyone owes their share
+      balances[m.user_id].balance -= sharePerMember;
+      // Payers get credited what they paid
+      if (m.paid) balances[m.user_id].balance += paidPerPayer;
+    }
+  }
+
+  // Calculate optimized payment flows (greedy algorithm)
+  const people = Object.values(balances).filter(b => Math.abs(b.balance) > 0.01);
+  const debtors = people.filter(p => p.balance < -0.01).map(p => ({ ...p, amount: -p.balance }));
+  const creditors = people.filter(p => p.balance > 0.01).map(p => ({ ...p, amount: p.balance }));
+
+  // Sort by amount descending for efficient matching
+  debtors.sort((a, b) => b.amount - a.amount);
+  creditors.sort((a, b) => b.amount - a.amount);
+
+  const flows: { from: { user_id: number; username: string; avatar_url: string | null }; to: { user_id: number; username: string; avatar_url: string | null }; amount: number }[] = [];
+
+  let di = 0, ci = 0;
+  while (di < debtors.length && ci < creditors.length) {
+    const transfer = Math.min(debtors[di].amount, creditors[ci].amount);
+    if (transfer > 0.01) {
+      flows.push({
+        from: { user_id: debtors[di].user_id, username: debtors[di].username, avatar_url: debtors[di].avatar_url },
+        to: { user_id: creditors[ci].user_id, username: creditors[ci].username, avatar_url: creditors[ci].avatar_url },
+        amount: Math.round(transfer * 100) / 100,
+      });
+    }
+    debtors[di].amount -= transfer;
+    creditors[ci].amount -= transfer;
+    if (debtors[di].amount < 0.01) di++;
+    if (creditors[ci].amount < 0.01) ci++;
+  }
+
+  res.json({
+    balances: Object.values(balances).map(b => ({ ...b, balance: Math.round(b.balance * 100) / 100 })),
+    flows,
+  });
+});
+
 router.delete('/:id', authenticate, (req: Request, res: Response) => {
   const authReq = req as AuthRequest;
   const { tripId, id } = req.params;

@@ -8,30 +8,48 @@ const backupsDir = path.join(dataDir, 'backups');
 const uploadsDir = path.join(__dirname, '../uploads');
 const settingsFile = path.join(dataDir, 'backup-settings.json');
 
-const CRON_EXPRESSIONS: Record<string, string> = {
-  hourly:  '0 * * * *',
-  daily:   '0 2 * * *',
-  weekly:  '0 2 * * 0',
-  monthly: '0 2 1 * *',
-};
-
-const VALID_INTERVALS = Object.keys(CRON_EXPRESSIONS);
+const VALID_INTERVALS = ['hourly', 'daily', 'weekly', 'monthly'];
+const VALID_DAYS_OF_WEEK = [0, 1, 2, 3, 4, 5, 6]; // 0=Sunday
+const VALID_HOURS = Array.from({ length: 24 }, (_, i) => i);
 
 interface BackupSettings {
   enabled: boolean;
   interval: string;
   keep_days: number;
+  hour: number;
+  day_of_week: number;
+  day_of_month: number;
+}
+
+function buildCronExpression(settings: BackupSettings): string {
+  const hour = VALID_HOURS.includes(settings.hour) ? settings.hour : 2;
+  const dow = VALID_DAYS_OF_WEEK.includes(settings.day_of_week) ? settings.day_of_week : 0;
+  const dom = settings.day_of_month >= 1 && settings.day_of_month <= 28 ? settings.day_of_month : 1;
+
+  switch (settings.interval) {
+    case 'hourly':  return '0 * * * *';
+    case 'daily':   return `0 ${hour} * * *`;
+    case 'weekly':  return `0 ${hour} * * ${dow}`;
+    case 'monthly': return `0 ${hour} ${dom} * *`;
+    default:        return `0 ${hour} * * *`;
+  }
 }
 
 let currentTask: ScheduledTask | null = null;
 
+function getDefaults(): BackupSettings {
+  return { enabled: false, interval: 'daily', keep_days: 7, hour: 2, day_of_week: 0, day_of_month: 1 };
+}
+
 function loadSettings(): BackupSettings {
+  let settings = getDefaults();
   try {
     if (fs.existsSync(settingsFile)) {
-      return JSON.parse(fs.readFileSync(settingsFile, 'utf8'));
+      const saved = JSON.parse(fs.readFileSync(settingsFile, 'utf8'));
+      settings = { ...settings, ...saved };
     }
   } catch (e) {}
-  return { enabled: false, interval: 'daily', keep_days: 7 };
+  return settings;
 }
 
 function saveSettings(settings: BackupSettings): void {
@@ -104,9 +122,10 @@ function start(): void {
     return;
   }
 
-  const expression = CRON_EXPRESSIONS[settings.interval] || CRON_EXPRESSIONS.daily;
-  currentTask = cron.schedule(expression, runBackup);
-  console.log(`[Auto-Backup] Scheduled: ${settings.interval} (${expression}), retention: ${settings.keep_days === 0 ? 'forever' : settings.keep_days + ' days'}`);
+  const expression = buildCronExpression(settings);
+  const tz = process.env.TZ || 'UTC';
+  currentTask = cron.schedule(expression, runBackup, { timezone: tz });
+  console.log(`[Auto-Backup] Scheduled: ${settings.interval} (${expression}), tz: ${tz}, retention: ${settings.keep_days === 0 ? 'forever' : settings.keep_days + ' days'}`);
 }
 
 // Demo mode: hourly reset of demo user data

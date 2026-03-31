@@ -3,8 +3,8 @@ import ReactDOM from 'react-dom'
 import { Link, useNavigate, useLocation } from 'react-router-dom'
 import { useAuthStore } from '../../store/authStore'
 import { useSettingsStore } from '../../store/settingsStore'
+import { useAddonStore } from '../../store/addonStore'
 import { useTranslation } from '../../i18n'
-import { addonsApi } from '../../api/client'
 import { Plane, LogOut, Settings, ChevronDown, Shield, ArrowLeft, Users, Moon, Sun, Monitor, CalendarDays, Briefcase, Globe } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 
@@ -28,29 +28,21 @@ interface Addon {
 export default function Navbar({ tripTitle, tripId, onBack, showBack, onShare }: NavbarProps): React.ReactElement {
   const { user, logout } = useAuthStore()
   const { settings, updateSetting } = useSettingsStore()
+  const { addons: allAddons, loadAddons } = useAddonStore()
   const { t, locale } = useTranslation()
   const navigate = useNavigate()
   const location = useLocation()
   const [userMenuOpen, setUserMenuOpen] = useState<boolean>(false)
   const [appVersion, setAppVersion] = useState<string | null>(null)
-  const [globalAddons, setGlobalAddons] = useState<Addon[]>([])
   const darkMode = settings.dark_mode
   const dark = darkMode === true || darkMode === 'dark' || (darkMode === 'auto' && window.matchMedia('(prefers-color-scheme: dark)').matches)
 
-  const loadAddons = () => {
-    if (user) {
-      addonsApi.enabled().then(data => {
-        setGlobalAddons(data.addons.filter(a => a.type === 'global'))
-      }).catch(() => {})
-    }
-  }
-  useEffect(loadAddons, [user, location.pathname])
-  // Listen for addon changes from AddonManager
+  // Only show 'global' type addons in the navbar — 'integration' addons have no dedicated page
+  const globalAddons = allAddons.filter((a: Addon) => a.type === 'global' && a.enabled)
+
   useEffect(() => {
-    const handler = () => loadAddons()
-    window.addEventListener('addons-changed', handler)
-    return () => window.removeEventListener('addons-changed', handler)
-  }, [user])
+    if (user) loadAddons()
+  }, [user, location.pathname])
 
   useEffect(() => {
     import('../../api/client').then(({ authApi }) => {

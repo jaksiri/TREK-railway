@@ -573,5 +573,5 @@ export function ReservationModal({ isOpen, onClose, onSave, reservation, days, p
 function formatDate(dateStr, locale) {
   if (!dateStr) return ''
   const d = new Date(dateStr + 'T00:00:00')
-  return d.toLocaleDateString(locale || 'de-DE', { day: 'numeric', month: 'short' })
+  return d.toLocaleDateString(locale || undefined, { day: 'numeric', month: 'short' })
 }

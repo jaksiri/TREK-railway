@@ -1,5 +1,6 @@
 import express, { Request, Response } from 'express';
 import fetch from 'node-fetch';
+import multer from 'multer';
 import { db, getPlaceWithTags } from '../db/database';
 import { authenticate } from '../middleware/auth';
 import { requireTripAccess } from '../middleware/tripAccess';
@@ -7,6 +8,8 @@ import { broadcast } from '../websocket';
 import { loadTagsByPlaceIds } from '../services/queryHelpers';
 import { validateStringLengths } from '../middleware/validate';
 import { AuthRequest, Place } from '../types';
+
+const gpxUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
 
 interface PlaceWithCategory extends Place {
   category_name: string | null;
@@ -110,6 +113,94 @@ router.post('/', authenticate, requireTripAccess, validateStringLengths({ name: 
   const place = getPlaceWithTags(Number(placeId));
   res.status(201).json({ place });
   broadcast(tripId, 'place:created', { place }, req.headers['x-socket-id'] as string);
+});
+
+// Import places from GPX file (must be before /:id)
+router.post('/import/gpx', authenticate, requireTripAccess, gpxUpload.single('file'), (req: Request, res: Response) => {
+  const { tripId } = req.params;
+  const file = (req as any).file;
+  if (!file) return res.status(400).json({ error: 'No file uploaded' });
+
+  const xml = file.buffer.toString('utf-8');
+
+  const parseCoords = (attrs: string): { lat: number; lng: number } | null => {
+    const latMatch = attrs.match(/lat=["']([^"']+)["']/i);
+    const lonMatch = attrs.match(/lon=["']([^"']+)["']/i);
+    if (!latMatch || !lonMatch) return null;
+    const lat = parseFloat(latMatch[1]);
+    const lng = parseFloat(lonMatch[1]);
+    return (!isNaN(lat) && !isNaN(lng)) ? { lat, lng } : null;
+  };
+
+  const stripCdata = (s: string) => s.replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1').trim();
+  const extractName = (body: string) => { const m = body.match(/<name[^>]*>([\s\S]*?)<\/name>/i); return m ? stripCdata(m[1]) : null };
+  const extractDesc = (body: string) => { const m = body.match(/<desc[^>]*>([\s\S]*?)<\/desc>/i); return m ? stripCdata(m[1]) : null };
+
+  const waypoints: { name: string; lat: number; lng: number; description: string | null }[] = [];
+
+  // 1) Parse <wpt> elements (named waypoints / POIs)
+  const wptRegex = /<wpt\s([^>]+)>([\s\S]*?)<\/wpt>/gi;
+  let match;
+  while ((match = wptRegex.exec(xml)) !== null) {
+    const coords = parseCoords(match[1]);
+    if (!coords) continue;
+    const name = extractName(match[2]) || `Waypoint ${waypoints.length + 1}`;
+    waypoints.push({ ...coords, name, description: extractDesc(match[2]) });
+  }
+
+  // 2) If no <wpt>, try <rtept> (route points)
+  if (waypoints.length === 0) {
+    const rteptRegex = /<rtept\s([^>]+)>([\s\S]*?)<\/rtept>/gi;
+    while ((match = rteptRegex.exec(xml)) !== null) {
+      const coords = parseCoords(match[1]);
+      if (!coords) continue;
+      const name = extractName(match[2]) || `Route Point ${waypoints.length + 1}`;
+      waypoints.push({ ...coords, name, description: extractDesc(match[2]) });
+    }
+  }
+
+  // 3) If still nothing, extract track name + start/end points from <trkpt>
+  if (waypoints.length === 0) {
+    const trackNameMatch = xml.match(/<trk[^>]*>[\s\S]*?<name[^>]*>([\s\S]*?)<\/name>/i);
+    const trackName = trackNameMatch?.[1]?.trim() || 'GPX Track';
+    const trkptRegex = /<trkpt\s([^>]*?)(?:\/>|>([\s\S]*?)<\/trkpt>)/gi;
+    const trackPoints: { lat: number; lng: number }[] = [];
+    while ((match = trkptRegex.exec(xml)) !== null) {
+      const coords = parseCoords(match[1]);
+      if (coords) trackPoints.push(coords);
+    }
+    if (trackPoints.length > 0) {
+      const start = trackPoints[0];
+      waypoints.push({ ...start, name: `${trackName} — Start`, description: null });
+      if (trackPoints.length > 1) {
+        const end = trackPoints[trackPoints.length - 1];
+        waypoints.push({ ...end, name: `${trackName} — End`, description: null });
+      }
+    }
+  }
+
+  if (waypoints.length === 0) {
+    return res.status(400).json({ error: 'No waypoints found in GPX file' });
+  }
+
+  const insertStmt = db.prepare(`
+    INSERT INTO places (trip_id, name, description, lat, lng, transport_mode)
+    VALUES (?, ?, ?, ?, ?, 'walking')
+  `);
+  const created: any[] = [];
+  const insertAll = db.transaction(() => {
+    for (const wp of waypoints) {
+      const result = insertStmt.run(tripId, wp.name, wp.description, wp.lat, wp.lng);
+      const place = getPlaceWithTags(Number(result.lastInsertRowid));
+      created.push(place);
+    }
+  });
+  insertAll();
+
+  res.status(201).json({ places: created, count: created.length });
+  for (const place of created) {
+    broadcast(tripId, 'place:created', { place }, req.headers['x-socket-id'] as string);
+  }
 });
 
 router.get('/:id', authenticate, requireTripAccess, (req: Request, res: Response) => {

@@ -1,11 +1,14 @@
 import 'dotenv/config';
+import './config';
 import express, { Request, Response, NextFunction } from 'express';
+import { enforceGlobalMfaPolicy } from './middleware/mfaPolicy';
 import cors from 'cors';
 import helmet from 'helmet';
 import path from 'path';
 import fs from 'fs';
 
 const app = express();
+const DEBUG = String(process.env.DEBUG || 'false').toLowerCase() === 'true';
 
 // Trust first proxy (nginx/Docker) for correct req.ip
 if (process.env.NODE_ENV === 'production' || process.env.TRUST_PROXY) {
@@ -79,10 +82,42 @@ if (shouldForceHttps) {
 app.use(express.json({ limit: '100kb' }));
 app.use(express.urlencoded({ extended: true }));
 
-// Avatars are public (shown on login, sharing screens)
-app.use('/uploads/avatars', express.static(path.join(__dirname, '../uploads/avatars')));
+app.use(enforceGlobalMfaPolicy);
 
-// All other uploads require authentication
+if (DEBUG) {
+  app.use((req: Request, res: Response, next: NextFunction) => {
+    const startedAt = Date.now();
+    const requestId = Math.random().toString(36).slice(2, 10);
+    const redact = (value: unknown): unknown => {
+      if (!value || typeof value !== 'object') return value;
+      if (Array.isArray(value)) return value.map(redact);
+      const hidden = new Set(['password', 'token', 'jwt', 'authorization', 'cookie', 'client_secret', 'mfa_token', 'code']);
+      const out: Record<string, unknown> = {};
+      for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+        out[k] = hidden.has(k.toLowerCase()) ? '[REDACTED]' : redact(v);
+      }
+      return out;
+    };
+
+    const safeQuery = redact(req.query);
+    const safeBody = redact(req.body);
+    console.log(`[DEBUG][REQ ${requestId}] ${req.method} ${req.originalUrl} ip=${req.ip} query=${JSON.stringify(safeQuery)} body=${JSON.stringify(safeBody)}`);
+
+    res.on('finish', () => {
+      const elapsedMs = Date.now() - startedAt;
+      console.log(`[DEBUG][RES ${requestId}] ${req.method} ${req.originalUrl} status=${res.statusCode} elapsed_ms=${elapsedMs}`);
+    });
+
+    next();
+  });
+}
+
+// Avatars are public (shown on login, sharing screens)
+import { authenticate } from './middleware/auth';
+app.use('/uploads/avatars', express.static(path.join(__dirname, '../uploads/avatars')));
+app.use('/uploads/covers', express.static(path.join(__dirname, '../uploads/covers')));
+
+// Serve uploaded files (UUIDs are unguessable, path traversal protected)
 app.get('/uploads/:type/:filename', (req: Request, res: Response) => {
   const { type, filename } = req.params;
   const allowedTypes = ['covers', 'files', 'photos'];
@@ -160,11 +195,31 @@ app.use('/api/weather', weatherRoutes);
 app.use('/api/settings', settingsRoutes);
 app.use('/api/backup', backupRoutes);
 
+import notificationRoutes from './routes/notifications';
+app.use('/api/notifications', notificationRoutes);
+
+import shareRoutes from './routes/share';
+app.use('/api', shareRoutes);
+
+// MCP endpoint (Streamable HTTP transport, per-user auth)
+import { mcpHandler, closeMcpSessions } from './mcp';
+app.post('/mcp', mcpHandler);
+app.get('/mcp', mcpHandler);
+app.delete('/mcp', mcpHandler);
+
 // Serve static files in production
 if (process.env.NODE_ENV === 'production') {
   const publicPath = path.join(__dirname, '../public');
-  app.use(express.static(publicPath));
+  app.use(express.static(publicPath, {
+    setHeaders: (res, filePath) => {
+      // Never cache index.html so version updates are picked up immediately
+      if (filePath.endsWith('index.html')) {
+        res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+      }
+    },
+  }));
   app.get('*', (req: Request, res: Response) => {
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
     res.sendFile(path.join(publicPath, 'index.html'));
   });
 }
@@ -181,6 +236,7 @@ const PORT = process.env.PORT || 3001;
 const server = app.listen(PORT, () => {
   console.log(`TREK API running on port ${PORT}`);
   console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
+  console.log(`Debug logs: ${DEBUG ? 'ENABLED' : 'disabled'}`);
   if (process.env.DEMO_MODE === 'true') console.log('Demo mode: ENABLED');
   if (process.env.DEMO_MODE === 'true' && process.env.NODE_ENV === 'production') {
     console.warn('[SECURITY WARNING] DEMO_MODE is enabled in production! Demo credentials are publicly exposed.');
@@ -196,6 +252,7 @@ const server = app.listen(PORT, () => {
 function shutdown(signal: string): void {
   console.log(`\n${signal} received — shutting down gracefully...`);
   scheduler.stop();
+  closeMcpSessions();
   server.close(() => {
     console.log('HTTP server closed');
     const { closeDb } = require('./db/database');

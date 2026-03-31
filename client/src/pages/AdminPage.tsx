@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { adminApi, authApi } from '../api/client'
+import apiClient, { adminApi, authApi, notificationsApi } from '../api/client'
 import { useAuthStore } from '../store/authStore'
 import { useSettingsStore } from '../store/settingsStore'
 import { useTranslation } from '../i18n'
@@ -13,6 +13,8 @@ import BackupPanel from '../components/Admin/BackupPanel'
 import GitHubPanel from '../components/Admin/GitHubPanel'
 import AddonManager from '../components/Admin/AddonManager'
 import PackingTemplateManager from '../components/Admin/PackingTemplateManager'
+import AuditLogPanel from '../components/Admin/AuditLogPanel'
+import AdminMcpTokensPanel from '../components/Admin/AdminMcpTokensPanel'
 import { Users, Map, Briefcase, Shield, Trash2, Edit2, Camera, FileText, Eye, EyeOff, Save, CheckCircle, XCircle, Loader2, UserPlus, ArrowUpCircle, ExternalLink, Download, AlertTriangle, RefreshCw, GitBranch, Sun, Link2, Copy, Plus } from 'lucide-react'
 import CustomSelect from '../components/shared/CustomSelect'
 
@@ -52,7 +54,7 @@ interface UpdateInfo {
 }
 
 export default function AdminPage(): React.ReactElement {
-  const { demoMode } = useAuthStore()
+  const { demoMode, serverTimezone } = useAuthStore()
   const { t, locale } = useTranslation()
   const hour12 = useSettingsStore(s => s.settings.time_format) === '12h'
   const TABS = [
@@ -61,6 +63,8 @@ export default function AdminPage(): React.ReactElement {
     { id: 'addons', label: t('admin.tabs.addons') },
     { id: 'settings', label: t('admin.tabs.settings') },
     { id: 'backup', label: t('admin.tabs.backup') },
+    { id: 'audit', label: t('admin.tabs.audit') },
+    { id: 'mcp-tokens', label: t('admin.tabs.mcpTokens') },
     { id: 'github', label: t('admin.tabs.github') },
   ]
 
@@ -83,6 +87,7 @@ export default function AdminPage(): React.ReactElement {
 
   // Registration toggle
   const [allowRegistration, setAllowRegistration] = useState<boolean>(true)
+  const [requireMfa, setRequireMfa] = useState<boolean>(false)
 
   // Invite links
   const [invites, setInvites] = useState<any[]>([])
@@ -92,6 +97,16 @@ export default function AdminPage(): React.ReactElement {
   // File types
   const [allowedFileTypes, setAllowedFileTypes] = useState<string>('jpg,jpeg,png,gif,webp,heic,pdf,doc,docx,xls,xlsx,txt,csv')
   const [savingFileTypes, setSavingFileTypes] = useState<boolean>(false)
+
+  // SMTP settings
+  const [smtpValues, setSmtpValues] = useState<Record<string, string>>({})
+  const [smtpLoaded, setSmtpLoaded] = useState(false)
+  useEffect(() => {
+    apiClient.get('/auth/app-settings').then(r => {
+      setSmtpValues(r.data || {})
+      setSmtpLoaded(true)
+    }).catch(() => setSmtpLoaded(true))
+  }, [])
 
   // API Keys
   const [mapsKey, setMapsKey] = useState<string>('')
@@ -107,7 +122,7 @@ export default function AdminPage(): React.ReactElement {
   const [updating, setUpdating] = useState<boolean>(false)
   const [updateResult, setUpdateResult] = useState<'success' | 'error' | null>(null)
 
-  const { user: currentUser, updateApiKeys } = useAuthStore()
+  const { user: currentUser, updateApiKeys, setAppRequireMfa } = useAuthStore()
   const navigate = useNavigate()
   const toast = useToast()
 
@@ -143,6 +158,7 @@ export default function AdminPage(): React.ReactElement {
     try {
       const config = await authApi.getAppConfig()
       setAllowRegistration(config.allow_registration)
+      if (config.require_mfa !== undefined) setRequireMfa(!!config.require_mfa)
       if (config.allowed_file_types) setAllowedFileTypes(config.allowed_file_types)
     } catch (err: unknown) {
       // ignore
@@ -185,6 +201,18 @@ export default function AdminPage(): React.ReactElement {
       await authApi.updateAppSettings({ allow_registration: value })
     } catch (err: unknown) {
       setAllowRegistration(!value)
+      toast.error(getApiErrorMessage(err, t('common.error')))
+    }
+  }
+
+  const handleToggleRequireMfa = async (value: boolean) => {
+    setRequireMfa(value)
+    try {
+      await authApi.updateAppSettings({ require_mfa: value })
+      setAppRequireMfa(value)
+      toast.success(t('common.saved'))
+    } catch (err: unknown) {
+      setRequireMfa(!value)
       toast.error(getApiErrorMessage(err, t('common.error')))
     }
   }
@@ -333,7 +361,7 @@ export default function AdminPage(): React.ReactElement {
               <Shield className="w-5 h-5 text-slate-700" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold text-slate-900">Administration</h1>
+              <h1 className="text-2xl font-bold text-slate-900">{t('admin.title')}</h1>
               <p className="text-slate-500 text-sm">{t('admin.subtitle')}</p>
             </div>
           </div>
@@ -512,10 +540,10 @@ export default function AdminPage(): React.ReactElement {
                             </span>
                           </td>
                           <td className="px-5 py-3 text-sm text-slate-500">
-                            {new Date(u.created_at).toLocaleDateString(locale)}
+                            {new Date(u.created_at).toLocaleDateString(locale, { timeZone: serverTimezone })}
                           </td>
                           <td className="px-5 py-3 text-sm text-slate-500">
-                            {u.last_login ? new Date(u.last_login).toLocaleDateString(locale, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', hour12 }) : '—'}
+                            {u.last_login ? new Date(u.last_login).toLocaleDateString(locale, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', hour12, timeZone: serverTimezone }) : '—'}
                           </td>
                           <td className="px-5 py-3">
                             <div className="flex items-center gap-2 justify-end">
@@ -584,7 +612,7 @@ export default function AdminPage(): React.ReactElement {
                           </div>
                           <div className="text-xs text-slate-400 mt-0.5">
                             {inv.used_count}/{inv.max_uses === 0 ? '∞' : inv.max_uses} {t('admin.invite.uses')}
-                            {inv.expires_at && ` · ${t('admin.invite.expiresAt')} ${new Date(inv.expires_at).toLocaleDateString(locale)}`}
+                            {inv.expires_at && ` · ${t('admin.invite.expiresAt')} ${new Date(inv.expires_at).toLocaleDateString(locale, { timeZone: serverTimezone })}`}
                             {` · ${t('admin.invite.createdBy')} ${inv.created_by_name}`}
                           </div>
                         </div>
@@ -687,6 +715,34 @@ export default function AdminPage(): React.ReactElement {
                       <span
                         className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
                           allowRegistration ? 'translate-x-6' : 'translate-x-1'
+                        }`}
+                      />
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Require 2FA for all users */}
+              <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+                <div className="px-6 py-4 border-b border-slate-100">
+                  <h2 className="font-semibold text-slate-900">{t('admin.requireMfa')}</h2>
+                </div>
+                <div className="p-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-slate-700">{t('admin.requireMfa')}</p>
+                      <p className="text-xs text-slate-400 mt-0.5">{t('admin.requireMfaHint')}</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleToggleRequireMfa(!requireMfa)}
+                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                        requireMfa ? 'bg-slate-900' : 'bg-slate-300'
+                      }`}
+                    >
+                      <span
+                        className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                          requireMfa ? 'translate-x-6' : 'translate-x-1'
                         }`}
                       />
                     </button>
@@ -918,10 +974,74 @@ export default function AdminPage(): React.ReactElement {
                   </button>
                 </div>
               </div>
+              {/* SMTP / Notifications */}
+              <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+                <div className="px-6 py-4 border-b border-slate-100">
+                  <h2 className="font-semibold text-slate-900">{t('admin.smtp.title')}</h2>
+                  <p className="text-xs text-slate-400 mt-1">{t('admin.smtp.hint')}</p>
+                </div>
+                <div className="p-6 space-y-3">
+                  {smtpLoaded && [
+                    { key: 'smtp_host', label: 'SMTP Host', placeholder: 'mail.example.com' },
+                    { key: 'smtp_port', label: 'SMTP Port', placeholder: '587' },
+                    { key: 'smtp_user', label: 'SMTP User', placeholder: 'trek@example.com' },
+                    { key: 'smtp_pass', label: 'SMTP Password', placeholder: '••••••••', type: 'password' },
+                    { key: 'smtp_from', label: 'From Address', placeholder: 'trek@example.com' },
+                    { key: 'notification_webhook_url', label: 'Webhook URL (optional)', placeholder: 'https://discord.com/api/webhooks/...' },
+                    { key: 'app_url', label: 'App URL (for email links)', placeholder: 'https://trek.example.com' },
+                  ].map(field => (
+                    <div key={field.key}>
+                      <label className="block text-xs font-medium text-slate-500 mb-1">{field.label}</label>
+                      <input
+                        type={field.type || 'text'}
+                        value={smtpValues[field.key] || ''}
+                        onChange={e => setSmtpValues(prev => ({ ...prev, [field.key]: e.target.value }))}
+                        placeholder={field.placeholder}
+                        onBlur={e => { if (e.target.value !== '') authApi.updateAppSettings({ [field.key]: e.target.value }).then(() => toast.success(t('common.saved'))).catch(() => {}) }}
+                        className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-slate-400 focus:border-transparent"
+                      />
+                    </div>
+                  ))}
+                  {/* Skip TLS toggle */}
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '4px 0' }}>
+                    <div>
+                      <span className="text-xs font-medium text-slate-500">Skip TLS certificate check</span>
+                      <p className="text-[10px] text-slate-400 mt-0.5">Enable for self-signed certificates on local mail servers</p>
+                    </div>
+                    <button onClick={async () => {
+                      const newVal = smtpValues.smtp_skip_tls_verify === 'true' ? 'false' : 'true'
+                      setSmtpValues(prev => ({ ...prev, smtp_skip_tls_verify: newVal }))
+                      await authApi.updateAppSettings({ smtp_skip_tls_verify: newVal }).catch(() => {})
+                    }}
+                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${smtpValues.smtp_skip_tls_verify === 'true' ? 'bg-slate-900' : 'bg-slate-300'}`}>
+                      <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${smtpValues.smtp_skip_tls_verify === 'true' ? 'translate-x-6' : 'translate-x-1'}`} />
+                    </button>
+                  </div>
+                  <button
+                    onClick={async () => {
+                      for (const k of ['smtp_host', 'smtp_port', 'smtp_user', 'smtp_pass', 'smtp_from']) {
+                        if (smtpValues[k]) await authApi.updateAppSettings({ [k]: smtpValues[k] }).catch(() => {})
+                      }
+                      try {
+                        const result = await notificationsApi.testSmtp()
+                        if (result.success) toast.success(t('admin.smtp.testSuccess'))
+                        else toast.error(result.error || t('admin.smtp.testFailed'))
+                      } catch { toast.error(t('admin.smtp.testFailed')) }
+                    }}
+                    className="px-4 py-2 bg-slate-900 text-white rounded-lg text-sm font-medium hover:bg-slate-800 transition-colors"
+                  >
+                    {t('admin.smtp.testButton')}
+                  </button>
+                </div>
+              </div>
             </div>
           )}
 
           {activeTab === 'backup' && <BackupPanel />}
+
+          {activeTab === 'audit' && <AuditLogPanel />}
+
+          {activeTab === 'mcp-tokens' && <AdminMcpTokensPanel />}
 
           {activeTab === 'github' && <GitHubPanel />}
         </div>

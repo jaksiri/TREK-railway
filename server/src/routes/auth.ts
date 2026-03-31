@@ -4,6 +4,7 @@ import jwt from 'jsonwebtoken';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
+import crypto from 'crypto';
 import { v4 as uuid } from 'uuid';
 import fetch from 'node-fetch';
 import { authenticator } from 'otplib';
@@ -12,12 +13,44 @@ import { db } from '../db/database';
 import { authenticate, demoUploadBlock } from '../middleware/auth';
 import { JWT_SECRET } from '../config';
 import { encryptMfaSecret, decryptMfaSecret } from '../services/mfaCrypto';
+import { randomBytes, createHash } from 'crypto';
+import { revokeUserSessions } from '../mcp';
 import { AuthRequest, User } from '../types';
+import { writeAudit, getClientIp } from '../services/auditLog';
 
 authenticator.options = { window: 1 };
 
 const MFA_SETUP_TTL_MS = 15 * 60 * 1000;
 const mfaSetupPending = new Map<number, { secret: string; exp: number }>();
+const MFA_BACKUP_CODE_COUNT = 10;
+
+function normalizeBackupCode(input: string): string {
+  return String(input || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+}
+
+function hashBackupCode(input: string): string {
+  return crypto.createHash('sha256').update(normalizeBackupCode(input)).digest('hex');
+}
+
+function generateBackupCodes(count = MFA_BACKUP_CODE_COUNT): string[] {
+  const codes: string[] = [];
+  while (codes.length < count) {
+    const raw = crypto.randomBytes(4).toString('hex').toUpperCase();
+    const code = `${raw.slice(0, 4)}-${raw.slice(4)}`;
+    if (!codes.includes(code)) codes.push(code);
+  }
+  return codes;
+}
+
+function parseBackupCodeHashes(raw: string | null | undefined): string[] {
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.filter(v => typeof v === 'string') : [];
+  } catch {
+    return [];
+  }
+}
 
 function getPendingMfaSecret(userId: number): string | null {
   const row = mfaSetupPending.get(userId);
@@ -28,6 +61,11 @@ function getPendingMfaSecret(userId: number): string | null {
   return row.secret;
 }
 
+function utcSuffix(ts: string | null | undefined): string | null {
+  if (!ts) return null;
+  return ts.endsWith('Z') ? ts : ts.replace(' ', 'T') + 'Z';
+}
+
 function stripUserForClient(user: User): Record<string, unknown> {
   const {
     password_hash: _p,
@@ -35,10 +73,14 @@ function stripUserForClient(user: User): Record<string, unknown> {
     openweather_api_key: _o,
     unsplash_api_key: _u,
     mfa_secret: _mf,
+    mfa_backup_codes: _mbc,
     ...rest
   } = user;
   return {
     ...rest,
+    created_at: utcSuffix(rest.created_at),
+    updated_at: utcSuffix(rest.updated_at),
+    last_login: utcSuffix(rest.last_login),
     mfa_enabled: !!(user.mfa_enabled === 1 || user.mfa_enabled === true),
   };
 }
@@ -134,6 +176,7 @@ router.get('/app-config', (_req: Request, res: Response) => {
   );
   const oidcOnlySetting = process.env.OIDC_ONLY || (db.prepare("SELECT value FROM app_settings WHERE key = 'oidc_only'").get() as { value: string } | undefined)?.value;
   const oidcOnlyMode = oidcConfigured && oidcOnlySetting === 'true';
+  const requireMfaRow = db.prepare("SELECT value FROM app_settings WHERE key = 'require_mfa'").get() as { value: string } | undefined;
   res.json({
     allow_registration: isDemo ? false : allowRegistration,
     has_users: userCount > 0,
@@ -142,10 +185,12 @@ router.get('/app-config', (_req: Request, res: Response) => {
     oidc_configured: oidcConfigured,
     oidc_display_name: oidcConfigured ? (oidcDisplayName || 'SSO') : undefined,
     oidc_only_mode: oidcOnlyMode,
+    require_mfa: requireMfaRow?.value === 'true',
     allowed_file_types: (db.prepare("SELECT value FROM app_settings WHERE key = 'allowed_file_types'").get() as { value: string } | undefined)?.value || 'jpg,jpeg,png,gif,webp,heic,pdf,doc,docx,xls,xlsx,txt,csv',
     demo_mode: isDemo,
     demo_email: isDemo ? 'demo@trek.app' : undefined,
     demo_password: isDemo ? 'demo12345' : undefined,
+    timezone: process.env.TZ || Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
   });
 });
 
@@ -506,18 +551,58 @@ router.get('/validate-keys', authenticate, async (req: Request, res: Response) =
   res.json(result);
 });
 
+const ADMIN_SETTINGS_KEYS = ['allow_registration', 'allowed_file_types', 'require_mfa', 'smtp_host', 'smtp_port', 'smtp_user', 'smtp_pass', 'smtp_from', 'smtp_skip_tls_verify', 'notification_webhook_url', 'app_url'];
+
+router.get('/app-settings', authenticate, (req: Request, res: Response) => {
+  const authReq = req as AuthRequest;
+  const user = db.prepare('SELECT role FROM users WHERE id = ?').get(authReq.user.id) as { role: string } | undefined;
+  if (user?.role !== 'admin') return res.status(403).json({ error: 'Admin access required' });
+
+  const result: Record<string, string> = {};
+  for (const key of ADMIN_SETTINGS_KEYS) {
+    const row = db.prepare("SELECT value FROM app_settings WHERE key = ?").get(key) as { value: string } | undefined;
+    if (row) result[key] = key === 'smtp_pass' ? '••••••••' : row.value;
+  }
+  res.json(result);
+});
+
 router.put('/app-settings', authenticate, (req: Request, res: Response) => {
   const authReq = req as AuthRequest;
   const user = db.prepare('SELECT role FROM users WHERE id = ?').get(authReq.user.id) as { role: string } | undefined;
   if (user?.role !== 'admin') return res.status(403).json({ error: 'Admin access required' });
 
-  const { allow_registration, allowed_file_types } = req.body;
-  if (allow_registration !== undefined) {
-    db.prepare("INSERT OR REPLACE INTO app_settings (key, value) VALUES ('allow_registration', ?)").run(String(allow_registration));
+  const { allow_registration, allowed_file_types, require_mfa } = req.body as Record<string, unknown>;
+
+  if (require_mfa === true || require_mfa === 'true') {
+    const adminMfa = db.prepare('SELECT mfa_enabled FROM users WHERE id = ?').get(authReq.user.id) as { mfa_enabled: number } | undefined;
+    if (!(adminMfa?.mfa_enabled === 1)) {
+      return res.status(400).json({
+        error: 'Enable two-factor authentication on your own account before requiring it for all users.',
+      });
+    }
   }
-  if (allowed_file_types !== undefined) {
-    db.prepare("INSERT OR REPLACE INTO app_settings (key, value) VALUES ('allowed_file_types', ?)").run(String(allowed_file_types));
+
+  for (const key of ADMIN_SETTINGS_KEYS) {
+    if (req.body[key] !== undefined) {
+      let val = String(req.body[key]);
+      if (key === 'require_mfa') {
+        val = req.body[key] === true || val === 'true' ? 'true' : 'false';
+      }
+      // Don't save masked password
+      if (key === 'smtp_pass' && val === '••••••••') continue;
+      db.prepare("INSERT OR REPLACE INTO app_settings (key, value) VALUES (?, ?)").run(key, val);
+    }
   }
+  writeAudit({
+    userId: authReq.user.id,
+    action: 'settings.app_update',
+    ip: getClientIp(req),
+    details: {
+      allow_registration: allow_registration !== undefined ? Boolean(allow_registration) : undefined,
+      allowed_file_types_changed: allowed_file_types !== undefined,
+      require_mfa: require_mfa !== undefined ? (require_mfa === true || require_mfa === 'true') : undefined,
+    },
+  });
   res.json({ success: true });
 });
 
@@ -610,10 +695,20 @@ router.post('/mfa/verify-login', authLimiter, (req: Request, res: Response) => {
       return res.status(401).json({ error: 'Invalid session' });
     }
     const secret = decryptMfaSecret(user.mfa_secret);
-    const tokenStr = String(code).replace(/\s/g, '');
-    const ok = authenticator.verify({ token: tokenStr, secret });
-    if (!ok) {
-      return res.status(401).json({ error: 'Invalid verification code' });
+    const tokenStr = String(code).trim();
+    const okTotp = authenticator.verify({ token: tokenStr.replace(/\s/g, ''), secret });
+    if (!okTotp) {
+      const hashes = parseBackupCodeHashes(user.mfa_backup_codes);
+      const candidateHash = hashBackupCode(tokenStr);
+      const idx = hashes.findIndex(h => h === candidateHash);
+      if (idx === -1) {
+        return res.status(401).json({ error: 'Invalid verification code' });
+      }
+      hashes.splice(idx, 1);
+      db.prepare('UPDATE users SET mfa_backup_codes = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(
+        JSON.stringify(hashes),
+        user.id
+      );
     }
     db.prepare('UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = ?').run(user.id);
     const sessionToken = generateToken(user);
@@ -667,19 +762,27 @@ router.post('/mfa/enable', authenticate, (req: Request, res: Response) => {
   if (!ok) {
     return res.status(401).json({ error: 'Invalid verification code' });
   }
+  const backupCodes = generateBackupCodes();
+  const backupHashes = backupCodes.map(hashBackupCode);
   const enc = encryptMfaSecret(pending);
-  db.prepare('UPDATE users SET mfa_enabled = 1, mfa_secret = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(
+  db.prepare('UPDATE users SET mfa_enabled = 1, mfa_secret = ?, mfa_backup_codes = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(
     enc,
+    JSON.stringify(backupHashes),
     authReq.user.id
   );
   mfaSetupPending.delete(authReq.user.id);
-  res.json({ success: true, mfa_enabled: true });
+  writeAudit({ userId: authReq.user.id, action: 'user.mfa_enable', ip: getClientIp(req) });
+  res.json({ success: true, mfa_enabled: true, backup_codes: backupCodes });
 });
 
 router.post('/mfa/disable', authenticate, rateLimiter(5, RATE_LIMIT_WINDOW), (req: Request, res: Response) => {
   const authReq = req as AuthRequest;
   if (process.env.DEMO_MODE === 'true' && authReq.user.email === 'demo@nomad.app') {
     return res.status(403).json({ error: 'MFA cannot be changed in demo mode.' });
+  }
+  const policy = db.prepare("SELECT value FROM app_settings WHERE key = 'require_mfa'").get() as { value: string } | undefined;
+  if (policy?.value === 'true') {
+    return res.status(403).json({ error: 'Two-factor authentication cannot be disabled while it is required for all users.' });
   }
   const { password, code } = req.body as { password?: string; code?: string };
   if (!password || !code) {
@@ -698,11 +801,56 @@ router.post('/mfa/disable', authenticate, rateLimiter(5, RATE_LIMIT_WINDOW), (re
   if (!ok) {
     return res.status(401).json({ error: 'Invalid verification code' });
   }
-  db.prepare('UPDATE users SET mfa_enabled = 0, mfa_secret = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(
+  db.prepare('UPDATE users SET mfa_enabled = 0, mfa_secret = NULL, mfa_backup_codes = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(
     authReq.user.id
   );
   mfaSetupPending.delete(authReq.user.id);
+  writeAudit({ userId: authReq.user.id, action: 'user.mfa_disable', ip: getClientIp(req) });
   res.json({ success: true, mfa_enabled: false });
+});
+
+// --- MCP Token Management ---
+
+router.get('/mcp-tokens', authenticate, (req: Request, res: Response) => {
+  const authReq = req as AuthRequest;
+  const tokens = db.prepare(
+    'SELECT id, name, token_prefix, created_at, last_used_at FROM mcp_tokens WHERE user_id = ? ORDER BY created_at DESC'
+  ).all(authReq.user.id);
+  res.json({ tokens });
+});
+
+router.post('/mcp-tokens', authenticate, rateLimiter(5, RATE_LIMIT_WINDOW), (req: Request, res: Response) => {
+  const authReq = req as AuthRequest;
+  const { name } = req.body;
+  if (!name?.trim()) return res.status(400).json({ error: 'Token name is required' });
+  if (name.trim().length > 100) return res.status(400).json({ error: 'Token name must be 100 characters or less' });
+
+  const tokenCount = (db.prepare('SELECT COUNT(*) as count FROM mcp_tokens WHERE user_id = ?').get(authReq.user.id) as { count: number }).count;
+  if (tokenCount >= 10) return res.status(400).json({ error: 'Maximum of 10 tokens per user reached' });
+
+  const rawToken = 'trek_' + randomBytes(24).toString('hex');
+  const tokenHash = createHash('sha256').update(rawToken).digest('hex');
+  const tokenPrefix = rawToken.slice(0, 13); // "trek_" + 8 hex chars
+
+  const result = db.prepare(
+    'INSERT INTO mcp_tokens (user_id, name, token_hash, token_prefix) VALUES (?, ?, ?, ?)'
+  ).run(authReq.user.id, name.trim(), tokenHash, tokenPrefix);
+
+  const token = db.prepare(
+    'SELECT id, name, token_prefix, created_at, last_used_at FROM mcp_tokens WHERE id = ?'
+  ).get(result.lastInsertRowid);
+
+  res.status(201).json({ token: { ...(token as object), raw_token: rawToken } });
+});
+
+router.delete('/mcp-tokens/:id', authenticate, (req: Request, res: Response) => {
+  const authReq = req as AuthRequest;
+  const { id } = req.params;
+  const token = db.prepare('SELECT id FROM mcp_tokens WHERE id = ? AND user_id = ?').get(id, authReq.user.id);
+  if (!token) return res.status(404).json({ error: 'Token not found' });
+  db.prepare('DELETE FROM mcp_tokens WHERE id = ?').run(id);
+  revokeUserSessions(authReq.user.id);
+  res.json({ success: true });
 });
 
 export default router;

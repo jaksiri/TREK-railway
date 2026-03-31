@@ -277,10 +277,10 @@ router.get('/bucket-list', (req: Request, res: Response) => {
 
 router.post('/bucket-list', (req: Request, res: Response) => {
   const authReq = req as AuthRequest;
-  const { name, lat, lng, country_code, notes } = req.body;
+  const { name, lat, lng, country_code, notes, target_date } = req.body;
   if (!name?.trim()) return res.status(400).json({ error: 'Name is required' });
-  const result = db.prepare('INSERT INTO bucket_list (user_id, name, lat, lng, country_code, notes) VALUES (?, ?, ?, ?, ?, ?)').run(
-    authReq.user.id, name.trim(), lat ?? null, lng ?? null, country_code ?? null, notes ?? null
+  const result = db.prepare('INSERT INTO bucket_list (user_id, name, lat, lng, country_code, notes, target_date) VALUES (?, ?, ?, ?, ?, ?, ?)').run(
+    authReq.user.id, name.trim(), lat ?? null, lng ?? null, country_code ?? null, notes ?? null, target_date ?? null
   );
   const item = db.prepare('SELECT * FROM bucket_list WHERE id = ?').get(result.lastInsertRowid);
   res.status(201).json({ item });
@@ -288,10 +288,25 @@ router.post('/bucket-list', (req: Request, res: Response) => {
 
 router.put('/bucket-list/:id', (req: Request, res: Response) => {
   const authReq = req as AuthRequest;
-  const { name, notes } = req.body;
+  const { name, notes, lat, lng, country_code, target_date } = req.body;
   const item = db.prepare('SELECT * FROM bucket_list WHERE id = ? AND user_id = ?').get(req.params.id, authReq.user.id);
   if (!item) return res.status(404).json({ error: 'Item not found' });
-  db.prepare('UPDATE bucket_list SET name = COALESCE(?, name), notes = COALESCE(?, notes) WHERE id = ?').run(name?.trim() || null, notes ?? null, req.params.id);
+  db.prepare(`UPDATE bucket_list SET
+    name = COALESCE(?, name),
+    notes = CASE WHEN ? THEN ? ELSE notes END,
+    lat = CASE WHEN ? THEN ? ELSE lat END,
+    lng = CASE WHEN ? THEN ? ELSE lng END,
+    country_code = CASE WHEN ? THEN ? ELSE country_code END,
+    target_date = CASE WHEN ? THEN ? ELSE target_date END
+    WHERE id = ?`).run(
+    name?.trim() || null,
+    notes !== undefined ? 1 : 0, notes !== undefined ? (notes || null) : null,
+    lat !== undefined ? 1 : 0, lat !== undefined ? (lat || null) : null,
+    lng !== undefined ? 1 : 0, lng !== undefined ? (lng || null) : null,
+    country_code !== undefined ? 1 : 0, country_code !== undefined ? (country_code || null) : null,
+    target_date !== undefined ? 1 : 0, target_date !== undefined ? (target_date || null) : null,
+    req.params.id
+  );
   res.json({ item: db.prepare('SELECT * FROM bucket_list WHERE id = ?').get(req.params.id) });
 });
 

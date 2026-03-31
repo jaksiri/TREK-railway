@@ -446,6 +446,7 @@ export default function TripPlannerPage(): React.ReactElement | null {
                   onEditPlace={(place, assignmentId) => { setEditingPlace(place); setEditingAssignmentId(assignmentId || null); setShowPlaceForm(true) }}
                   onDeletePlace={(placeId) => handleDeletePlace(placeId)}
                   accommodations={tripAccommodations}
+                  onNavigateToFiles={() => handleTabChange('dateien')}
                 />
                 {!leftCollapsed && (
                   <div
@@ -494,6 +495,7 @@ export default function TripPlannerPage(): React.ReactElement | null {
                 )}
                 <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', paddingLeft: 4 }}>
                   <PlacesSidebar
+                    tripId={tripId}
                     places={places}
                     categories={categories}
                     assignments={assignments}
@@ -542,6 +544,8 @@ export default function TripPlannerPage(): React.ReactElement | null {
                   lng={geoPlace?.lng}
                   onClose={() => setShowDayDetail(null)}
                   onAccommodationChange={loadAccommodations}
+                  leftWidth={leftCollapsed ? 0 : leftWidth}
+                  rightWidth={rightCollapsed ? 0 : rightWidth}
                 />
               )
             })()}
@@ -588,6 +592,8 @@ export default function TripPlannerPage(): React.ReactElement | null {
                   } catch {}
                 }}
                 onUpdatePlace={async (placeId, data) => { try { await tripStore.updatePlace(tripId, placeId, data) } catch (err: unknown) { toast.error(err instanceof Error ? err.message : 'Unknown error') } }}
+                leftWidth={leftCollapsed ? 0 : leftWidth}
+                rightWidth={rightCollapsed ? 0 : rightWidth}
               />
             )}
 
@@ -602,8 +608,8 @@ export default function TripPlannerPage(): React.ReactElement | null {
                   </div>
                   <div style={{ flex: 1, overflow: 'auto' }}>
                     {mobileSidebarOpen === 'left'
-                      ? <DayPlanSidebar tripId={tripId} trip={trip} days={days} places={places} categories={categories} assignments={assignments} selectedDayId={selectedDayId} selectedPlaceId={selectedPlaceId} selectedAssignmentId={selectedAssignmentId} onSelectDay={(id) => { handleSelectDay(id); setMobileSidebarOpen(null) }} onPlaceClick={handlePlaceClick} onReorder={handleReorder} onUpdateDayTitle={handleUpdateDayTitle} onAssignToDay={handleAssignToDay} onRouteCalculated={(r) => { if (r) { setRoute(r.coordinates); setRouteInfo({ distance: r.distanceText, duration: r.durationText }) } }} reservations={reservations} onAddReservation={(dayId) => { setEditingReservation(null); tripStore.setSelectedDay(dayId); setShowReservationModal(true); setMobileSidebarOpen(null) }} onDayDetail={(day) => { setShowDayDetail(day); setSelectedPlaceId(null); setSelectedAssignmentId(null); setMobileSidebarOpen(null) }} accommodations={tripAccommodations} />
-                      : <PlacesSidebar places={places} categories={categories} assignments={assignments} selectedDayId={selectedDayId} selectedPlaceId={selectedPlaceId} onPlaceClick={handlePlaceClick} onAddPlace={() => { setEditingPlace(null); setShowPlaceForm(true); setMobileSidebarOpen(null) }} onAssignToDay={handleAssignToDay} days={days} isMobile onCategoryFilterChange={setMapCategoryFilter} />
+                      ? <DayPlanSidebar tripId={tripId} trip={trip} days={days} places={places} categories={categories} assignments={assignments} selectedDayId={selectedDayId} selectedPlaceId={selectedPlaceId} selectedAssignmentId={selectedAssignmentId} onSelectDay={(id) => { handleSelectDay(id); setMobileSidebarOpen(null) }} onPlaceClick={handlePlaceClick} onReorder={handleReorder} onUpdateDayTitle={handleUpdateDayTitle} onAssignToDay={handleAssignToDay} onRouteCalculated={(r) => { if (r) { setRoute(r.coordinates); setRouteInfo({ distance: r.distanceText, duration: r.durationText }) } }} reservations={reservations} onAddReservation={(dayId) => { setEditingReservation(null); tripStore.setSelectedDay(dayId); setShowReservationModal(true); setMobileSidebarOpen(null) }} onDayDetail={(day) => { setShowDayDetail(day); setSelectedPlaceId(null); setSelectedAssignmentId(null); setMobileSidebarOpen(null) }} accommodations={tripAccommodations} onNavigateToFiles={() => { setMobileSidebarOpen(null); handleTabChange('dateien') }} />
+                      : <PlacesSidebar tripId={tripId} places={places} categories={categories} assignments={assignments} selectedDayId={selectedDayId} selectedPlaceId={selectedPlaceId} onPlaceClick={handlePlaceClick} onAddPlace={() => { setEditingPlace(null); setShowPlaceForm(true); setMobileSidebarOpen(null) }} onAssignToDay={handleAssignToDay} days={days} isMobile onCategoryFilterChange={setMapCategoryFilter} />
                     }
                   </div>
                 </div>

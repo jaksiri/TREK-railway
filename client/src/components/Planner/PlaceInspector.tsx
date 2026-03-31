@@ -120,12 +120,15 @@ interface PlaceInspectorProps {
   tripMembers?: TripMember[]
   onSetParticipants: (assignmentId: number, dayId: number, participantIds: number[]) => void
   onUpdatePlace: (placeId: number, data: Partial<Place>) => void
+  leftWidth?: number
+  rightWidth?: number
 }
 
 export default function PlaceInspector({
   place, categories, days, selectedDayId, selectedAssignmentId, assignments, reservations = [],
   onClose, onEdit, onDelete, onAssignToDay, onRemoveAssignment,
   files, onFileUpload, tripMembers = [], onSetParticipants, onUpdatePlace,
+  leftWidth = 0, rightWidth = 0,
 }: PlaceInspectorProps) {
   const { t, locale, language } = useTranslation()
   const timeFormat = useSettingsStore(s => s.settings.time_format) || '24h'
@@ -196,9 +199,9 @@ export default function PlaceInspector({
       style={{
         position: 'absolute',
         bottom: 20,
-        left: '50%',
+        left: `calc(${leftWidth}px + (100% - ${leftWidth}px - ${rightWidth}px) / 2)`,
         transform: 'translateX(-50%)',
-        width: 'min(800px, calc(100vw - 32px))',
+        width: `min(800px, calc(100% - ${leftWidth}px - ${rightWidth}px - 32px))`,
         zIndex: 50,
         fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui, sans-serif",
       }}

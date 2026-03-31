@@ -34,6 +34,13 @@ apiClient.interceptors.response.use(
         window.location.href = '/login'
       }
     }
+    if (
+      error.response?.status === 403 &&
+      (error.response?.data as { code?: string } | undefined)?.code === 'MFA_REQUIRED' &&
+      !window.location.pathname.startsWith('/settings')
+    ) {
+      window.location.href = '/settings?mfa=required'
+    }
     return Promise.reject(error)
   }
 )
@@ -44,7 +51,7 @@ export const authApi = {
   login: (data: { email: string; password: string }) => apiClient.post('/auth/login', data).then(r => r.data),
   verifyMfaLogin: (data: { mfa_token: string; code: string }) => apiClient.post('/auth/mfa/verify-login', data).then(r => r.data),
   mfaSetup: () => apiClient.post('/auth/mfa/setup', {}).then(r => r.data),
-  mfaEnable: (data: { code: string }) => apiClient.post('/auth/mfa/enable', data).then(r => r.data),
+  mfaEnable: (data: { code: string }) => apiClient.post('/auth/mfa/enable', data).then(r => r.data as { success: boolean; mfa_enabled: boolean; backup_codes?: string[] }),
   mfaDisable: (data: { password: string; code: string }) => apiClient.post('/auth/mfa/disable', data).then(r => r.data),
   me: () => apiClient.get('/auth/me').then(r => r.data),
   updateMapsKey: (key: string | null) => apiClient.put('/auth/me/maps-key', { maps_api_key: key }).then(r => r.data),
@@ -61,6 +68,11 @@ export const authApi = {
   changePassword: (data: { current_password: string; new_password: string }) => apiClient.put('/auth/me/password', data).then(r => r.data),
   deleteOwnAccount: () => apiClient.delete('/auth/me').then(r => r.data),
   demoLogin: () => apiClient.post('/auth/demo-login').then(r => r.data),
+  mcpTokens: {
+    list: () => apiClient.get('/auth/mcp-tokens').then(r => r.data),
+    create: (name: string) => apiClient.post('/auth/mcp-tokens', { name }).then(r => r.data),
+    delete: (id: number) => apiClient.delete(`/auth/mcp-tokens/${id}`).then(r => r.data),
+  },
 }
 
 export const tripsApi = {
@@ -91,6 +103,10 @@ export const placesApi = {
   update: (tripId: number | string, id: number | string, data: Record<string, unknown>) => apiClient.put(`/trips/${tripId}/places/${id}`, data).then(r => r.data),
   delete: (tripId: number | string, id: number | string) => apiClient.delete(`/trips/${tripId}/places/${id}`).then(r => r.data),
   searchImage: (tripId: number | string, id: number | string) => apiClient.get(`/trips/${tripId}/places/${id}/image`).then(r => r.data),
+  importGpx: (tripId: number | string, file: File) => {
+    const fd = new FormData(); fd.append('file', file)
+    return apiClient.post(`/trips/${tripId}/places/import/gpx`, fd, { headers: { 'Content-Type': 'multipart/form-data' } }).then(r => r.data)
+  },
 }
 
 export const assignmentsApi = {
@@ -108,6 +124,7 @@ export const assignmentsApi = {
 export const packingApi = {
   list: (tripId: number | string) => apiClient.get(`/trips/${tripId}/packing`).then(r => r.data),
   create: (tripId: number | string, data: Record<string, unknown>) => apiClient.post(`/trips/${tripId}/packing`, data).then(r => r.data),
+  bulkImport: (tripId: number | string, items: { name: string; category?: string; quantity?: number }[]) => apiClient.post(`/trips/${tripId}/packing/import`, { items }).then(r => r.data),
   update: (tripId: number | string, id: number, data: Record<string, unknown>) => apiClient.put(`/trips/${tripId}/packing/${id}`, data).then(r => r.data),
   delete: (tripId: number | string, id: number) => apiClient.delete(`/trips/${tripId}/packing/${id}`).then(r => r.data),
   reorder: (tripId: number | string, orderedIds: number[]) => apiClient.put(`/trips/${tripId}/packing/reorder`, { orderedIds }).then(r => r.data),
@@ -163,6 +180,10 @@ export const adminApi = {
   listInvites: () => apiClient.get('/admin/invites').then(r => r.data),
   createInvite: (data: { max_uses: number; expires_in_days?: number }) => apiClient.post('/admin/invites', data).then(r => r.data),
   deleteInvite: (id: number) => apiClient.delete(`/admin/invites/${id}`).then(r => r.data),
+  auditLog: (params?: { limit?: number; offset?: number }) =>
+    apiClient.get('/admin/audit-log', { params }).then(r => r.data),
+  mcpTokens: () => apiClient.get('/admin/mcp-tokens').then(r => r.data),
+  deleteMcpToken: (id: number) => apiClient.delete(`/admin/mcp-tokens/${id}`).then(r => r.data),
 }
 
 export const addonsApi = {
@@ -174,6 +195,7 @@ export const mapsApi = {
   details: (placeId: string, lang?: string) => apiClient.get(`/maps/details/${encodeURIComponent(placeId)}`, { params: { lang } }).then(r => r.data),
   placePhoto: (placeId: string, lat?: number, lng?: number, name?: string) => apiClient.get(`/maps/place-photo/${encodeURIComponent(placeId)}`, { params: { lat, lng, name } }).then(r => r.data),
   reverse: (lat: number, lng: number, lang?: string) => apiClient.get('/maps/reverse', { params: { lat, lng, lang } }).then(r => r.data),
+  resolveUrl: (url: string) => apiClient.post('/maps/resolve-url', { url }).then(r => r.data),
 }
 
 export const budgetApi = {
@@ -184,6 +206,7 @@ export const budgetApi = {
   setMembers: (tripId: number | string, id: number, userIds: number[]) => apiClient.put(`/trips/${tripId}/budget/${id}/members`, { user_ids: userIds }).then(r => r.data),
   togglePaid: (tripId: number | string, id: number, userId: number, paid: boolean) => apiClient.put(`/trips/${tripId}/budget/${id}/members/${userId}/paid`, { paid }).then(r => r.data),
   perPersonSummary: (tripId: number | string) => apiClient.get(`/trips/${tripId}/budget/summary/per-person`).then(r => r.data),
+  settlement: (tripId: number | string) => apiClient.get(`/trips/${tripId}/budget/settlement`).then(r => r.data),
 }
 
 export const filesApi = {
@@ -207,6 +230,7 @@ export const reservationsApi = {
   create: (tripId: number | string, data: Record<string, unknown>) => apiClient.post(`/trips/${tripId}/reservations`, data).then(r => r.data),
   update: (tripId: number | string, id: number, data: Record<string, unknown>) => apiClient.put(`/trips/${tripId}/reservations/${id}`, data).then(r => r.data),
   delete: (tripId: number | string, id: number) => apiClient.delete(`/trips/${tripId}/reservations/${id}`).then(r => r.data),
+  updatePositions: (tripId: number | string, positions: { id: number; day_plan_position: number }[]) => apiClient.put(`/trips/${tripId}/reservations/positions`, { positions }).then(r => r.data),
 }
 
 export const weatherApi = {
@@ -279,6 +303,19 @@ export const backupApi = {
   },
   getAutoSettings: () => apiClient.get('/backup/auto-settings').then(r => r.data),
   setAutoSettings: (settings: Record<string, unknown>) => apiClient.put('/backup/auto-settings', settings).then(r => r.data),
+}
+
+export const shareApi = {
+  getLink: (tripId: number | string) => apiClient.get(`/trips/${tripId}/share-link`).then(r => r.data),
+  createLink: (tripId: number | string, perms?: Record<string, boolean>) => apiClient.post(`/trips/${tripId}/share-link`, perms || {}).then(r => r.data),
+  deleteLink: (tripId: number | string) => apiClient.delete(`/trips/${tripId}/share-link`).then(r => r.data),
+  getSharedTrip: (token: string) => apiClient.get(`/shared/${token}`).then(r => r.data),
+}
+
+export const notificationsApi = {
+  getPreferences: () => apiClient.get('/notifications/preferences').then(r => r.data),
+  updatePreferences: (prefs: Record<string, boolean>) => apiClient.put('/notifications/preferences', prefs).then(r => r.data),
+  testSmtp: (email?: string) => apiClient.post('/notifications/test-smtp', { email }).then(r => r.data),
 }
 
 export default apiClient

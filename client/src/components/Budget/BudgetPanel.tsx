@@ -3,7 +3,7 @@ import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import DOM from 'react-dom'
 import { useTripStore } from '../../store/tripStore'
 import { useTranslation } from '../../i18n'
-import { Plus, Trash2, Calculator, Wallet, Pencil, Users, Check } from 'lucide-react'
+import { Plus, Trash2, Calculator, Wallet, Pencil, Users, Check, Info, ChevronDown, ChevronRight } from 'lucide-react'
 import CustomSelect from '../shared/CustomSelect'
 import { budgetApi } from '../../api/client'
 import type { BudgetItem, BudgetMember } from '../../types'
@@ -29,8 +29,23 @@ interface PerPersonSummaryEntry {
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
-const CURRENCIES = ['EUR', 'USD', 'GBP', 'JPY', 'CHF', 'CZK', 'PLN', 'SEK', 'NOK', 'DKK', 'TRY', 'THB', 'AUD', 'CAD']
-const SYMBOLS = { EUR: '€', USD: '$', GBP: '£', JPY: '¥', CHF: 'CHF', CZK: 'Kč', PLN: 'zł', SEK: 'kr', NOK: 'kr', DKK: 'kr', TRY: '₺', THB: '฿', AUD: 'A$', CAD: 'C$' }
+const CURRENCIES = [
+  'EUR', 'USD', 'GBP', 'JPY', 'CHF', 'CZK', 'PLN', 'SEK', 'NOK', 'DKK',
+  'TRY', 'THB', 'AUD', 'CAD', 'NZD', 'BRL', 'MXN', 'INR', 'IDR', 'MYR',
+  'PHP', 'SGD', 'KRW', 'CNY', 'HKD', 'TWD', 'ZAR', 'AED', 'SAR', 'ILS',
+  'EGP', 'MAD', 'HUF', 'RON', 'BGN', 'HRK', 'ISK', 'RUB', 'UAH', 'BDT',
+  'LKR', 'VND', 'CLP', 'COP', 'PEN', 'ARS',
+]
+const SYMBOLS = {
+  EUR: '€', USD: '$', GBP: '£', JPY: '¥', CHF: 'CHF', CZK: 'Kč', PLN: 'zł',
+  SEK: 'kr', NOK: 'kr', DKK: 'kr', TRY: '₺', THB: '฿', AUD: 'A$', CAD: 'C$',
+  NZD: 'NZ$', BRL: 'R$', MXN: 'MX$', INR: '₹', IDR: 'Rp', MYR: 'RM',
+  PHP: '₱', SGD: 'S$', KRW: '₩', CNY: '¥', HKD: 'HK$', TWD: 'NT$',
+  ZAR: 'R', AED: 'د.إ', SAR: '﷼', ILS: '₪', EGP: 'E£', MAD: 'MAD',
+  HUF: 'Ft', RON: 'lei', BGN: 'лв', HRK: 'kn', ISK: 'kr', RUB: '₽',
+  UAH: '₴', BDT: '৳', LKR: 'Rs', VND: '₫', CLP: 'CL$', COP: 'CO$',
+  PEN: 'S/.', ARS: 'AR$',
+}
 const PIE_COLORS = ['#6366f1', '#ec4899', '#f59e0b', '#10b981', '#3b82f6', '#8b5cf6', '#ef4444', '#14b8a6', '#f97316', '#06b6d4', '#84cc16', '#a855f7']
 
 const fmtNum = (v, locale, cur) => {
@@ -145,9 +160,11 @@ interface ChipWithTooltipProps {
   label: string
   avatarUrl: string | null
   size?: number
+  paid?: boolean
+  onClick?: () => void
 }
 
-function ChipWithTooltip({ label, avatarUrl, size = 20 }: ChipWithTooltipProps) {
+function ChipWithTooltip({ label, avatarUrl, size = 20, paid, onClick }: ChipWithTooltipProps) {
   const [hover, setHover] = useState(false)
   const [pos, setPos] = useState({ top: 0, left: 0 })
   const ref = useRef(null)
@@ -160,13 +177,19 @@ function ChipWithTooltip({ label, avatarUrl, size = 20 }: ChipWithTooltipProps) 
     setHover(true)
   }
 
+  const borderColor = paid ? '#22c55e' : 'var(--border-primary)'
+  const bg = paid ? 'rgba(34,197,94,0.15)' : 'var(--bg-tertiary)'
+
   return (
     <>
       <div ref={ref} onMouseEnter={onEnter} onMouseLeave={() => setHover(false)}
+        onClick={onClick}
         style={{
-          width: size, height: size, borderRadius: '50%', border: '1.5px solid var(--border-primary)',
-          background: 'var(--bg-tertiary)', display: 'flex', alignItems: 'center', justifyContent: 'center',
-          fontSize: size * 0.4, fontWeight: 700, color: 'var(--text-muted)', overflow: 'hidden', flexShrink: 0,
+          width: size, height: size, borderRadius: '50%', border: `2px solid ${borderColor}`,
+          background: bg, display: 'flex', alignItems: 'center', justifyContent: 'center',
+          fontSize: size * 0.4, fontWeight: 700, color: paid ? '#16a34a' : 'var(--text-muted)',
+          overflow: 'hidden', flexShrink: 0, cursor: onClick ? 'pointer' : 'default',
+          transition: 'border-color 0.15s, background 0.15s',
         }}>
         {avatarUrl
           ? <img src={avatarUrl} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
@@ -177,11 +200,19 @@ function ChipWithTooltip({ label, avatarUrl, size = 20 }: ChipWithTooltipProps) 
         <div style={{
           position: 'fixed', top: pos.top, left: pos.left, transform: 'translate(-50%, -100%)',
           pointerEvents: 'none', zIndex: 10000, whiteSpace: 'nowrap',
+          display: 'flex', alignItems: 'center', gap: 5,
           background: 'var(--bg-card, white)', color: 'var(--text-primary, #111827)',
           fontSize: 11, fontWeight: 500, padding: '5px 10px', borderRadius: 8,
           boxShadow: '0 4px 12px rgba(0,0,0,0.15)', border: '1px solid var(--border-faint, #e5e7eb)',
         }}>
           {label}
+          {paid && (
+            <span style={{
+              fontSize: 9, fontWeight: 700, padding: '1px 5px', borderRadius: 4,
+              background: 'rgba(34,197,94,0.15)', color: '#16a34a',
+              textTransform: 'uppercase', letterSpacing: '0.03em',
+            }}>Paid</span>
+          )}
         </div>,
         document.body
       )}
@@ -194,10 +225,11 @@ interface BudgetMemberChipsProps {
   members?: BudgetMember[]
   tripMembers?: TripMember[]
   onSetMembers: (memberIds: number[]) => void
+  onTogglePaid?: (userId: number, paid: boolean) => void
   compact?: boolean
 }
 
-function BudgetMemberChips({ members = [], tripMembers = [], onSetMembers, compact = true }: BudgetMemberChipsProps) {
+function BudgetMemberChips({ members = [], tripMembers = [], onSetMembers, onTogglePaid, compact = true }: BudgetMemberChipsProps) {
   const chipSize = compact ? 20 : 30
   const btnSize = compact ? 18 : 28
   const iconSize = compact ? (members.length > 0 ? 8 : 9) : (members.length > 0 ? 12 : 14)
@@ -237,7 +269,10 @@ function BudgetMemberChips({ members = [], tripMembers = [], onSetMembers, compa
   return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 2, flexWrap: 'wrap' }}>
       {members.map(m => (
-        <ChipWithTooltip key={m.user_id} label={m.username} avatarUrl={m.avatar_url} size={chipSize} />
+        <ChipWithTooltip key={m.user_id} label={m.username} avatarUrl={m.avatar_url} size={chipSize}
+          paid={!!m.paid}
+          onClick={onTogglePaid ? () => onTogglePaid(m.user_id, !m.paid) : undefined}
+        />
       ))}
       <button ref={btnRef} onClick={openDropdown}
         style={{
@@ -376,14 +411,22 @@ interface BudgetPanelProps {
 }
 
 export default function BudgetPanel({ tripId, tripMembers = [] }: BudgetPanelProps) {
-  const { trip, budgetItems, addBudgetItem, updateBudgetItem, deleteBudgetItem, loadBudgetItems, updateTrip, setBudgetItemMembers } = useTripStore()
+  const { trip, budgetItems, addBudgetItem, updateBudgetItem, deleteBudgetItem, loadBudgetItems, updateTrip, setBudgetItemMembers, toggleBudgetMemberPaid } = useTripStore()
   const { t, locale } = useTranslation()
   const [newCategoryName, setNewCategoryName] = useState('')
   const [editingCat, setEditingCat] = useState(null) // { name, value }
+  const [settlement, setSettlement] = useState<{ balances: any[]; flows: any[] } | null>(null)
+  const [settlementOpen, setSettlementOpen] = useState(false)
   const currency = trip?.currency || 'EUR'
 
   const fmt = (v, cur) => fmtNum(v, locale, cur)
   const hasMultipleMembers = tripMembers.length > 1
+
+  // Load settlement data whenever budget items change
+  useEffect(() => {
+    if (!hasMultipleMembers) return
+    budgetApi.settlement(tripId).then(setSettlement).catch(() => {})
+  }, [tripId, budgetItems, hasMultipleMembers])
 
   const setCurrency = (cur) => {
     if (tripId) updateTrip(tripId, { currency: cur })
@@ -539,6 +582,7 @@ export default function BudgetPanel({ tripId, tripMembers = [] }: BudgetPanelPro
                                     members={item.members || []}
                                     tripMembers={tripMembers}
                                     onSetMembers={(userIds) => setBudgetItemMembers(tripId, item.id, userIds)}
+                                    onTogglePaid={(userId, paid) => toggleBudgetMemberPaid(tripId, item.id, userId, paid)}
                                     compact={false}
                                   />
                                 </div>
@@ -553,6 +597,7 @@ export default function BudgetPanel({ tripId, tripMembers = [] }: BudgetPanelPro
                                   members={item.members || []}
                                   tripMembers={tripMembers}
                                   onSetMembers={(userIds) => setBudgetItemMembers(tripId, item.id, userIds)}
+                                  onTogglePaid={(userId, paid) => toggleBudgetMemberPaid(tripId, item.id, userId, paid)}
                                 />
                               ) : (
                                 <InlineEditCell value={item.persons} type="number" decimals={0} onSave={v => handleUpdateField(item.id, 'persons', v != null ? parseInt(v) || null : null)} style={{ textAlign: 'center' }} placeholder="-" locale={locale} editTooltip={t('budget.editTooltip')} />
@@ -628,6 +673,91 @@ export default function BudgetPanel({ tripId, tripMembers = [] }: BudgetPanelPro
             {hasMultipleMembers && (budgetItems || []).some(i => i.members?.length > 0) && (
               <PerPersonInline tripId={tripId} budgetItems={budgetItems} currency={currency} locale={locale} />
             )}
+
+            {/* Settlement dropdown inside the total card */}
+            {hasMultipleMembers && settlement && settlement.flows.length > 0 && (
+              <div style={{ marginTop: 16, borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: 12 }}>
+                <button onClick={() => setSettlementOpen(v => !v)} style={{
+                  display: 'flex', alignItems: 'center', gap: 6, width: '100%',
+                  background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontFamily: 'inherit',
+                  color: 'rgba(255,255,255,0.6)', fontSize: 11, fontWeight: 600, letterSpacing: 0.5,
+                }}>
+                  {settlementOpen ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
+                  {t('budget.settlement')}
+                  <span style={{ position: 'relative', display: 'inline-flex', marginLeft: 2 }}>
+                    <span style={{ display: 'flex', cursor: 'help' }}
+                      onMouseEnter={e => { const tip = e.currentTarget.nextElementSibling as HTMLElement; if (tip) tip.style.display = 'block' }}
+                      onMouseLeave={e => { const tip = e.currentTarget.nextElementSibling as HTMLElement; if (tip) tip.style.display = 'none' }}
+                      onClick={e => e.stopPropagation()}
+                    >
+                      <Info size={11} strokeWidth={2} />
+                    </span>
+                    <div style={{
+                      display: 'none', position: 'absolute', top: '100%', left: '50%', transform: 'translateX(-50%)',
+                      marginTop: 6, width: 220, padding: '10px 12px', borderRadius: 10, zIndex: 100,
+                      background: 'var(--bg-card)', border: '1px solid var(--border-faint)',
+                      boxShadow: '0 4px 16px rgba(0,0,0,0.12)',
+                      fontSize: 11, fontWeight: 400, color: 'var(--text-secondary)', lineHeight: 1.5, textAlign: 'left',
+                    }}>
+                      {t('budget.settlementInfo')}
+                    </div>
+                  </span>
+                </button>
+
+                {settlementOpen && (
+                  <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {settlement.flows.map((flow, i) => (
+                      <div key={i} style={{
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
+                        padding: '8px 10px', borderRadius: 10,
+                        background: 'rgba(255,255,255,0.06)',
+                      }}>
+                        <ChipWithTooltip label={flow.from.username} avatarUrl={flow.from.avatar_url} size={28} />
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                          <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)' }}>→</span>
+                          <span style={{ fontSize: 12, fontWeight: 700, color: '#f87171', whiteSpace: 'nowrap' }}>
+                            {fmt(flow.amount, currency)}
+                          </span>
+                          <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)' }}>→</span>
+                        </div>
+                        <ChipWithTooltip label={flow.to.username} avatarUrl={flow.to.avatar_url} size={28} />
+                      </div>
+                    ))}
+
+                    {settlement.balances.filter(b => Math.abs(b.balance) > 0.01).length > 0 && (
+                      <div style={{ marginTop: 4, borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: 8 }}>
+                        <div style={{ fontSize: 9, fontWeight: 600, color: 'rgba(255,255,255,0.35)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>
+                          {t('budget.netBalances')}
+                        </div>
+                        {settlement.balances.filter(b => Math.abs(b.balance) > 0.01).map(b => (
+                          <div key={b.user_id} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '2px 0' }}>
+                            <div style={{
+                              width: 20, height: 20, borderRadius: '50%', flexShrink: 0,
+                              background: 'rgba(255,255,255,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                              fontSize: 8, fontWeight: 700, color: 'rgba(255,255,255,0.6)', overflow: 'hidden',
+                            }}>
+                              {b.avatar_url
+                                ? <img src={b.avatar_url} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                : b.username?.[0]?.toUpperCase()
+                              }
+                            </div>
+                            <span style={{ flex: 1, fontSize: 11, color: 'rgba(255,255,255,0.6)', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              {b.username}
+                            </span>
+                            <span style={{
+                              fontSize: 11, fontWeight: 600, flexShrink: 0,
+                              color: b.balance > 0 ? '#4ade80' : '#f87171',
+                            }}>
+                              {b.balance > 0 ? '+' : ''}{fmt(b.balance, currency)}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           {pieSegments.length > 0 && (
@@ -641,26 +771,18 @@ export default function BudgetPanel({ tripId, tripMembers = [] }: BudgetPanelPro
 
               <PieChart segments={pieSegments} size={180} totalLabel={t('budget.total')} />
 
-              <div style={{ marginTop: 20, display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <div style={{ marginTop: 20, display: 'flex', flexDirection: 'column', gap: 6 }}>
                 {pieSegments.map(seg => {
                   const pct = grandTotal > 0 ? ((seg.value / grandTotal) * 100).toFixed(1) : '0.0'
                   return (
                     <div key={seg.name} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                       <div style={{ width: 10, height: 10, borderRadius: 3, background: seg.color, flexShrink: 0 }} />
                       <span style={{ flex: 1, fontSize: 12, color: 'var(--text-secondary)', fontWeight: 500 }}>{seg.name}</span>
-                      <span style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 600, whiteSpace: 'nowrap' }}>{pct}%</span>
+                      <span style={{ fontSize: 11, color: 'var(--text-faint)', fontWeight: 600, whiteSpace: 'nowrap' }}>{fmt(seg.value, currency)}</span>
+                      <span style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 600, whiteSpace: 'nowrap', minWidth: 38, textAlign: 'right' }}>{pct}%</span>
                     </div>
                   )
                 })}
-              </div>
-
-              <div style={{ marginTop: 12, borderTop: '1px solid var(--border-secondary)', paddingTop: 12, display: 'flex', flexDirection: 'column', gap: 6 }}>
-                {pieSegments.map(seg => (
-                  <div key={seg.name} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{ fontSize: 11, color: 'var(--text-faint)' }}>{seg.name}</span>
-                    <span style={{ fontSize: 12, color: 'var(--text-secondary)', fontWeight: 600 }}>{fmt(seg.value, currency)}</span>
-                  </div>
-                ))}
               </div>
             </div>
           )}

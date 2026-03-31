@@ -24,6 +24,53 @@ router.get('/', authenticate, (req: Request, res: Response) => {
   res.json({ items });
 });
 
+// Bulk import packing items (must be before /:id)
+router.post('/import', authenticate, (req: Request, res: Response) => {
+  const authReq = req as AuthRequest;
+  const { tripId } = req.params;
+  const { items } = req.body; // [{ name, category?, quantity? }]
+
+  const trip = verifyTripOwnership(tripId, authReq.user.id);
+  if (!trip) return res.status(404).json({ error: 'Trip not found' });
+
+  if (!Array.isArray(items) || items.length === 0) return res.status(400).json({ error: 'items must be a non-empty array' });
+
+  const maxOrder = db.prepare('SELECT MAX(sort_order) as max FROM packing_items WHERE trip_id = ?').get(tripId) as { max: number | null };
+  let sortOrder = (maxOrder.max !== null ? maxOrder.max : -1) + 1;
+
+  const stmt = db.prepare('INSERT INTO packing_items (trip_id, name, checked, category, weight_grams, bag_id, sort_order) VALUES (?, ?, ?, ?, ?, ?, ?)');
+  const created: any[] = [];
+  const insertAll = db.transaction(() => {
+    for (const item of items) {
+      if (!item.name?.trim()) continue;
+      const checked = item.checked ? 1 : 0;
+      const weight = item.weight_grams ? parseInt(item.weight_grams) || null : null;
+      // Resolve bag by name if provided
+      let bagId = null;
+      if (item.bag?.trim()) {
+        const bagName = item.bag.trim();
+        const existing = db.prepare('SELECT id FROM packing_bags WHERE trip_id = ? AND name = ?').get(tripId, bagName) as { id: number } | undefined;
+        if (existing) {
+          bagId = existing.id;
+        } else {
+          const BAG_COLORS = ['#6366f1', '#ec4899', '#f97316', '#10b981', '#06b6d4', '#8b5cf6', '#ef4444', '#f59e0b'];
+          const bagCount = (db.prepare('SELECT COUNT(*) as c FROM packing_bags WHERE trip_id = ?').get(tripId) as { c: number }).c;
+          const newBag = db.prepare('INSERT INTO packing_bags (trip_id, name, color) VALUES (?, ?, ?)').run(tripId, bagName, BAG_COLORS[bagCount % BAG_COLORS.length]);
+          bagId = newBag.lastInsertRowid;
+        }
+      }
+      const result = stmt.run(tripId, item.name.trim(), checked, item.category?.trim() || 'Other', weight, bagId, sortOrder++);
+      created.push(db.prepare('SELECT * FROM packing_items WHERE id = ?').get(result.lastInsertRowid));
+    }
+  });
+  insertAll();
+
+  res.status(201).json({ items: created, count: created.length });
+  for (const item of created) {
+    broadcast(tripId, 'packing:created', { item }, req.headers['x-socket-id'] as string);
+  }
+});
+
 router.post('/', authenticate, (req: Request, res: Response) => {
   const authReq = req as AuthRequest;
   const { tripId } = req.params;
@@ -231,6 +278,18 @@ router.put('/category-assignees/:categoryName', authenticate, (req: Request, res
 
   res.json({ assignees: rows });
   broadcast(tripId, 'packing:assignees', { category: cat, assignees: rows }, req.headers['x-socket-id'] as string);
+
+  // Notify newly assigned users
+  if (Array.isArray(user_ids) && user_ids.length > 0) {
+    import('../services/notifications').then(({ notify }) => {
+      const tripInfo = db.prepare('SELECT title FROM trips WHERE id = ?').get(tripId) as { title: string } | undefined;
+      for (const uid of user_ids) {
+        if (uid !== authReq.user.id) {
+          notify({ userId: uid, event: 'packing_tagged', params: { trip: tripInfo?.title || 'Untitled', actor: authReq.user.username, category: cat } }).catch(() => {});
+        }
+      }
+    });
+  }
 });
 
 router.put('/reorder', authenticate, (req: Request, res: Response) => {

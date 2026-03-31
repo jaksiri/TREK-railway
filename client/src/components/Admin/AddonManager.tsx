@@ -2,11 +2,12 @@ import { useEffect, useState } from 'react'
 import { adminApi } from '../../api/client'
 import { useTranslation } from '../../i18n'
 import { useSettingsStore } from '../../store/settingsStore'
+import { useAddonStore } from '../../store/addonStore'
 import { useToast } from '../shared/Toast'
-import { Puzzle, ListChecks, Wallet, FileText, CalendarDays, Globe, Briefcase, Image } from 'lucide-react'
+import { Puzzle, ListChecks, Wallet, FileText, CalendarDays, Globe, Briefcase, Image, Terminal, Link2 } from 'lucide-react'
 
 const ICON_MAP = {
-  ListChecks, Wallet, FileText, CalendarDays, Puzzle, Globe, Briefcase, Image,
+  ListChecks, Wallet, FileText, CalendarDays, Puzzle, Globe, Briefcase, Image, Terminal, Link2,
 }
 
 interface Addon {
@@ -32,6 +33,7 @@ export default function AddonManager({ bagTrackingEnabled, onToggleBagTracking }
   const dm = useSettingsStore(s => s.settings.dark_mode)
   const dark = dm === true || dm === 'dark' || (dm === 'auto' && window.matchMedia('(prefers-color-scheme: dark)').matches)
   const toast = useToast()
+  const refreshGlobalAddons = useAddonStore(s => s.loadAddons)
   const [addons, setAddons] = useState([])
   const [loading, setLoading] = useState(true)
 
@@ -57,7 +59,7 @@ export default function AddonManager({ bagTrackingEnabled, onToggleBagTracking }
     setAddons(prev => prev.map(a => a.id === addon.id ? { ...a, enabled: newEnabled } : a))
     try {
       await adminApi.updateAddon(addon.id, { enabled: newEnabled })
-      window.dispatchEvent(new Event('addons-changed'))
+      refreshGlobalAddons()
       toast.success(t('admin.addons.toast.updated'))
     } catch (err: unknown) {
       // Rollback
@@ -68,6 +70,7 @@ export default function AddonManager({ bagTrackingEnabled, onToggleBagTracking }
 
   const tripAddons = addons.filter(a => a.type === 'trip')
   const globalAddons = addons.filter(a => a.type === 'global')
+  const integrationAddons = addons.filter(a => a.type === 'integration')
 
   if (loading) {
     return (
@@ -144,6 +147,21 @@ export default function AddonManager({ bagTrackingEnabled, onToggleBagTracking }
                 ))}
               </div>
             )}
+
+            {/* Integration Addons */}
+            {integrationAddons.length > 0 && (
+              <div>
+                <div className="px-6 py-2.5 border-b border-t flex items-center gap-2" style={{ background: 'var(--bg-secondary)', borderColor: 'var(--border-secondary)' }}>
+                  <Link2 size={13} style={{ color: 'var(--text-muted)' }} />
+                  <span className="text-xs font-medium uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>
+                    {t('admin.addons.type.integration')} — {t('admin.addons.integrationHint')}
+                  </span>
+                </div>
+                {integrationAddons.map(addon => (
+                  <AddonRow key={addon.id} addon={addon} onToggle={handleToggle} t={t} />
+                ))}
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -188,11 +206,8 @@ function AddonRow({ addon, onToggle, t }: AddonRowProps) {
               Coming Soon
             </span>
           )}
-          <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full" style={{
-            background: addon.type === 'global' ? 'var(--bg-secondary)' : 'var(--bg-secondary)',
-            color: 'var(--text-muted)',
-          }}>
-            {addon.type === 'global' ? t('admin.addons.type.global') : t('admin.addons.type.trip')}
+          <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full" style={{ background: 'var(--bg-secondary)', color: 'var(--text-muted)' }}>
+            {addon.type === 'global' ? t('admin.addons.type.global') : addon.type === 'integration' ? t('admin.addons.type.integration') : t('admin.addons.type.trip')}
           </span>
         </div>
         <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>{label.description}</p>

@@ -11,6 +11,7 @@ import AdminPage from './pages/AdminPage'
 import SettingsPage from './pages/SettingsPage'
 import VacayPage from './pages/VacayPage'
 import AtlasPage from './pages/AtlasPage'
+import SharedTripPage from './pages/SharedTripPage'
 import { ToastContainer } from './components/shared/Toast'
 import { TranslationProvider, useTranslation } from './i18n'
 import DemoBanner from './components/Layout/DemoBanner'
@@ -22,8 +23,9 @@ interface ProtectedRouteProps {
 }
 
 function ProtectedRoute({ children, adminRequired = false }: ProtectedRouteProps) {
-  const { isAuthenticated, user, isLoading } = useAuthStore()
+  const { isAuthenticated, user, isLoading, appRequireMfa } = useAuthStore()
   const { t } = useTranslation()
+  const location = useLocation()
 
   if (isLoading) {
     return (
@@ -38,6 +40,15 @@ function ProtectedRoute({ children, adminRequired = false }: ProtectedRouteProps
 
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />
+  }
+
+  if (
+    appRequireMfa &&
+    user &&
+    !user.mfa_enabled &&
+    location.pathname !== '/settings'
+  ) {
+    return <Navigate to="/settings?mfa=required" replace />
   }
 
   if (adminRequired && user && user.role !== 'admin') {
@@ -62,16 +73,38 @@ function RootRedirect() {
 }
 
 export default function App() {
-  const { loadUser, token, isAuthenticated, demoMode, setDemoMode, setHasMapsKey } = useAuthStore()
+  const { loadUser, token, isAuthenticated, demoMode, setDemoMode, setHasMapsKey, setServerTimezone, setAppRequireMfa } = useAuthStore()
   const { loadSettings } = useSettingsStore()
 
   useEffect(() => {
     if (token) {
       loadUser()
     }
-    authApi.getAppConfig().then((config: { demo_mode?: boolean; has_maps_key?: boolean }) => {
+    authApi.getAppConfig().then(async (config: { demo_mode?: boolean; has_maps_key?: boolean; version?: string; timezone?: string; require_mfa?: boolean }) => {
       if (config?.demo_mode) setDemoMode(true)
       if (config?.has_maps_key !== undefined) setHasMapsKey(config.has_maps_key)
+      if (config?.timezone) setServerTimezone(config.timezone)
+      if (config?.require_mfa !== undefined) setAppRequireMfa(!!config.require_mfa)
+
+      if (config?.version) {
+        const storedVersion = localStorage.getItem('trek_app_version')
+        if (storedVersion && storedVersion !== config.version) {
+          try {
+            if ('caches' in window) {
+              const names = await caches.keys()
+              await Promise.all(names.map(n => caches.delete(n)))
+            }
+            if ('serviceWorker' in navigator) {
+              const regs = await navigator.serviceWorker.getRegistrations()
+              await Promise.all(regs.map(r => r.unregister()))
+            }
+          } catch {}
+          localStorage.setItem('trek_app_version', config.version)
+          window.location.reload()
+          return
+        }
+        localStorage.setItem('trek_app_version', config.version)
+      }
     }).catch(() => {})
   }, [])
 
@@ -83,7 +116,18 @@ export default function App() {
     }
   }, [isAuthenticated])
 
+  const location = useLocation()
+  const isSharedPage = location.pathname.startsWith('/shared/')
+
   useEffect(() => {
+    // Shared page always forces light mode
+    if (isSharedPage) {
+      document.documentElement.classList.remove('dark')
+      const meta = document.querySelector('meta[name="theme-color"]')
+      if (meta) meta.setAttribute('content', '#ffffff')
+      return
+    }
+
     const mode = settings.dark_mode
     const applyDark = (isDark: boolean) => {
       document.documentElement.classList.toggle('dark', isDark)
@@ -99,7 +143,7 @@ export default function App() {
       return () => mq.removeEventListener('change', handler)
     }
     applyDark(mode === true || mode === 'dark')
-  }, [settings.dark_mode])
+  }, [settings.dark_mode, isSharedPage])
 
   return (
     <TranslationProvider>
@@ -107,6 +151,7 @@ export default function App() {
       <Routes>
         <Route path="/" element={<RootRedirect />} />
         <Route path="/login" element={<LoginPage />} />
+        <Route path="/shared/:token" element={<SharedTripPage />} />
         <Route path="/register" element={<LoginPage />} />
         <Route
           path="/dashboard"

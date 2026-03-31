@@ -3,9 +3,10 @@ import { useTripStore } from '../../store/tripStore'
 import { useToast } from '../shared/Toast'
 import { useTranslation } from '../../i18n'
 import { packingApi, tripsApi, adminApi } from '../../api/client'
+import ReactDOM from 'react-dom'
 import {
   CheckSquare, Square, Trash2, Plus, ChevronDown, ChevronRight,
-  X, Pencil, Check, MoreHorizontal, CheckCheck, RotateCcw, Luggage, UserPlus, Package, FolderPlus,
+  X, Pencil, Check, MoreHorizontal, CheckCheck, RotateCcw, Luggage, UserPlus, Package, FolderPlus, Upload,
 } from 'lucide-react'
 import type { PackingItem } from '../../types'
 
@@ -727,6 +728,9 @@ export default function PackingListPanel({ tripId, items }: PackingListPanelProp
   const [availableTemplates, setAvailableTemplates] = useState<{ id: number; name: string; item_count: number }[]>([])
   const [showTemplateDropdown, setShowTemplateDropdown] = useState(false)
   const [applyingTemplate, setApplyingTemplate] = useState(false)
+  const [showImportModal, setShowImportModal] = useState(false)
+  const [importText, setImportText] = useState('')
+  const csvInputRef = useRef<HTMLInputElement>(null)
   const templateDropdownRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -757,6 +761,44 @@ export default function PackingListPanel({ tripId, items }: PackingListPanelProp
     }
   }
 
+  const parseImportLines = (text: string) => {
+    return text.split('\n').map(line => line.trim()).filter(Boolean).map(line => {
+      // Format: Category, Name, Weight (optional), Bag (optional), checked/unchecked (optional)
+      const parts = line.split(/[,;\t]/).map(s => s.trim())
+      if (parts.length >= 2) {
+        const category = parts[0]
+        const name = parts[1]
+        const weight_grams = parts[2] || undefined
+        const bag = parts[3] || undefined
+        const checked = parts[4]?.toLowerCase() === 'checked' || parts[4] === '1'
+        return { name, category, weight_grams, bag, checked }
+      }
+      // Single value = just a name
+      return { name: parts[0], category: undefined, weight_grams: undefined, bag: undefined, checked: false }
+    }).filter(i => i.name)
+  }
+
+  const handleBulkImport = async () => {
+    const parsed = parseImportLines(importText)
+    if (parsed.length === 0) { toast.error(t('packing.importEmpty')); return }
+    try {
+      const result = await packingApi.bulkImport(tripId, parsed)
+      toast.success(t('packing.importSuccess', { count: result.count }))
+      setImportText('')
+      setShowImportModal(false)
+      window.location.reload()
+    } catch { toast.error(t('packing.importError')) }
+  }
+
+  const handleCsvFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    e.target.value = ''
+    const reader = new FileReader()
+    reader.onload = () => { if (typeof reader.result === 'string') setImportText(reader.result) }
+    reader.readAsText(file)
+  }
+
   const font = { fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui, sans-serif" }
 
   return (
@@ -781,6 +823,13 @@ export default function PackingListPanel({ tripId, items }: PackingListPanelProp
                 <span className="sm:hidden">{t('packing.clearCheckedShort', { count: abgehakt })}</span>
               </button>
             )}
+            <button onClick={() => setShowImportModal(true)} style={{
+              display: 'flex', alignItems: 'center', gap: 5, padding: '5px 11px', borderRadius: 99,
+              border: '1px solid var(--border-primary)', fontSize: 12, fontWeight: 500, cursor: 'pointer',
+              fontFamily: 'inherit', background: 'var(--bg-card)', color: 'var(--text-muted)',
+            }}>
+              <Upload size={12} /> <span className="hidden sm:inline">{t('packing.import')}</span>
+            </button>
             {availableTemplates.length > 0 && (
               <div ref={templateDropdownRef} style={{ position: 'relative' }}>
                 <button onClick={() => setShowTemplateDropdown(v => !v)} disabled={applyingTemplate} style={{
@@ -1102,6 +1151,60 @@ export default function PackingListPanel({ tripId, items }: PackingListPanelProp
         .assignee-chip:hover + .assignee-tooltip { opacity: 1 !important; }
         .assignee-chip:hover { opacity: 0.7; }
       `}</style>
+
+      {/* Bulk Import Modal */}
+      {showImportModal && ReactDOM.createPortal(
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 1000,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          background: 'rgba(0,0,0,0.3)', backdropFilter: 'blur(3px)',
+        }} onClick={() => setShowImportModal(false)}>
+          <div style={{
+            width: 420, maxHeight: '80vh', background: 'var(--bg-card)', borderRadius: 16,
+            boxShadow: '0 16px 48px rgba(0,0,0,0.22)', padding: '22px 22px 18px',
+            display: 'flex', flexDirection: 'column', gap: 14,
+          }} onClick={e => e.stopPropagation()}>
+            <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--text-primary)' }}>{t('packing.importTitle')}</div>
+            <div style={{ fontSize: 12, color: 'var(--text-faint)', lineHeight: 1.5 }}>{t('packing.importHint')}</div>
+            <textarea
+              value={importText}
+              onChange={e => setImportText(e.target.value)}
+              rows={10}
+              placeholder={t('packing.importPlaceholder')}
+              style={{
+                width: '100%', border: '1px solid var(--border-primary)', borderRadius: 10,
+                padding: '10px 12px', fontSize: 13, fontFamily: 'monospace',
+                outline: 'none', boxSizing: 'border-box', color: 'var(--text-primary)',
+                background: 'var(--bg-input)', resize: 'vertical', lineHeight: 1.5,
+              }}
+            />
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div>
+                <input ref={csvInputRef} type="file" accept=".csv,.txt" style={{ display: 'none' }} onChange={handleCsvFile} />
+                <button onClick={() => csvInputRef.current?.click()} style={{
+                  display: 'flex', alignItems: 'center', gap: 5, padding: '5px 10px',
+                  border: '1px dashed var(--border-primary)', borderRadius: 8, background: 'none',
+                  fontSize: 11, color: 'var(--text-faint)', cursor: 'pointer', fontFamily: 'inherit',
+                }}>
+                  <Upload size={11} /> {t('packing.importCsv')}
+                </button>
+              </div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button onClick={() => setShowImportModal(false)} style={{
+                  fontSize: 12, background: 'none', border: '1px solid var(--border-primary)',
+                  borderRadius: 8, padding: '6px 14px', cursor: 'pointer', color: 'var(--text-muted)', fontFamily: 'inherit',
+                }}>{t('common.cancel')}</button>
+                <button onClick={handleBulkImport} disabled={!importText.trim()} style={{
+                  fontSize: 12, background: 'var(--accent)', color: 'var(--accent-text)',
+                  border: 'none', borderRadius: 8, padding: '6px 16px', cursor: 'pointer', fontWeight: 600,
+                  fontFamily: 'inherit', opacity: importText.trim() ? 1 : 0.5,
+                }}>{t('packing.importAction', { count: parseImportLines(importText).length })}</button>
+              </div>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
     </div>
   )
 }

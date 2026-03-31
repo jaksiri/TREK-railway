@@ -474,4 +474,68 @@ router.get('/reverse', authenticate, async (req: Request, res: Response) => {
   }
 });
 
+// Resolve a Google Maps URL to place data (coordinates, name, address)
+router.post('/resolve-url', authenticate, async (req: Request, res: Response) => {
+  const { url } = req.body;
+  if (!url || typeof url !== 'string') return res.status(400).json({ error: 'URL is required' });
+
+  try {
+    let resolvedUrl = url;
+
+    // Follow redirects for short URLs (goo.gl, maps.app.goo.gl)
+    if (url.includes('goo.gl') || url.includes('maps.app')) {
+      const redirectRes = await fetch(url, { redirect: 'follow', signal: AbortSignal.timeout(10000) });
+      resolvedUrl = redirectRes.url;
+    }
+
+    // Extract coordinates from Google Maps URL patterns:
+    // /@48.8566,2.3522,15z  or  /place/.../@48.8566,2.3522
+    // ?q=48.8566,2.3522  or  ?ll=48.8566,2.3522
+    let lat: number | null = null;
+    let lng: number | null = null;
+    let placeName: string | null = null;
+
+    // Pattern: /@lat,lng
+    const atMatch = resolvedUrl.match(/@(-?\d+\.?\d*),(-?\d+\.?\d*)/);
+    if (atMatch) { lat = parseFloat(atMatch[1]); lng = parseFloat(atMatch[2]); }
+
+    // Pattern: !3dlat!4dlng (Google Maps data params)
+    if (!lat) {
+      const dataMatch = resolvedUrl.match(/!3d(-?\d+\.?\d*)!4d(-?\d+\.?\d*)/);
+      if (dataMatch) { lat = parseFloat(dataMatch[1]); lng = parseFloat(dataMatch[2]); }
+    }
+
+    // Pattern: ?q=lat,lng or &q=lat,lng
+    if (!lat) {
+      const qMatch = resolvedUrl.match(/[?&]q=(-?\d+\.?\d*),(-?\d+\.?\d*)/);
+      if (qMatch) { lat = parseFloat(qMatch[1]); lng = parseFloat(qMatch[2]); }
+    }
+
+    // Extract place name from URL path: /place/Place+Name/@...
+    const placeMatch = resolvedUrl.match(/\/place\/([^/@]+)/);
+    if (placeMatch) {
+      placeName = decodeURIComponent(placeMatch[1].replace(/\+/g, ' '));
+    }
+
+    if (!lat || !lng || isNaN(lat) || isNaN(lng)) {
+      return res.status(400).json({ error: 'Could not extract coordinates from URL' });
+    }
+
+    // Reverse geocode to get address
+    const nominatimRes = await fetch(
+      `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&addressdetails=1`,
+      { headers: { 'User-Agent': 'TREK-Travel-Planner/1.0' }, signal: AbortSignal.timeout(8000) }
+    );
+    const nominatim = await nominatimRes.json() as { display_name?: string; name?: string; address?: Record<string, string> };
+
+    const name = placeName || nominatim.name || nominatim.address?.tourism || nominatim.address?.building || null;
+    const address = nominatim.display_name || null;
+
+    res.json({ lat, lng, name, address });
+  } catch (err: unknown) {
+    console.error('[Maps] URL resolve error:', err instanceof Error ? err.message : err);
+    res.status(400).json({ error: 'Failed to resolve URL' });
+  }
+});
+
 export default router;

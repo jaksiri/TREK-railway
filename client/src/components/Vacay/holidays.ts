@@ -122,9 +122,9 @@ export function daysInMonth(year: number, month: number): number {
   return new Date(year, month, 0).getDate()
 }
 
-export function formatDate(dateStr: string): string {
+export function formatDate(dateStr: string, locale?: string): string {
   const d = new Date(dateStr + 'T00:00:00')
-  return d.toLocaleDateString('de-DE', { weekday: 'short', day: '2-digit', month: '2-digit', year: 'numeric' })
+  return d.toLocaleDateString(locale || undefined, { weekday: 'short', day: '2-digit', month: '2-digit', year: 'numeric' })
 }
 
 export { BUNDESLAENDER }

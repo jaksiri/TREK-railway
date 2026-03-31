@@ -284,6 +284,12 @@ router.post('/:id/members', authenticate, (req: Request, res: Response) => {
 
   db.prepare('INSERT INTO trip_members (trip_id, user_id, invited_by) VALUES (?, ?, ?)').run(req.params.id, target.id, authReq.user.id);
 
+  // Notify invited user
+  const tripInfo = db.prepare('SELECT title FROM trips WHERE id = ?').get(req.params.id) as { title: string } | undefined;
+  import('../services/notifications').then(({ notify }) => {
+    notify({ userId: target.id, event: 'trip_invite', params: { trip: tripInfo?.title || 'Untitled', actor: authReq.user.username } }).catch(() => {});
+  });
+
   res.status(201).json({ member: { ...target, role: 'member', avatar_url: target.avatar ? `/uploads/avatars/${target.avatar}` : null } });
 });
 
@@ -299,6 +305,85 @@ router.delete('/:id/members/:userId', authenticate, (req: Request, res: Response
 
   db.prepare('DELETE FROM trip_members WHERE trip_id = ? AND user_id = ?').run(req.params.id, targetId);
   res.json({ success: true });
+});
+
+// ICS calendar export
+router.get('/:id/export.ics', authenticate, (req: Request, res: Response) => {
+  const authReq = req as AuthRequest;
+  if (!canAccessTrip(req.params.id, authReq.user.id))
+    return res.status(404).json({ error: 'Trip not found' });
+
+  const trip = db.prepare('SELECT * FROM trips WHERE id = ?').get(req.params.id) as any;
+  if (!trip) return res.status(404).json({ error: 'Trip not found' });
+
+  const days = db.prepare('SELECT * FROM days WHERE trip_id = ? ORDER BY day_number ASC').all(req.params.id) as any[];
+  const reservations = db.prepare('SELECT * FROM reservations WHERE trip_id = ?').all(req.params.id) as any[];
+
+  const esc = (s: string) => s.replace(/[\\;,\n]/g, m => m === '\n' ? '\\n' : '\\' + m);
+  const fmtDate = (d: string) => d.replace(/-/g, '');
+  const now = new Date().toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
+  const uid = (id: number, type: string) => `trek-${type}-${id}@trek`;
+
+  // Format datetime: handles full ISO "2026-03-30T09:00" and time-only "10:00"
+  const fmtDateTime = (d: string, refDate?: string) => {
+    if (d.includes('T')) return d.replace(/[-:]/g, '').split('.')[0];
+    // Time-only: combine with reference date
+    if (refDate && d.match(/^\d{2}:\d{2}/)) {
+      const datePart = refDate.split('T')[0];
+      return `${datePart}T${d.replace(/:/g, '')}00`.replace(/-/g, '');
+    }
+    return d.replace(/[-:]/g, '');
+  };
+
+  let ics = 'BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//TREK//Travel Planner//EN\r\nCALSCALE:GREGORIAN\r\nMETHOD:PUBLISH\r\n';
+  ics += `X-WR-CALNAME:${esc(trip.title || 'TREK Trip')}\r\n`;
+
+  // Trip as all-day event
+  if (trip.start_date && trip.end_date) {
+    const endNext = new Date(trip.end_date + 'T00:00:00');
+    endNext.setDate(endNext.getDate() + 1);
+    const endStr = endNext.toISOString().split('T')[0].replace(/-/g, '');
+    ics += `BEGIN:VEVENT\r\nUID:${uid(trip.id, 'trip')}\r\nDTSTAMP:${now}\r\nDTSTART;VALUE=DATE:${fmtDate(trip.start_date)}\r\nDTEND;VALUE=DATE:${endStr}\r\nSUMMARY:${esc(trip.title || 'Trip')}\r\n`;
+    if (trip.description) ics += `DESCRIPTION:${esc(trip.description)}\r\n`;
+    ics += `END:VEVENT\r\n`;
+  }
+
+  // Reservations as events
+  for (const r of reservations) {
+    if (!r.reservation_time) continue;
+    const hasTime = r.reservation_time.includes('T');
+    const meta = r.metadata ? (typeof r.metadata === 'string' ? JSON.parse(r.metadata) : r.metadata) : {};
+
+    ics += `BEGIN:VEVENT\r\nUID:${uid(r.id, 'res')}\r\nDTSTAMP:${now}\r\n`;
+    if (hasTime) {
+      ics += `DTSTART:${fmtDateTime(r.reservation_time)}\r\n`;
+      if (r.reservation_end_time) {
+        const endDt = fmtDateTime(r.reservation_end_time, r.reservation_time);
+        if (endDt.length >= 15) ics += `DTEND:${endDt}\r\n`;
+      }
+    } else {
+      ics += `DTSTART;VALUE=DATE:${fmtDate(r.reservation_time)}\r\n`;
+    }
+    ics += `SUMMARY:${esc(r.title)}\r\n`;
+
+    let desc = r.type ? `Type: ${r.type}` : '';
+    if (r.confirmation_number) desc += `\\nConfirmation: ${r.confirmation_number}`;
+    if (meta.airline) desc += `\\nAirline: ${meta.airline}`;
+    if (meta.flight_number) desc += `\\nFlight: ${meta.flight_number}`;
+    if (meta.departure_airport) desc += `\\nFrom: ${meta.departure_airport}`;
+    if (meta.arrival_airport) desc += `\\nTo: ${meta.arrival_airport}`;
+    if (meta.train_number) desc += `\\nTrain: ${meta.train_number}`;
+    if (r.notes) desc += `\\n${r.notes}`;
+    if (desc) ics += `DESCRIPTION:${desc}\r\n`;
+    if (r.location) ics += `LOCATION:${esc(r.location)}\r\n`;
+    ics += `END:VEVENT\r\n`;
+  }
+
+  ics += 'END:VCALENDAR\r\n';
+
+  res.setHeader('Content-Type', 'text/calendar; charset=utf-8');
+  res.setHeader('Content-Disposition', `attachment; filename="${esc(trip.title || 'trek-trip')}.ics"`);
+  res.send(ics);
 });
 
 export default router;

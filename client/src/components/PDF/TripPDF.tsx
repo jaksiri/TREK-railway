@@ -12,6 +12,13 @@ function noteIconSvg(iconId) {
   return _renderToStaticMarkup(createElement(Icon, { size: 14, strokeWidth: 1.8, color: '#94a3b8' }))
 }
 
+const TRANSPORT_ICON_MAP = { flight: Plane, train: Train, bus: Bus, car: Car, cruise: Ship }
+function transportIconSvg(type) {
+  if (!_renderToStaticMarkup) return ''
+  const Icon = TRANSPORT_ICON_MAP[type] || Ticket
+  return _renderToStaticMarkup(createElement(Icon, { size: 14, strokeWidth: 1.8, color: '#3b82f6' }))
+}
+
 // ── SVG inline icons (for chips) ─────────────────────────────────────────────
 const svgPin   = `<svg width="11" height="11" viewBox="0 0 24 24" fill="#94a3b8" style="flex-shrink:0;margin-top:1px"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/><circle cx="12" cy="9" r="2.5" fill="white"/></svg>`
 const svgClock = `<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#374151" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>`
@@ -96,13 +103,14 @@ interface downloadTripPDFProps {
   assignments: AssignmentsMap
   categories: Category[]
   dayNotes: DayNotesMap
+  reservations?: any[]
   t: (key: string, params?: Record<string, string | number>) => string
   locale: string
 }
 
-export async function downloadTripPDF({ trip, days, places, assignments, categories, dayNotes, t: _t, locale: _locale }: downloadTripPDFProps) {
+export async function downloadTripPDF({ trip, days, places, assignments, categories, dayNotes, reservations = [], t: _t, locale: _locale }: downloadTripPDFProps) {
   await ensureRenderer()
-  const loc = _locale || 'de-DE'
+  const loc = _locale || undefined
   const tr = _t || (k => k)
   const sorted = [...(days || [])].sort((a, b) => a.day_number - b.day_number)
   const range = longDateRange(sorted, loc)
@@ -123,15 +131,46 @@ export async function downloadTripPDF({ trip, days, places, assignments, categor
     const notes = (dayNotes || []).filter(n => n.day_id === day.id)
     const cost = dayCost(assignments, day.id, loc)
 
+    // Transport bookings for this day
+    const TRANSPORT_TYPES = new Set(['flight', 'train', 'bus', 'car', 'cruise'])
+    const dayTransport = (reservations || []).filter(r => {
+      if (!r.reservation_time || !TRANSPORT_TYPES.has(r.type)) return false
+      return day.date && r.reservation_time.split('T')[0] === day.date
+    })
+
     const merged = []
     assigned.forEach(a => merged.push({ type: 'place', k: a.order_index ?? a.sort_order ?? 0, data: a }))
     notes.forEach(n    => merged.push({ type: 'note',  k: n.sort_order ?? 0, data: n }))
+    dayTransport.forEach(r => {
+      const pos = r.day_plan_position ?? (merged.length > 0 ? Math.max(...merged.map(m => m.k)) + 0.5 : 0.5)
+      merged.push({ type: 'transport', k: pos, data: r })
+    })
     merged.sort((a, b) => a.k - b.k)
 
     let pi = 0
     const itemsHtml = merged.length === 0
       ? `<div class="empty-day">${escHtml(tr('dayplan.emptyDay'))}</div>`
       : merged.map(item => {
+          if (item.type === 'transport') {
+            const r = item.data
+            const meta = typeof r.metadata === 'string' ? JSON.parse(r.metadata || '{}') : (r.metadata || {})
+            const icon = transportIconSvg(r.type)
+            let subtitle = ''
+            if (r.type === 'flight') subtitle = [meta.airline, meta.flight_number, meta.departure_airport && meta.arrival_airport ? `${meta.departure_airport} → ${meta.arrival_airport}` : ''].filter(Boolean).join(' · ')
+            else if (r.type === 'train') subtitle = [meta.train_number, meta.platform ? `Gl. ${meta.platform}` : '', meta.seat ? `Seat ${meta.seat}` : ''].filter(Boolean).join(' · ')
+            const time = r.reservation_time?.includes('T') ? r.reservation_time.split('T')[1]?.substring(0, 5) : ''
+            return `
+              <div class="note-card" style="border-left: 3px solid #3b82f6;">
+                <div class="note-line" style="background: #3b82f6;"></div>
+                <span class="note-icon">${icon}</span>
+                <div class="note-body">
+                  <div class="note-text" style="font-weight: 600;">${escHtml(r.title)}${time ? ` <span style="color:#6b7280;font-weight:400;font-size:10px;">${time}</span>` : ''}</div>
+                  ${subtitle ? `<div class="note-time">${escHtml(subtitle)}</div>` : ''}
+                  ${r.confirmation_number ? `<div class="note-time" style="font-size:9px;">Code: ${escHtml(r.confirmation_number)}</div>` : ''}
+                </div>
+              </div>`
+          }
+
           if (item.type === 'note') {
             const note = item.data
             return `

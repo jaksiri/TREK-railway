@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react'
+import ReactDOM from 'react-dom'
 import { useTripStore } from '../../store/tripStore'
 import { useSettingsStore } from '../../store/settingsStore'
 import { useToast } from '../shared/Toast'
@@ -62,18 +63,21 @@ function ReservationCard({ r, tripId, onEdit, onDelete, files = [], onNavigateTo
   const toast = useToast()
   const { t, locale } = useTranslation()
   const timeFormat = useSettingsStore(s => s.settings.time_format) || '24h'
+  const blurCodes = useSettingsStore(s => s.settings.blur_booking_codes)
+  const [codeRevealed, setCodeRevealed] = useState(false)
   const typeInfo = getType(r.type)
   const TypeIcon = typeInfo.Icon
   const confirmed = r.status === 'confirmed'
   const attachedFiles = files.filter(f => f.reservation_id === r.id || (f.linked_reservation_ids || []).includes(r.id))
   const linked = r.assignment_id ? assignmentLookup[r.assignment_id] : null
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
 
   const handleToggle = async () => {
     try { await toggleReservationStatus(tripId, r.id) }
     catch { toast.error(t('reservations.toast.updateError')) }
   }
   const handleDelete = async () => {
-    if (!confirm(t('reservations.confirm.delete', { name: r.title }))) return
+    setShowDeleteConfirm(false)
     try { await onDelete(r.id) } catch { toast.error(t('reservations.toast.deleteError')) }
   }
 
@@ -104,7 +108,7 @@ function ReservationCard({ r, tripId, onEdit, onDelete, files = [], onNavigateTo
           onMouseLeave={e => e.currentTarget.style.color = 'var(--text-faint)'}>
           <Pencil size={11} />
         </button>
-        <button onClick={handleDelete} title={t('common.delete')} style={{ padding: 3, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-faint)', display: 'flex', flexShrink: 0 }}
+        <button onClick={() => setShowDeleteConfirm(true)} title={t('common.delete')} style={{ padding: 3, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-faint)', display: 'flex', flexShrink: 0 }}
           onMouseEnter={e => e.currentTarget.style.color = '#ef4444'}
           onMouseLeave={e => e.currentTarget.style.color = 'var(--text-faint)'}>
           <Trash2 size={11} />
@@ -134,7 +138,19 @@ function ReservationCard({ r, tripId, onEdit, onDelete, files = [], onNavigateTo
               {r.confirmation_number && (
                 <div style={{ flex: 1, padding: '5px 10px', textAlign: 'center' }}>
                   <div style={{ fontSize: 9, fontWeight: 600, color: 'var(--text-faint)', textTransform: 'uppercase', letterSpacing: '0.03em' }}>{t('reservations.confirmationCode')}</div>
-                  <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-primary)', marginTop: 1 }}>{r.confirmation_number}</div>
+                  <div
+                    onMouseEnter={() => blurCodes && setCodeRevealed(true)}
+                    onMouseLeave={() => blurCodes && setCodeRevealed(false)}
+                    onClick={() => blurCodes && setCodeRevealed(v => !v)}
+                    style={{
+                      fontSize: 11, fontWeight: 600, color: 'var(--text-primary)', marginTop: 1,
+                      filter: blurCodes && !codeRevealed ? 'blur(5px)' : 'none',
+                      cursor: blurCodes ? 'pointer' : 'default',
+                      transition: 'filter 0.2s',
+                    }}
+                  >
+                    {r.confirmation_number}
+                  </div>
                 </div>
               )}
             </div>
@@ -226,6 +242,46 @@ function ReservationCard({ r, tripId, onEdit, onDelete, files = [], onNavigateTo
             ))}
           </div>
         </div>
+      )}
+      {/* Delete confirmation popup */}
+      {showDeleteConfirm && ReactDOM.createPortal(
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 1000,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          background: 'rgba(0,0,0,0.3)', backdropFilter: 'blur(3px)',
+        }} onClick={() => setShowDeleteConfirm(false)}>
+          <div style={{
+            width: 340, background: 'var(--bg-card)', borderRadius: 16,
+            boxShadow: '0 16px 48px rgba(0,0,0,0.22)', padding: '22px 22px 18px',
+            display: 'flex', flexDirection: 'column', gap: 12,
+          }} onClick={e => e.stopPropagation()}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div style={{
+                width: 36, height: 36, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                borderRadius: '50%', background: 'rgba(239,68,68,0.12)',
+              }}>
+                <Trash2 size={18} strokeWidth={1.8} color="#ef4444" />
+              </div>
+              <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)' }}>
+                {t('reservations.confirm.deleteTitle')}
+              </div>
+            </div>
+            <div style={{ fontSize: 12.5, color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+              {t('reservations.confirm.deleteBody', { name: r.title })}
+            </div>
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 4 }}>
+              <button onClick={() => setShowDeleteConfirm(false)} style={{
+                fontSize: 12, background: 'none', border: '1px solid var(--border-primary)',
+                borderRadius: 8, padding: '6px 14px', cursor: 'pointer', color: 'var(--text-muted)', fontFamily: 'inherit',
+              }}>{t('common.cancel')}</button>
+              <button onClick={handleDelete} style={{
+                fontSize: 12, background: '#ef4444', color: 'white',
+                border: 'none', borderRadius: 8, padding: '6px 16px', cursor: 'pointer', fontWeight: 600, fontFamily: 'inherit',
+              }}>{t('common.confirm')}</button>
+            </div>
+          </div>
+        </div>,
+        document.body
       )}
     </div>
   )

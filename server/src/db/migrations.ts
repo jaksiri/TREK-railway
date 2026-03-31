@@ -321,6 +321,112 @@ function runMigrations(db: Database.Database): void {
         UNIQUE(file_id, place_id)
       )`);
     },
+    () => {
+      // Add day_plan_position to reservations for persistent transport ordering in day timeline
+      try { db.exec('ALTER TABLE reservations ADD COLUMN day_plan_position REAL DEFAULT NULL'); } catch {}
+    },
+    () => {
+      // Add paid_by_user_id to budget_items for expense tracking / settlement
+      try { db.exec('ALTER TABLE budget_items ADD COLUMN paid_by_user_id INTEGER REFERENCES users(id)'); } catch {}
+    },
+    () => {
+      // Add target_date to bucket_list for optional visit planning
+      try { db.exec('ALTER TABLE bucket_list ADD COLUMN target_date TEXT DEFAULT NULL'); } catch {}
+    },
+    () => {
+      // Notification preferences per user
+      db.exec(`CREATE TABLE IF NOT EXISTS notification_preferences (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        notify_trip_invite INTEGER DEFAULT 1,
+        notify_booking_change INTEGER DEFAULT 1,
+        notify_trip_reminder INTEGER DEFAULT 1,
+        notify_vacay_invite INTEGER DEFAULT 1,
+        notify_photos_shared INTEGER DEFAULT 1,
+        notify_collab_message INTEGER DEFAULT 1,
+        notify_packing_tagged INTEGER DEFAULT 1,
+        notify_webhook INTEGER DEFAULT 0,
+        UNIQUE(user_id)
+      )`);
+    },
+    () => {
+      // Add missing notification preference columns for existing tables
+      try { db.exec('ALTER TABLE notification_preferences ADD COLUMN notify_vacay_invite INTEGER DEFAULT 1'); } catch {}
+      try { db.exec('ALTER TABLE notification_preferences ADD COLUMN notify_photos_shared INTEGER DEFAULT 1'); } catch {}
+      try { db.exec('ALTER TABLE notification_preferences ADD COLUMN notify_collab_message INTEGER DEFAULT 1'); } catch {}
+      try { db.exec('ALTER TABLE notification_preferences ADD COLUMN notify_packing_tagged INTEGER DEFAULT 1'); } catch {}
+    },
+    () => {
+      // Public share links for read-only trip access
+      db.exec(`CREATE TABLE IF NOT EXISTS share_tokens (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        trip_id INTEGER NOT NULL REFERENCES trips(id) ON DELETE CASCADE,
+        token TEXT NOT NULL UNIQUE,
+        created_by INTEGER NOT NULL REFERENCES users(id),
+        share_map INTEGER DEFAULT 1,
+        share_bookings INTEGER DEFAULT 1,
+        share_packing INTEGER DEFAULT 0,
+        share_budget INTEGER DEFAULT 0,
+        share_collab INTEGER DEFAULT 0,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      )`);
+    },
+    () => {
+      // Add permission columns to share_tokens
+      try { db.exec('ALTER TABLE share_tokens ADD COLUMN share_map INTEGER DEFAULT 1'); } catch {}
+      try { db.exec('ALTER TABLE share_tokens ADD COLUMN share_bookings INTEGER DEFAULT 1'); } catch {}
+      try { db.exec('ALTER TABLE share_tokens ADD COLUMN share_packing INTEGER DEFAULT 0'); } catch {}
+      try { db.exec('ALTER TABLE share_tokens ADD COLUMN share_budget INTEGER DEFAULT 0'); } catch {}
+      try { db.exec('ALTER TABLE share_tokens ADD COLUMN share_collab INTEGER DEFAULT 0'); } catch {}
+    },
+    () => {
+      // Audit log
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS audit_log (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+          action TEXT NOT NULL,
+          resource TEXT,
+          details TEXT,
+          ip TEXT
+        );
+        CREATE INDEX IF NOT EXISTS idx_audit_log_created ON audit_log(created_at DESC);
+      `);
+    },
+    () => {
+      // MFA backup/recovery codes
+      try { db.exec('ALTER TABLE users ADD COLUMN mfa_backup_codes TEXT'); } catch {}
+    },
+    // MCP long-lived API tokens
+    () => db.exec(`
+      CREATE TABLE IF NOT EXISTS mcp_tokens (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        name TEXT NOT NULL,
+        token_hash TEXT NOT NULL,
+        token_prefix TEXT NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        last_used_at DATETIME
+      )
+    `),
+    // MCP addon entry
+    () => {
+      try {
+        db.prepare("INSERT OR IGNORE INTO addons (id, name, description, type, icon, enabled, sort_order) VALUES (?, ?, ?, ?, ?, ?, ?)")
+          .run('mcp', 'MCP', 'Model Context Protocol for AI assistant integration', 'integration', 'Terminal', 0, 12);
+      } catch {}
+    },
+    // Index on mcp_tokens.token_hash
+    () => db.exec(`
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_mcp_tokens_hash ON mcp_tokens(token_hash)
+    `),
+    // Ensure MCP addon type is 'integration'
+    () => {
+      try {
+        db.prepare("UPDATE addons SET type = 'integration' WHERE id = 'mcp'").run();
+      } catch {}
+    },
   ];
 
   if (currentVersion < migrations.length) {

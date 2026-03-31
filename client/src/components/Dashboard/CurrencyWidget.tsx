@@ -14,7 +14,7 @@ const CURRENCIES = [
 const CURRENCY_OPTIONS = CURRENCIES.map(c => ({ value: c, label: c }))
 
 export default function CurrencyWidget() {
-  const { t } = useTranslation()
+  const { t, locale } = useTranslation()
   const [from, setFrom] = useState(() => localStorage.getItem('currency_from') || 'EUR')
   const [to, setTo] = useState(() => localStorage.getItem('currency_to') || 'USD')
   const [amount, setAmount] = useState('100')
@@ -40,7 +40,7 @@ export default function CurrencyWidget() {
   const rawResult = rate && amount ? (parseFloat(amount) * rate).toFixed(2) : null
   const formatNumber = (num) => {
     if (!num || num === '—') return '—'
-    return parseFloat(num).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+    return parseFloat(num).toLocaleString(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
   }
   const result = rawResult
 

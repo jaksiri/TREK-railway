@@ -107,9 +107,15 @@ export default function CustomSelect({
       {open && ReactDOM.createPortal(
         <div ref={dropRef} style={{
           position: 'fixed',
-          top: (() => { const r = ref.current?.getBoundingClientRect(); return r ? r.bottom + 4 : 0 })(),
-          left: (() => { const r = ref.current?.getBoundingClientRect(); return r ? r.left : 0 })(),
-          width: (() => { const r = ref.current?.getBoundingClientRect(); return r ? r.width : 200 })(),
+          ...(() => {
+            const r = ref.current?.getBoundingClientRect()
+            if (!r) return { top: 0, left: 0, width: 200 }
+            const spaceBelow = window.innerHeight - r.bottom
+            const openUp = spaceBelow < 220 && r.top > spaceBelow
+            return openUp
+              ? { bottom: window.innerHeight - r.top + 4, left: r.left, width: r.width }
+              : { top: r.bottom + 4, left: r.left, width: r.width }
+          })(),
           zIndex: 99999,
           background: 'var(--bg-card)',
           backdropFilter: 'blur(24px) saturate(180%)',

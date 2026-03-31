@@ -1,7 +1,23 @@
 services:
+  init-permissions:
+    image: alpine:3.20
+    container_name: trek-init-permissions
+    user: "0:0"
+    command: >
+      sh -c "mkdir -p /app/data /app/uploads &&
+             chown -R 1000:1000 /app/data /app/uploads &&
+             chmod -R u+rwX /app/data /app/uploads"
+    volumes:
+      - ./data:/app/data
+      - ./uploads:/app/uploads
+    restart: "no"
+
   app:
     image: mauriceboe/trek:latest
     container_name: trek
+    depends_on:
+      init-permissions:
+        condition: service_completed_successfully
     ports:
       - "3000:3000"
     environment:
@@ -9,6 +25,7 @@ services:
       - JWT_SECRET=${JWT_SECRET:-}
       # - ALLOWED_ORIGINS=https://yourdomain.com  # Optional: restrict CORS to specific origins
       - PORT=3000
+      - TZ=${TZ:-UTC}
     volumes:
       - ./data:/app/data
       - ./uploads:/app/uploads

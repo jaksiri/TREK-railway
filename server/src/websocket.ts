@@ -55,10 +55,16 @@ function setupWebSocket(server: http.Server): void {
     try {
       const decoded = jwt.verify(token, JWT_SECRET) as { id: number };
       user = db.prepare(
-        'SELECT id, username, email, role FROM users WHERE id = ?'
+        'SELECT id, username, email, role, mfa_enabled FROM users WHERE id = ?'
       ).get(decoded.id) as User | undefined;
       if (!user) {
         nws.close(4001, 'User not found');
+        return;
+      }
+      const requireMfa = (db.prepare("SELECT value FROM app_settings WHERE key = 'require_mfa'").get() as { value: string } | undefined)?.value === 'true';
+      const mfaOk = user.mfa_enabled === 1 || user.mfa_enabled === true;
+      if (requireMfa && !mfaOk) {
+        nws.close(4403, 'MFA required');
         return;
       }
     } catch (err: unknown) {

@@ -77,20 +77,32 @@ router.post('/search', authenticate, async (req: Request, res: Response) => {
   if (!user?.immich_url || !user?.immich_api_key) return res.status(400).json({ error: 'Immich not configured' });
 
   try {
-    const resp = await fetch(`${user.immich_url}/api/search/metadata`, {
-      method: 'POST',
-      headers: { 'x-api-key': user.immich_api_key, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        takenAfter: from ? `${from}T00:00:00.000Z` : undefined,
-        takenBefore: to ? `${to}T23:59:59.999Z` : undefined,
-        type: 'IMAGE',
-        size: 200,
-      }),
-      signal: AbortSignal.timeout(15000),
-    });
-    if (!resp.ok) return res.status(resp.status).json({ error: 'Search failed' });
-    const data = await resp.json() as { assets?: { items?: any[] } };
-    const assets = (data.assets?.items || []).map((a: any) => ({
+    // Paginate through all results (Immich limits per-page to 1000)
+    const allAssets: any[] = [];
+    let page = 1;
+    const pageSize = 1000;
+    while (true) {
+      const resp = await fetch(`${user.immich_url}/api/search/metadata`, {
+        method: 'POST',
+        headers: { 'x-api-key': user.immich_api_key, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          takenAfter: from ? `${from}T00:00:00.000Z` : undefined,
+          takenBefore: to ? `${to}T23:59:59.999Z` : undefined,
+          type: 'IMAGE',
+          size: pageSize,
+          page,
+        }),
+        signal: AbortSignal.timeout(15000),
+      });
+      if (!resp.ok) return res.status(resp.status).json({ error: 'Search failed' });
+      const data = await resp.json() as { assets?: { items?: any[] } };
+      const items = data.assets?.items || [];
+      allAssets.push(...items);
+      if (items.length < pageSize) break; // Last page
+      page++;
+      if (page > 20) break; // Safety limit (20k photos max)
+    }
+    const assets = allAssets.map((a: any) => ({
       id: a.id,
       takenAt: a.fileCreatedAt || a.createdAt,
       city: a.exifInfo?.city || null,
@@ -143,6 +155,14 @@ router.post('/trips/:tripId/photos', authenticate, (req: Request, res: Response)
 
   res.json({ success: true, added });
   broadcast(tripId, 'memories:updated', { userId: authReq.user.id }, req.headers['x-socket-id'] as string);
+
+  // Notify trip members about shared photos
+  if (shared && added > 0) {
+    import('../services/notifications').then(({ notifyTripMembers }) => {
+      const tripInfo = db.prepare('SELECT title FROM trips WHERE id = ?').get(tripId) as { title: string } | undefined;
+      notifyTripMembers(Number(tripId), authReq.user.id, 'photos_shared', { trip: tripInfo?.title || 'Untitled', actor: authReq.user.username, count: String(added) }).catch(() => {});
+    });
+  }
 });
 
 // Remove a photo from a trip (own photos only)

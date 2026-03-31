@@ -85,7 +85,7 @@ router.get('/', authenticate, (req: Request, res: Response) => {
 
   // Get all file_links for this trip's files
   const fileIds = files.map(f => f.id);
-  let linksMap: Record<number, number[]> = {};
+  let linksMap: Record<number, { file_id: number; reservation_id: number | null; place_id: number | null }[]> = {};
   if (fileIds.length > 0) {
     const placeholders = fileIds.map(() => '?').join(',');
     const links = db.prepare(`SELECT file_id, reservation_id, place_id FROM file_links WHERE file_id IN (${placeholders})`).all(...fileIds) as { file_id: number; reservation_id: number | null; place_id: number | null }[];

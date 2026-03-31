@@ -3,9 +3,9 @@ import { useNavigate } from 'react-router-dom'
 import { getIntlLanguage, getLocaleForLanguage, useTranslation } from '../i18n'
 import { useSettingsStore } from '../store/settingsStore'
 import Navbar from '../components/Layout/Navbar'
-import apiClient from '../api/client'
+import apiClient, { mapsApi } from '../api/client'
 import CustomSelect from '../components/shared/CustomSelect'
-import { Globe, MapPin, Briefcase, Calendar, Flag, ChevronRight, PanelLeftOpen, PanelLeftClose, X, Star, Plus, Trash2 } from 'lucide-react'
+import { Globe, MapPin, Briefcase, Calendar, Flag, ChevronRight, PanelLeftOpen, PanelLeftClose, X, Star, Plus, Trash2, Search } from 'lucide-react'
 import L from 'leaflet'
 import type { AtlasPlace, GeoJsonFeatureCollection, TranslationFn } from '../types'
 
@@ -154,14 +154,19 @@ export default function AtlasPage(): React.ReactElement {
   const [countryDetail, setCountryDetail] = useState<CountryDetail | null>(null)
   const [geoData, setGeoData] = useState<GeoJsonFeatureCollection | null>(null)
   const [confirmAction, setConfirmAction] = useState<{ type: 'mark' | 'unmark' | 'choose' | 'bucket'; code: string; name: string } | null>(null)
-  const [bucketMonth, setBucketMonth] = useState(new Date().getMonth() + 1)
-  const [bucketYear, setBucketYear] = useState(new Date().getFullYear())
+  const [bucketMonth, setBucketMonth] = useState(0)
+  const [bucketYear, setBucketYear] = useState(0)
 
   // Bucket list
-  interface BucketItem { id: number; name: string; lat: number | null; lng: number | null; country_code: string | null; notes: string | null }
+  interface BucketItem { id: number; name: string; lat: number | null; lng: number | null; country_code: string | null; notes: string | null; target_date: string | null }
   const [bucketList, setBucketList] = useState<BucketItem[]>([])
   const [showBucketAdd, setShowBucketAdd] = useState(false)
-  const [bucketForm, setBucketForm] = useState({ name: '', notes: '' })
+  const [bucketForm, setBucketForm] = useState({ name: '', notes: '', lat: '', lng: '', target_date: '' })
+  const [bucketSearch, setBucketSearch] = useState('')
+  const [bucketSearchResults, setBucketSearchResults] = useState<any[]>([])
+  const [bucketSearching, setBucketSearching] = useState(false)
+  const [bucketPoiMonth, setBucketPoiMonth] = useState(0)
+  const [bucketPoiYear, setBucketPoiYear] = useState(0)
   const [bucketTab, setBucketTab] = useState<'stats' | 'bucket'>('stats')
   const bucketMarkersRef = useRef<any>(null)
 
@@ -179,7 +184,7 @@ export default function AtlasPage(): React.ReactElement {
 
   // Load GeoJSON world data (direct GeoJSON, no conversion needed)
   useEffect(() => {
-    fetch('https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_110m_admin_0_countries.geojson')
+    fetch('https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_50m_admin_0_countries.geojson')
       .then(r => r.json())
       .then(geo => {
         // Dynamically build A2→A3 mapping from GeoJSON
@@ -397,9 +402,15 @@ export default function AtlasPage(): React.ReactElement {
   const handleAddBucketItem = async (): Promise<void> => {
     if (!bucketForm.name.trim()) return
     try {
-      const r = await apiClient.post('/addons/atlas/bucket-list', { name: bucketForm.name.trim(), notes: bucketForm.notes.trim() || null })
+      const data: Record<string, unknown> = { name: bucketForm.name.trim() }
+      if (bucketForm.notes.trim()) data.notes = bucketForm.notes.trim()
+      if (bucketForm.lat && bucketForm.lng) { data.lat = parseFloat(bucketForm.lat); data.lng = parseFloat(bucketForm.lng) }
+      const targetDate = bucketForm.target_date || (bucketPoiMonth > 0 && bucketPoiYear > 0 ? `${bucketPoiYear}-${String(bucketPoiMonth).padStart(2, '0')}` : null)
+      if (targetDate) data.target_date = targetDate
+      const r = await apiClient.post('/addons/atlas/bucket-list', data)
       setBucketList(prev => [r.data.item, ...prev])
-      setBucketForm({ name: '', notes: '' })
+      setBucketForm({ name: '', notes: '', lat: '', lng: '', target_date: '' })
+      setBucketSearch(''); setBucketSearchResults([]); setBucketPoiMonth(0); setBucketPoiYear(0)
       setShowBucketAdd(false)
     } catch { /* */ }
   }
@@ -409,6 +420,28 @@ export default function AtlasPage(): React.ReactElement {
       await apiClient.delete(`/addons/atlas/bucket-list/${id}`)
       setBucketList(prev => prev.filter(i => i.id !== id))
     } catch { /* */ }
+  }
+
+  const handleBucketPoiSearch = async () => {
+    if (!bucketSearch.trim()) return
+    setBucketSearching(true)
+    try {
+      const result = await mapsApi.search(bucketSearch, language)
+      setBucketSearchResults(result.places || [])
+    } catch {} finally { setBucketSearching(false) }
+  }
+
+  const handleSelectBucketPoi = (result: any) => {
+    const targetDate = bucketPoiMonth > 0 && bucketPoiYear > 0 ? `${bucketPoiYear}-${String(bucketPoiMonth).padStart(2, '0')}` : null
+    setBucketForm({
+      name: result.name || bucketSearch,
+      notes: '',
+      lat: String(result.lat || ''),
+      lng: String(result.lng || ''),
+      target_date: targetDate || '',
+    })
+    setBucketSearchResults([])
+    setBucketSearch('')
   }
 
   // Render bucket list markers on map
@@ -517,6 +550,10 @@ export default function AtlasPage(): React.ReactElement {
             showBucketAdd={showBucketAdd} setShowBucketAdd={setShowBucketAdd}
             bucketForm={bucketForm} setBucketForm={setBucketForm}
             onAddBucket={handleAddBucketItem} onDeleteBucket={handleDeleteBucketItem}
+            onSearchBucket={handleBucketPoiSearch} onSelectBucketPoi={handleSelectBucketPoi}
+            bucketSearchResults={bucketSearchResults} bucketPoiMonth={bucketPoiMonth} setBucketPoiMonth={setBucketPoiMonth}
+            bucketPoiYear={bucketPoiYear} setBucketPoiYear={setBucketPoiYear} bucketSearching={bucketSearching}
+            bucketSearch={bucketSearch} setBucketSearch={setBucketSearch}
             t={t} dark={dark}
           />
         </div>
@@ -594,7 +631,11 @@ export default function AtlasPage(): React.ReactElement {
                     <CustomSelect
                       value={bucketMonth}
                       onChange={v => setBucketMonth(Number(v))}
-                      options={Array.from({ length: 12 }, (_, i) => ({ value: i + 1, label: new Date(2000, i).toLocaleString(language, { month: 'long' }) }))}
+                      placeholder={t('atlas.month')}
+                      options={[
+                        { value: 0, label: '—' },
+                        ...Array.from({ length: 12 }, (_, i) => ({ value: i + 1, label: new Date(2000, i).toLocaleString(language, { month: 'long' }) })),
+                      ]}
                       size="sm"
                     />
                   </div>
@@ -602,22 +643,27 @@ export default function AtlasPage(): React.ReactElement {
                     <CustomSelect
                       value={bucketYear}
                       onChange={v => setBucketYear(Number(v))}
-                      options={Array.from({ length: 20 }, (_, i) => ({ value: new Date().getFullYear() + i, label: String(new Date().getFullYear() + i) }))}
+                      placeholder={t('atlas.year')}
+                      options={[
+                        { value: 0, label: '—' },
+                        ...Array.from({ length: 20 }, (_, i) => ({ value: new Date().getFullYear() + i, label: String(new Date().getFullYear() + i) })),
+                      ]}
                       size="sm"
                     />
                   </div>
                 </div>
-                <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
+                <div style={{ display: 'flex', gap: 8, justifyContent: 'center', flexWrap: 'wrap' }}>
                   <button onClick={() => setConfirmAction({ ...confirmAction, type: 'choose' })}
                     style={{ padding: '8px 20px', borderRadius: 10, border: '1px solid var(--border-primary)', background: 'none', fontSize: 13, cursor: 'pointer', fontFamily: 'inherit', color: 'var(--text-muted)' }}>
                     {t('common.back')}
                   </button>
                   <button onClick={async () => {
-                    const monthStr = new Date(bucketYear, bucketMonth - 1).toLocaleString(language, { month: 'short', year: 'numeric' })
+                    const targetDate = bucketMonth > 0 && bucketYear > 0 ? `${bucketYear}-${String(bucketMonth).padStart(2, '0')}` : null
                     try {
-                      const r = await apiClient.post('/addons/atlas/bucket-list', { name: confirmAction.name, country_code: confirmAction.code, notes: monthStr })
+                      const r = await apiClient.post('/addons/atlas/bucket-list', { name: confirmAction.name, country_code: confirmAction.code, target_date: targetDate })
                       setBucketList(prev => [r.data.item, ...prev])
                     } catch {}
+                    setBucketMonth(0); setBucketYear(0)
                     setConfirmAction(null)
                   }}
                     style={{ padding: '8px 20px', borderRadius: 10, border: 'none', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', background: '#fbbf24', color: '#1a1a1a' }}>
@@ -664,15 +710,26 @@ interface SidebarContentProps {
   setBucketTab: (tab: 'stats' | 'bucket') => void
   showBucketAdd: boolean
   setShowBucketAdd: (v: boolean) => void
-  bucketForm: { name: string; notes: string }
-  setBucketForm: (f: { name: string; notes: string }) => void
+  bucketForm: { name: string; notes: string; lat: string; lng: string; target_date: string }
+  setBucketForm: (f: { name: string; notes: string; lat: string; lng: string; target_date: string }) => void
   onAddBucket: () => Promise<void>
   onDeleteBucket: (id: number) => Promise<void>
+  onSearchBucket: () => Promise<void>
+  onSelectBucketPoi: (result: any) => void
+  bucketSearchResults: any[]
+  bucketPoiMonth: number
+  setBucketPoiMonth: (v: number) => void
+  bucketPoiYear: number
+  setBucketPoiYear: (v: number) => void
+  bucketSearching: boolean
+  bucketSearch: string
+  setBucketSearch: (v: string) => void
   t: TranslationFn
   dark: boolean
 }
 
-function SidebarContent({ data, stats, countries, selectedCountry, countryDetail, resolveName, onCountryClick, onTripClick, onUnmarkCountry, bucketList, bucketTab, setBucketTab, showBucketAdd, setShowBucketAdd, bucketForm, setBucketForm, onAddBucket, onDeleteBucket, t, dark }: SidebarContentProps): React.ReactElement {
+function SidebarContent({ data, stats, countries, selectedCountry, countryDetail, resolveName, onCountryClick, onTripClick, onUnmarkCountry, bucketList, bucketTab, setBucketTab, showBucketAdd, setShowBucketAdd, bucketForm, setBucketForm, onAddBucket, onDeleteBucket, onSearchBucket, onSelectBucketPoi, bucketSearchResults, bucketPoiMonth, setBucketPoiMonth, bucketPoiYear, setBucketPoiYear, bucketSearching, bucketSearch, setBucketSearch, t, dark }: SidebarContentProps): React.ReactElement {
+  const { language } = useTranslation()
   const bg = (o) => dark ? `rgba(255,255,255,${o})` : `rgba(0,0,0,${o})`
   const tp = dark ? '#f1f5f9' : '#0f172a'
   const tm = dark ? '#94a3b8' : '#64748b'
@@ -722,6 +779,7 @@ function SidebarContent({ data, stats, countries, selectedCountry, countryDetail
 
   // Bucket list content
   const bucketContent = (
+    <>
     <div className="flex items-stretch" style={{ overflowX: 'auto', padding: '0 8px' }}>
       {bucketList.map(item => (
         <div key={item.id} className="group flex flex-col items-center justify-center shrink-0" style={{ padding: '8px 14px', position: 'relative', minWidth: 80 }}>
@@ -732,7 +790,12 @@ function SidebarContent({ data, stats, countries, selectedCountry, countryDetail
             ) : <Star size={16} style={{ color: '#fbbf24', marginBottom: 4 }} fill="#fbbf24" />
           })()}
           <span className="text-xs font-semibold text-center leading-tight" style={{ color: tp, maxWidth: 90, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.name}</span>
-          {item.notes && <span className="text-[9px] mt-0.5 text-center" style={{ color: tf, maxWidth: 90, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.notes}</span>}
+          {item.target_date && (() => {
+            const [y, m] = item.target_date.split('-')
+            const label = m ? new Date(Number(y), Number(m) - 1).toLocaleString(language, { month: 'short', year: 'numeric' }) : y
+            return <span className="text-[9px] mt-0.5 text-center" style={{ color: tf }}>{label}</span>
+          })()}
+          {!item.target_date && item.notes && <span className="text-[9px] mt-0.5 text-center" style={{ color: tf, maxWidth: 90, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.notes}</span>}
           <button onClick={() => onDeleteBucket(item.id)}
             className="opacity-0 group-hover:opacity-100"
             style={{ position: 'absolute', top: 4, right: 4, background: 'none', border: 'none', cursor: 'pointer', padding: 2, color: tf, display: 'flex', transition: 'opacity 0.15s' }}>
@@ -740,12 +803,85 @@ function SidebarContent({ data, stats, countries, selectedCountry, countryDetail
           </button>
         </div>
       ))}
-      {bucketList.length === 0 && (
+      {bucketList.length === 0 && !showBucketAdd && (
         <div className="flex items-center justify-center py-4 px-6" style={{ color: tf, fontSize: 12 }}>
           {t('atlas.bucketEmptyHint')}
         </div>
       )}
     </div>
+    {showBucketAdd ? (
+      <div style={{ padding: '8px 16px 12px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+        {/* Search or manual name */}
+        <div style={{ position: 'relative' }}>
+          <div style={{ display: 'flex', gap: 4 }}>
+            <input type="text" value={bucketForm.name || bucketSearch}
+              onChange={e => { const v = e.target.value; if (bucketForm.name) setBucketForm({ ...bucketForm, name: v }); else setBucketSearch(v) }}
+              onKeyDown={e => { if (e.key === 'Enter' && !bucketForm.name) onSearchBucket(); else if (e.key === 'Enter') onAddBucket(); if (e.key === 'Escape') setShowBucketAdd(false) }}
+              placeholder={t('atlas.bucketNamePlaceholder')}
+              autoFocus
+              style={{ flex: 1, padding: '6px 10px', borderRadius: 8, border: '1px solid var(--border-primary)', fontSize: 12, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box', color: 'var(--text-primary)', background: 'var(--bg-input)' }}
+            />
+            {!bucketForm.name && (
+              <button onClick={onSearchBucket} disabled={bucketSearching}
+                style={{ padding: '6px 10px', borderRadius: 8, border: 'none', background: 'var(--accent)', color: 'var(--accent-text)', cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
+                <Search size={12} />
+              </button>
+            )}
+            {bucketForm.name && (
+              <button onClick={() => { setBucketForm({ ...bucketForm, name: '', lat: '', lng: '' }); setBucketSearch('') }}
+                style={{ padding: '6px 8px', borderRadius: 8, border: '1px solid var(--border-primary)', background: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', color: 'var(--text-faint)' }}>
+                <X size={12} />
+              </button>
+            )}
+          </div>
+          {bucketSearchResults.length > 0 && (
+            <div style={{ position: 'absolute', bottom: '100%', left: 0, right: 0, zIndex: 50, marginBottom: 4, background: 'var(--bg-card)', border: '1px solid var(--border-primary)', borderRadius: 8, boxShadow: '0 4px 12px rgba(0,0,0,0.12)', maxHeight: 160, overflowY: 'auto' }}>
+              {bucketSearchResults.slice(0, 6).map((r, i) => (
+                <button key={i} onClick={() => onSelectBucketPoi(r)} style={{ display: 'flex', flexDirection: 'column', gap: 1, width: '100%', padding: '6px 10px', border: 'none', background: 'none', cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit', borderBottom: '1px solid var(--border-faint)' }}>
+                  <span style={{ fontSize: 12, fontWeight: 500, color: 'var(--text-primary)' }}>{r.name}</span>
+                  {r.address && <span style={{ fontSize: 10, color: 'var(--text-faint)' }}>{r.address}</span>}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+        {/* Selected place indicator */}
+        {bucketForm.lat && bucketForm.lng && (
+          <div style={{ fontSize: 10, color: 'var(--text-faint)', display: 'flex', alignItems: 'center', gap: 4 }}>
+            <MapPin size={10} /> {Number(bucketForm.lat).toFixed(4)}, {Number(bucketForm.lng).toFixed(4)}
+          </div>
+        )}
+        {/* Month / Year with CustomSelect */}
+        <div style={{ display: 'flex', gap: 6 }}>
+          <div style={{ flex: 1 }}>
+            <CustomSelect value={bucketPoiMonth} onChange={v => setBucketPoiMonth(Number(v))} placeholder={t('atlas.month')} size="sm"
+              options={[{ value: 0, label: '—' }, ...Array.from({ length: 12 }, (_, i) => ({ value: i + 1, label: new Date(2000, i).toLocaleString(language, { month: 'short' }) }))]} />
+          </div>
+          <div style={{ flex: 1 }}>
+            <CustomSelect value={bucketPoiYear} onChange={v => setBucketPoiYear(Number(v))} placeholder={t('atlas.year')} size="sm"
+              options={[{ value: 0, label: '—' }, ...Array.from({ length: 20 }, (_, i) => ({ value: new Date().getFullYear() + i, label: String(new Date().getFullYear() + i) }))]} />
+          </div>
+        </div>
+        <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
+          <button onClick={() => { setShowBucketAdd(false); setBucketForm({ name: '', notes: '', lat: '', lng: '', target_date: '' }); setBucketSearch(''); setBucketSearchResults([]); setBucketPoiMonth(0); setBucketPoiYear(0) }}
+            style={{ fontSize: 11, padding: '4px 10px', borderRadius: 6, border: '1px solid var(--border-primary)', background: 'none', cursor: 'pointer', fontFamily: 'inherit', color: 'var(--text-muted)' }}>
+            {t('common.cancel')}
+          </button>
+          <button onClick={onAddBucket} disabled={!bucketForm.name.trim()}
+            style={{ fontSize: 11, padding: '4px 12px', borderRadius: 6, border: 'none', background: '#fbbf24', color: '#1a1a1a', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', opacity: bucketForm.name.trim() ? 1 : 0.5 }}>
+            {t('common.add')}
+          </button>
+        </div>
+      </div>
+    ) : (
+      <div style={{ padding: '4px 16px 8px' }}>
+        <button onClick={() => setShowBucketAdd(true)}
+          style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4, width: '100%', padding: '5px 0', borderRadius: 8, border: '1px dashed var(--border-primary)', background: 'none', fontSize: 11, color: tf, cursor: 'pointer', fontFamily: 'inherit' }}>
+          <Plus size={11} /> {t('atlas.addPoi')}
+        </button>
+      </div>
+    )}
+    </>
   )
 
   return (

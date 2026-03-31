@@ -3,6 +3,8 @@ import { backupApi } from '../../api/client'
 import { useToast } from '../shared/Toast'
 import { Download, Trash2, Plus, RefreshCw, RotateCcw, Upload, Clock, Check, HardDrive, AlertTriangle } from 'lucide-react'
 import { useTranslation } from '../../i18n'
+import { useSettingsStore } from '../../store/settingsStore'
+import CustomSelect from '../shared/CustomSelect'
 import { getApiErrorMessage } from '../../types'
 
 const INTERVAL_OPTIONS = [
@@ -21,19 +23,35 @@ const KEEP_OPTIONS = [
   { value: 0,  labelKey: 'backup.keep.forever' },
 ]
 
+const DAYS_OF_WEEK = [
+  { value: 0, labelKey: 'backup.dow.sunday' },
+  { value: 1, labelKey: 'backup.dow.monday' },
+  { value: 2, labelKey: 'backup.dow.tuesday' },
+  { value: 3, labelKey: 'backup.dow.wednesday' },
+  { value: 4, labelKey: 'backup.dow.thursday' },
+  { value: 5, labelKey: 'backup.dow.friday' },
+  { value: 6, labelKey: 'backup.dow.saturday' },
+]
+
+const HOURS = Array.from({ length: 24 }, (_, i) => i)
+
+const DAYS_OF_MONTH = Array.from({ length: 28 }, (_, i) => i + 1)
+
 export default function BackupPanel() {
   const [backups, setBackups] = useState([])
   const [isLoading, setIsLoading] = useState(false)
   const [isCreating, setIsCreating] = useState(false)
   const [restoringFile, setRestoringFile] = useState(null)
   const [isUploading, setIsUploading] = useState(false)
-  const [autoSettings, setAutoSettings] = useState({ enabled: false, interval: 'daily', keep_days: 7 })
+  const [autoSettings, setAutoSettings] = useState({ enabled: false, interval: 'daily', keep_days: 7, hour: 2, day_of_week: 0, day_of_month: 1 })
   const [autoSettingsSaving, setAutoSettingsSaving] = useState(false)
   const [autoSettingsDirty, setAutoSettingsDirty] = useState(false)
+  const [serverTimezone, setServerTimezone] = useState('')
   const [restoreConfirm, setRestoreConfirm] = useState(null) // { type: 'file'|'upload', filename, file? }
   const fileInputRef = useRef(null)
   const toast = useToast()
   const { t, language, locale } = useTranslation()
+  const is12h = useSettingsStore(s => s.settings.time_format) === '12h'
 
   const loadBackups = async () => {
     setIsLoading(true)
@@ -51,6 +69,7 @@ export default function BackupPanel() {
     try {
       const data = await backupApi.getAutoSettings()
       setAutoSettings(data.settings)
+      if (data.timezone) setServerTimezone(data.timezone)
     } catch {}
   }
 
@@ -147,10 +166,12 @@ export default function BackupPanel() {
   const formatDate = (dateStr) => {
     if (!dateStr) return '-'
     try {
-      return new Date(dateStr).toLocaleString(locale, {
+      const opts: Intl.DateTimeFormatOptions = {
         day: '2-digit', month: '2-digit', year: 'numeric',
         hour: '2-digit', minute: '2-digit',
-      })
+      }
+      if (serverTimezone) opts.timeZone = serverTimezone
+      return new Date(dateStr).toLocaleString(locale, opts)
     } catch { return dateStr }
   }
 
@@ -330,6 +351,68 @@ export default function BackupPanel() {
                   ))}
                 </div>
               </div>
+
+              {/* Hour picker (for daily, weekly, monthly) */}
+              {autoSettings.interval !== 'hourly' && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">{t('backup.auto.hour')}</label>
+                  <CustomSelect
+                    value={String(autoSettings.hour)}
+                    onChange={v => handleAutoSettingsChange('hour', parseInt(v, 10))}
+                    size="sm"
+                    options={HOURS.map(h => {
+                      let label: string
+                      if (is12h) {
+                        const period = h >= 12 ? 'PM' : 'AM'
+                        const h12 = h === 0 ? 12 : h > 12 ? h - 12 : h
+                        label = `${h12}:00 ${period}`
+                      } else {
+                        label = `${String(h).padStart(2, '0')}:00`
+                      }
+                      return { value: String(h), label }
+                    })}
+                  />
+                  <p className="text-xs text-gray-400 mt-1">
+                    {t('backup.auto.hourHint', { format: is12h ? '12h' : '24h' })}{serverTimezone ? ` (Timezone: ${serverTimezone})` : ''}
+                  </p>
+                </div>
+              )}
+
+              {/* Day of week (for weekly) */}
+              {autoSettings.interval === 'weekly' && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">{t('backup.auto.dayOfWeek')}</label>
+                  <div className="flex flex-wrap gap-2">
+                    {DAYS_OF_WEEK.map(opt => (
+                      <button
+                        key={opt.value}
+                        onClick={() => handleAutoSettingsChange('day_of_week', opt.value)}
+                        className={`px-3 py-2 rounded-lg text-sm font-medium border transition-colors ${
+                          autoSettings.day_of_week === opt.value
+                            ? 'bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 border-slate-700'
+                            : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300'
+                        }`}
+                      >
+                        {t(opt.labelKey)}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Day of month (for monthly) */}
+              {autoSettings.interval === 'monthly' && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">{t('backup.auto.dayOfMonth')}</label>
+                  <CustomSelect
+                    value={String(autoSettings.day_of_month)}
+                    onChange={v => handleAutoSettingsChange('day_of_month', parseInt(v, 10))}
+                    size="sm"
+                    options={DAYS_OF_MONTH.map(d => ({ value: String(d), label: String(d) }))}
+                  />
+                  <p className="text-xs text-gray-400 mt-1">{t('backup.auto.dayOfMonthHint')}</p>
+                </div>
+              )}
 
               {/* Keep duration */}
               <div>

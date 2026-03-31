@@ -349,6 +349,11 @@ router.post('/invite', (req: Request, res: Response) => {
     });
   } catch { /* websocket not available */ }
 
+  // Notify invited user
+  import('../services/notifications').then(({ notify }) => {
+    notify({ userId: user_id, event: 'vacay_invite', params: { actor: authReq.user.username } }).catch(() => {});
+  });
+
   res.json({ success: true });
 });
 

@@ -23,12 +23,16 @@ interface AuthState {
   error: string | null
   demoMode: boolean
   hasMapsKey: boolean
+  serverTimezone: string
+  /** Server policy: all users must enable MFA */
+  appRequireMfa: boolean
 
   login: (email: string, password: string) => Promise<LoginResult>
   completeMfaLogin: (mfaToken: string, code: string) => Promise<AuthResponse>
   register: (username: string, email: string, password: string) => Promise<AuthResponse>
   logout: () => void
-  loadUser: () => Promise<void>
+  /** Pass `{ silent: true }` to refresh the user without toggling global isLoading (avoids unmounting protected routes). */
+  loadUser: (opts?: { silent?: boolean }) => Promise<void>
   updateMapsKey: (key: string | null) => Promise<void>
   updateApiKeys: (keys: Record<string, string | null>) => Promise<void>
   updateProfile: (profileData: Partial<User>) => Promise<void>
@@ -36,6 +40,8 @@ interface AuthState {
   deleteAvatar: () => Promise<void>
   setDemoMode: (val: boolean) => void
   setHasMapsKey: (val: boolean) => void
+  setServerTimezone: (tz: string) => void
+  setAppRequireMfa: (val: boolean) => void
   demoLogin: () => Promise<AuthResponse>
 }
 
@@ -47,6 +53,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   error: null,
   demoMode: localStorage.getItem('demo_mode') === 'true',
   hasMapsKey: false,
+  serverTimezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+  appRequireMfa: false,
 
   login: async (email: string, password: string) => {
     set({ isLoading: true, error: null })
@@ -126,13 +134,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     })
   },
 
-  loadUser: async () => {
+  loadUser: async (opts?: { silent?: boolean }) => {
+    const silent = !!opts?.silent
     const token = get().token
     if (!token) {
-      set({ isLoading: false })
+      if (!silent) set({ isLoading: false })
       return
     }
-    set({ isLoading: true })
+    if (!silent) set({ isLoading: true })
     try {
       const data = await authApi.me()
       set({
@@ -201,6 +210,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   setHasMapsKey: (val: boolean) => set({ hasMapsKey: val }),
+  setServerTimezone: (tz: string) => set({ serverTimezone: tz }),
+  setAppRequireMfa: (val: boolean) => set({ appRequireMfa: val }),
 
   demoLogin: async () => {
     set({ isLoading: true, error: null })

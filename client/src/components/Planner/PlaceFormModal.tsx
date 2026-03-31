@@ -104,6 +104,24 @@ export default function PlaceFormModal({
     if (!mapsSearch.trim()) return
     setIsSearchingMaps(true)
     try {
+      // Detect Google Maps URLs and resolve them directly
+      const trimmed = mapsSearch.trim()
+      if (trimmed.match(/^https?:\/\/(www\.)?(google\.[a-z.]+\/maps|maps\.google\.[a-z.]+|maps\.app\.goo\.gl|goo\.gl)/i)) {
+        const resolved = await mapsApi.resolveUrl(trimmed)
+        if (resolved.lat && resolved.lng) {
+          setForm(prev => ({
+            ...prev,
+            name: resolved.name || prev.name,
+            address: resolved.address || prev.address,
+            lat: String(resolved.lat),
+            lng: String(resolved.lng),
+          }))
+          setMapsResults([])
+          setMapsSearch('')
+          toast.success(t('places.urlResolved'))
+          return
+        }
+      }
       const result = await mapsApi.search(mapsSearch, language)
       setMapsResults(result.places || [])
     } catch (err: unknown) {

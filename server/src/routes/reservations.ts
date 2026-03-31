@@ -101,6 +101,35 @@ router.post('/', authenticate, (req: Request, res: Response) => {
 
   res.status(201).json({ reservation });
   broadcast(tripId, 'reservation:created', { reservation }, req.headers['x-socket-id'] as string);
+
+  // Notify trip members about new booking
+  import('../services/notifications').then(({ notifyTripMembers }) => {
+    const tripInfo = db.prepare('SELECT title FROM trips WHERE id = ?').get(tripId) as { title: string } | undefined;
+    notifyTripMembers(Number(tripId), authReq.user.id, 'booking_change', { trip: tripInfo?.title || 'Untitled', actor: authReq.user.username, booking: title, type: type || 'booking' }).catch(() => {});
+  });
+});
+
+// Batch update day_plan_position for multiple reservations (must be before /:id)
+router.put('/positions', authenticate, (req: Request, res: Response) => {
+  const authReq = req as AuthRequest;
+  const { tripId } = req.params;
+  const { positions } = req.body;
+
+  const trip = verifyTripOwnership(tripId, authReq.user.id);
+  if (!trip) return res.status(404).json({ error: 'Trip not found' });
+
+  if (!Array.isArray(positions)) return res.status(400).json({ error: 'positions must be an array' });
+
+  const stmt = db.prepare('UPDATE reservations SET day_plan_position = ? WHERE id = ? AND trip_id = ?');
+  const updateMany = db.transaction((items: { id: number; day_plan_position: number }[]) => {
+    for (const item of items) {
+      stmt.run(item.day_plan_position, item.id, tripId);
+    }
+  });
+  updateMany(positions);
+
+  res.json({ success: true });
+  broadcast(tripId, 'reservation:positions', { positions }, req.headers['x-socket-id'] as string);
 });
 
 router.put('/:id', authenticate, (req: Request, res: Response) => {
