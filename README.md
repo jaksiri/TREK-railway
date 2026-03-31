@@ -10,15 +10,15 @@
 
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-AGPL_v3-blue.svg" alt="License: AGPL v3" /></a>
-  <a href="https://hub.docker.com/r/mauriceboe/trek"><img src="https://img.shields.io/docker/pulls/mauriceboe/trek" alt="Docker Pulls" /></a>
   <a href="https://github.com/mauriceboe/TREK"><img src="https://img.shields.io/github/stars/mauriceboe/TREK" alt="GitHub Stars" /></a>
-  <a href="https://github.com/mauriceboe/TREK/commits"><img src="https://img.shields.io/github/last-commit/mauriceboe/TREK" alt="Last Commit" /></a>
 </p>
 
 <p align="center">
   A self-hosted, real-time collaborative travel planner with interactive maps, budgets, packing lists, and more.
   <br />
-  <strong><a href="https://demo-nomad.pakulat.org">Live Demo</a></strong> — Try TREK without installing. Resets hourly.
+  This fork adds <strong>Railway deployment</strong> support with a single shared volume.
+  <br />
+  <strong><a href="https://demo-nomad.pakulat.org">Live Demo</a></strong> (upstream) — Try TREK without installing. Resets hourly.
 </p>
 
 ![TREK Screenshot](docs/screenshot.png)
@@ -95,13 +95,49 @@
 - **Weather**: Open-Meteo API (free, no key required)
 - **Icons**: lucide-react
 
-## Quick Start
+## Deploy to Railway
 
-```bash
-docker run -d -p 3000:3000 -v ./data:/app/data -v ./uploads:/app/uploads mauriceboe/trek
+This fork is configured for one-click Railway deployment using a single shared volume.
+
+### 1. Create the service
+
+- Connect this repo to a new Railway project (**New Project → Deploy from GitHub Repo**)
+- Railway will detect `railway.toml` and build using `Dockerfile.railway`
+
+### 2. Add a volume
+
+- In your service's **Settings → Volumes**, click **Add Volume**
+- Set the mount path to `/app/storage`
+
+This single volume stores everything — the SQLite database, backups, and all uploads. The entrypoint script symlinks `/app/data` and `/app/uploads` into subdirectories automatically:
+
+```
+/app/storage/          ← Railway volume
+├── data/
+│   ├── travel.db      ← SQLite database
+│   ├── backups/
+│   └── tmp/
+└── uploads/
+    ├── files/
+    ├── covers/
+    ├── avatars/
+    └── photos/
 ```
 
-The app runs on port `3000`. The first user to register becomes the admin.
+### 3. Set environment variables
+
+In the service's **Variables** tab:
+
+| Variable | Value | Required |
+|----------|-------|----------|
+| `JWT_SECRET` | A random string (`openssl rand -hex 32`) | Yes |
+| `NODE_ENV` | `production` | Yes |
+| `PORT` | `3000` | Yes |
+| `ALLOWED_ORIGINS` | Your Railway URL, e.g. `https://trek-production.up.railway.app` | No |
+
+### 4. Deploy
+
+Railway builds and deploys automatically. The first user to register becomes the admin.
 
 ### Install as App (PWA)
 
@@ -112,8 +148,10 @@ TREK works as a Progressive Web App — no App Store needed:
 3. **Android**: Menu → "Install app" or "Add to Home Screen"
 4. TREK launches fullscreen with its own icon, just like a native app
 
+---
+
 <details>
-<summary>Docker Compose (recommended for production)</summary>
+<summary>Docker Compose (alternative, non-Railway)</summary>
 
 ```yaml
 services:
@@ -142,82 +180,11 @@ docker compose up -d
 
 </details>
 
-### Updating
-
-**Docker Compose** (recommended):
+<details>
+<summary>Docker Run</summary>
 
 ```bash
-docker compose pull && docker compose up -d
-```
-
-**Docker Run** — use the same volume paths from your original `docker run` command:
-
-```bash
-docker pull mauriceboe/trek
-docker rm -f trek
-docker run -d --name trek -p 3000:3000 -v ./data:/app/data -v ./uploads:/app/uploads --restart unless-stopped mauriceboe/trek
-```
-
-> **Tip:** Not sure which paths you used? Run `docker inspect trek --format '{{json .Mounts}}'` before removing the container.
-
-Your data is persisted in the mounted `data` and `uploads` volumes — updates never touch your existing data.
-
-### Reverse Proxy (recommended)
-
-For production, put TREK behind a reverse proxy with HTTPS (e.g. Nginx, Caddy, Traefik).
-
-> **Important:** TREK uses WebSockets for real-time sync. Your reverse proxy must support WebSocket upgrades on the `/ws` path.
-
-<details>
-<summary>Nginx</summary>
-
-```nginx
-server {
-    listen 80;
-    server_name trek.yourdomain.com;
-    return 301 https://$host$request_uri;
-}
-
-server {
-    listen 443 ssl http2;
-    server_name trek.yourdomain.com;
-
-    ssl_certificate /path/to/fullchain.pem;
-    ssl_certificate_key /path/to/privkey.pem;
-
-    location /ws {
-        proxy_pass http://localhost:3000;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection "upgrade";
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_read_timeout 86400;
-    }
-
-    location / {
-        proxy_pass http://localhost:3000;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-    }
-}
-```
-
-</details>
-
-<details>
-<summary>Caddy</summary>
-
-Caddy handles WebSocket upgrades automatically:
-
-```
-trek.yourdomain.com {
-    reverse_proxy localhost:3000
-}
+docker run -d -p 3000:3000 -v ./data:/app/data -v ./uploads:/app/uploads mauriceboe/trek
 ```
 
 </details>
@@ -254,7 +221,12 @@ API keys are configured in the **Admin Panel** after login. Keys set by the admi
 ```bash
 git clone https://github.com/mauriceboe/TREK.git
 cd TREK
+
+# Standard Docker build
 docker build -t trek .
+
+# Railway-compatible build (single volume)
+docker build -f Dockerfile.railway -t trek-railway .
 ```
 
 ## Data & Backups
