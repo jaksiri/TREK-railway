@@ -212,7 +212,7 @@ router.get("/:id", authenticate, (req: Request, res: Response) => {
   res.json({ trip });
 });
 
-router.put("/:id", authenticate, (req: Request, res: Response) => {
+router.put("/:id", authenticate, async (req: Request, res: Response) => {
   const authReq = req as AuthRequest;
   const access = canAccessTrip(req.params.id, authReq.user.id);
   if (!access) return res.status(404).json({ error: "Trip not found" });
@@ -249,6 +249,16 @@ router.put("/:id", authenticate, (req: Request, res: Response) => {
   const newArchived =
     is_archived !== undefined ? (is_archived ? 1 : 0) : trip.is_archived;
   const newCover = cover_image !== undefined ? cover_image : trip.cover_image;
+
+  // Delete old cover from S3 if it's being changed or removed
+  if (
+    cover_image !== undefined &&
+    trip.cover_image &&
+    trip.cover_image !== cover_image
+  ) {
+    const oldKey = trip.cover_image.replace(/^\/uploads\//, "");
+    await deleteFile(oldKey);
+  }
 
   db.prepare(
     `
@@ -431,15 +441,13 @@ router.post("/:id/members", authenticate, (req: Request, res: Response) => {
     }).catch(() => {});
   });
 
-  res
-    .status(201)
-    .json({
-      member: {
-        ...target,
-        role: "member",
-        avatar_url: target.avatar ? `/uploads/avatars/${target.avatar}` : null,
-      },
-    });
+  res.status(201).json({
+    member: {
+      ...target,
+      role: "member",
+      avatar_url: target.avatar ? `/uploads/avatars/${target.avatar}` : null,
+    },
+  });
 });
 
 router.delete(
