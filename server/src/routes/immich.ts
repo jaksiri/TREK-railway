@@ -359,12 +359,12 @@ router.get('/assets/:assetId/original', authFromQuery, async (req: Request, res:
 // List user's Immich albums
 router.get('/albums', authenticate, async (req: Request, res: Response) => {
   const authReq = req as AuthRequest;
-  const user = db.prepare('SELECT immich_url, immich_api_key FROM users WHERE id = ?').get(authReq.user.id) as any;
-  if (!user?.immich_url || !user?.immich_api_key) return res.status(400).json({ error: 'Immich not configured' });
+  const creds = getImmichCredentials(authReq.user.id);
+  if (!creds) return res.status(400).json({ error: 'Immich not configured' });
 
   try {
-    const resp = await fetch(`${user.immich_url}/api/albums`, {
-      headers: { 'x-api-key': user.immich_api_key, 'Accept': 'application/json' },
+    const resp = await fetch(`${creds.immich_url}/api/albums`, {
+      headers: { 'x-api-key': creds.immich_api_key, 'Accept': 'application/json' },
       signal: AbortSignal.timeout(10000),
     });
     if (!resp.ok) return res.status(resp.status).json({ error: 'Failed to fetch albums' });
@@ -431,12 +431,12 @@ router.post('/trips/:tripId/album-links/:linkId/sync', authenticate, async (req:
     .get(linkId, tripId, authReq.user.id) as any;
   if (!link) return res.status(404).json({ error: 'Album link not found' });
 
-  const user = db.prepare('SELECT immich_url, immich_api_key FROM users WHERE id = ?').get(authReq.user.id) as any;
-  if (!user?.immich_url || !user?.immich_api_key) return res.status(400).json({ error: 'Immich not configured' });
+  const creds = getImmichCredentials(authReq.user.id);
+  if (!creds) return res.status(400).json({ error: 'Immich not configured' });
 
   try {
-    const resp = await fetch(`${user.immich_url}/api/albums/${link.immich_album_id}`, {
-      headers: { 'x-api-key': user.immich_api_key, 'Accept': 'application/json' },
+    const resp = await fetch(`${creds.immich_url}/api/albums/${link.immich_album_id}`, {
+      headers: { 'x-api-key': creds.immich_api_key, 'Accept': 'application/json' },
       signal: AbortSignal.timeout(15000),
     });
     if (!resp.ok) return res.status(resp.status).json({ error: 'Failed to fetch album' });

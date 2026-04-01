@@ -1363,6 +1363,14 @@ const en: Record<string, string | { name: string; category: string }[]> = {
   'memories.confirmShareTitle': 'Share with trip members?',
   'memories.confirmShareHint': '{count} photos will be visible to all members of this trip. You can make individual photos private later.',
   'memories.confirmShareButton': 'Share photos',
+  'memories.error.loadAlbums': 'Failed to load albums',
+  'memories.error.linkAlbum': 'Failed to link album',
+  'memories.error.unlinkAlbum': 'Failed to unlink album',
+  'memories.error.syncAlbum': 'Failed to sync album',
+  'memories.error.loadPhotos': 'Failed to load photos',
+  'memories.error.addPhotos': 'Failed to add photos',
+  'memories.error.removePhoto': 'Failed to remove photo',
+  'memories.error.toggleSharing': 'Failed to update sharing',
 
   // Collab Addon
   'collab.tabs.chat': 'Chat',

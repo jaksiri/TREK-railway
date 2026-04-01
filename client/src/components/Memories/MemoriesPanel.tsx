@@ -4,6 +4,7 @@ import apiClient from '../../api/client'
 import { useAuthStore } from '../../store/authStore'
 import { useTranslation } from '../../i18n'
 import { getAuthUrl } from '../../api/authUrl'
+import { useToast } from '../shared/Toast'
 
 function ImmichImg({ baseUrl, style, loading }: { baseUrl: string; style?: React.CSSProperties; loading?: 'lazy' | 'eager' }) {
   const [src, setSrc] = useState('')
@@ -40,6 +41,7 @@ interface MemoriesPanelProps {
 
 export default function MemoriesPanel({ tripId, startDate, endDate }: MemoriesPanelProps) {
   const { t } = useTranslation()
+  const toast = useToast()
   const currentUser = useAuthStore(s => s.user)
 
   const [connected, setConnected] = useState(false)
@@ -81,7 +83,7 @@ export default function MemoriesPanel({ tripId, startDate, endDate }: MemoriesPa
     try {
       const res = await apiClient.get('/integrations/immich/albums')
       setAlbums(res.data.albums || [])
-    } catch { setAlbums([]) }
+    } catch { setAlbums([]); toast.error(t('memories.error.loadAlbums')) }
     finally { setAlbumsLoading(false) }
   }
 
@@ -94,14 +96,14 @@ export default function MemoriesPanel({ tripId, startDate, endDate }: MemoriesPa
       const linksRes = await apiClient.get(`/integrations/immich/trips/${tripId}/album-links`)
       const newLink = (linksRes.data.links || []).find((l: any) => l.immich_album_id === albumId)
       if (newLink) await syncAlbum(newLink.id)
-    } catch {}
+    } catch { toast.error(t('memories.error.linkAlbum')) }
   }
 
   const unlinkAlbum = async (linkId: number) => {
     try {
       await apiClient.delete(`/integrations/immich/trips/${tripId}/album-links/${linkId}`)
       loadAlbumLinks()
-    } catch {}
+    } catch { toast.error(t('memories.error.unlinkAlbum')) }
   }
 
   const syncAlbum = async (linkId: number) => {
@@ -110,7 +112,7 @@ export default function MemoriesPanel({ tripId, startDate, endDate }: MemoriesPa
       await apiClient.post(`/integrations/immich/trips/${tripId}/album-links/${linkId}/sync`)
       await loadAlbumLinks()
       await loadPhotos()
-    } catch {}
+    } catch { toast.error(t('memories.error.syncAlbum')) }
     finally { setSyncing(null) }
   }
 
@@ -178,6 +180,7 @@ export default function MemoriesPanel({ tripId, startDate, endDate }: MemoriesPa
       setPickerPhotos(res.data.assets || [])
     } catch {
       setPickerPhotos([])
+      toast.error(t('memories.error.loadPhotos'))
     } finally {
       setPickerLoading(false)
     }
@@ -206,7 +209,7 @@ export default function MemoriesPanel({ tripId, startDate, endDate }: MemoriesPa
       })
       setShowPicker(false)
       loadInitial()
-    } catch {}
+    } catch { toast.error(t('memories.error.addPhotos')) }
   }
 
   // ── Remove photo ──────────────────────────────────────────────────────────
@@ -215,7 +218,7 @@ export default function MemoriesPanel({ tripId, startDate, endDate }: MemoriesPa
     try {
       await apiClient.delete(`/integrations/immich/trips/${tripId}/photos/${assetId}`)
       setTripPhotos(prev => prev.filter(p => p.immich_asset_id !== assetId))
-    } catch {}
+    } catch { toast.error(t('memories.error.removePhoto')) }
   }
 
   // ── Toggle sharing ────────────────────────────────────────────────────────
@@ -226,7 +229,7 @@ export default function MemoriesPanel({ tripId, startDate, endDate }: MemoriesPa
       setTripPhotos(prev => prev.map(p =>
         p.immich_asset_id === assetId ? { ...p, shared: shared ? 1 : 0 } : p
       ))
-    } catch {}
+    } catch { toast.error(t('memories.error.toggleSharing')) }
   }
 
   // ── Helpers ───────────────────────────────────────────────────────────────

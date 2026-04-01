@@ -16,7 +16,7 @@ const authenticate = (req: Request, res: Response, next: NextFunction): void => 
   const token = extractToken(req);
 
   if (!token) {
-    res.status(401).json({ error: 'Access token required' });
+    res.status(401).json({ error: 'Access token required', code: 'AUTH_REQUIRED' });
     return;
   }
 
@@ -26,13 +26,13 @@ const authenticate = (req: Request, res: Response, next: NextFunction): void => 
       'SELECT id, username, email, role FROM users WHERE id = ?'
     ).get(decoded.id) as User | undefined;
     if (!user) {
-      res.status(401).json({ error: 'User not found' });
+      res.status(401).json({ error: 'User not found', code: 'AUTH_REQUIRED' });
       return;
     }
     (req as AuthRequest).user = user;
     next();
   } catch (err: unknown) {
-    res.status(401).json({ error: 'Invalid or expired token' });
+    res.status(401).json({ error: 'Invalid or expired token', code: 'AUTH_REQUIRED' });
   }
 };
 
