@@ -20,6 +20,10 @@ env:
   # ALLOW_INTERNAL_NETWORK: "false"
   # Set to "true" if Immich or other integrated services are hosted on a private/RFC-1918 network address.
   # Loopback (127.x) and link-local/metadata addresses (169.254.x) are always blocked.
+  # COOKIE_SECURE: "true"
+  # Set to "false" to allow session cookies over plain HTTP (e.g. no ingress TLS). Not recommended for production.
+  # OIDC_DISCOVERY_URL: ""
+  # Override the OIDC discovery endpoint for providers with non-standard paths (e.g. Authentik).
 
 
 # Secret environment variables stored in a Kubernetes Secret.

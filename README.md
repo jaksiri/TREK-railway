@@ -139,10 +139,23 @@ services:
       - NODE_ENV=production
       - PORT=3000
       - ENCRYPTION_KEY=${ENCRYPTION_KEY:-} # Recommended. Generate with: openssl rand -hex 32. If unset, falls back to data/.jwt_secret (existing installs) or auto-generates a key (fresh installs).
-      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-} # Comma-separated origins for CORS and email notification links
       - TZ=${TZ:-UTC} # Timezone for logs, reminders and scheduled tasks (e.g. Europe/Berlin)
       - LOG_LEVEL=${LOG_LEVEL:-info} # info = concise user actions; debug = verbose admin-level details
-      # - ALLOW_INTERNAL_NETWORK=true # Uncomment if Immich is on your local network (RFC-1918 IPs)
+      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-} # Comma-separated origins for CORS and email notification links
+      - FORCE_HTTPS=true # Redirect HTTP to HTTPS when behind a TLS-terminating proxy
+      # - COOKIE_SECURE=false # Uncomment if accessing over plain HTTP (no HTTPS). Not recommended for production.
+      - TRUST_PROXY=1 # Number of trusted proxies for X-Forwarded-For
+      # - ALLOW_INTERNAL_NETWORK=true # Uncomment if Immich or other services are on your local network (RFC-1918 IPs)
+      - APP_URL=${APP_URL:-} # Base URL of this instance — required when OIDC is enabled; must match the redirect URI registered with your IdP
+      # - OIDC_ISSUER=https://auth.example.com # OpenID Connect provider URL
+      # - OIDC_CLIENT_ID=trek # OpenID Connect client ID
+      # - OIDC_CLIENT_SECRET=supersecret # OpenID Connect client secret
+      # - OIDC_DISPLAY_NAME=SSO # Label shown on the SSO login button
+      # - OIDC_ONLY=false # Set to true to disable local password auth entirely (SSO only)
+      # - OIDC_ADMIN_CLAIM=groups # OIDC claim used to identify admin users
+      # - OIDC_ADMIN_VALUE=app-trek-admins # Value of the OIDC claim that grants admin role
+      # - OIDC_DISCOVERY_URL= # Override the OIDC discovery endpoint for providers with non-standard paths (e.g. Authentik)
+      # - DEMO_MODE=false # Enable demo mode (resets data hourly)
     volumes:
       - ./data:/app/data
       - ./uploads:/app/uploads
@@ -265,6 +278,7 @@ trek.yourdomain.com {
 | `LOG_LEVEL` | `info` = concise user actions, `debug` = verbose details | `info` |
 | `ALLOWED_ORIGINS` | Comma-separated origins for CORS and email links | same-origin |
 | `FORCE_HTTPS` | Redirect HTTP to HTTPS behind a TLS-terminating proxy | `false` |
+| `COOKIE_SECURE` | Set to `false` to allow session cookies over plain HTTP (e.g. accessing via IP without HTTPS). Defaults to `true` in production. **Not recommended to disable in production.** | `true` |
 | `TRUST_PROXY` | Number of trusted reverse proxies for `X-Forwarded-For` | `1` |
 | `ALLOW_INTERNAL_NETWORK` | Allow outbound requests to private/RFC-1918 IP addresses. Set to `true` if Immich or other integrated services are hosted on your local network. Loopback (`127.x`) and link-local/metadata addresses (`169.254.x`) are always blocked regardless of this setting. | `false` |
 | **OIDC / SSO** | | |
@@ -273,6 +287,7 @@ trek.yourdomain.com {
 | `OIDC_CLIENT_SECRET` | OIDC client secret | — |
 | `OIDC_DISPLAY_NAME` | Label shown on the SSO login button | `SSO` |
 | `OIDC_ONLY` | Disable local password auth entirely (first SSO login becomes admin) | `false` |
+| `OIDC_DISCOVERY_URL` | Override the auto-constructed OIDC discovery endpoint. Useful for providers that expose it at a non-standard path (e.g. Authentik: `https://auth.example.com/application/o/trek/.well-known/openid-configuration`) | — |
 | **Other** | | |
 | `DEMO_MODE` | Enable demo mode (hourly data resets) | `false` |
 

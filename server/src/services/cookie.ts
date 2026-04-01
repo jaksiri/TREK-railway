@@ -3,7 +3,7 @@ import { Response } from 'express';
 const COOKIE_NAME = 'trek_session';
 
 function cookieOptions(clear = false) {
-  const secure = process.env.NODE_ENV === 'production' || process.env.FORCE_HTTPS === 'true';
+  const secure = process.env.COOKIE_SECURE !== 'false' && (process.env.NODE_ENV === 'production' || process.env.FORCE_HTTPS === 'true');
   return {
     httpOnly: true,
     secure,

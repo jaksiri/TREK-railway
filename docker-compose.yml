@@ -23,13 +23,15 @@ services:
       - LOG_LEVEL=${LOG_LEVEL:-info} # info = concise user actions; debug = verbose admin-level details
       - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-} # Comma-separated origins for CORS and email notification links
       - FORCE_HTTPS=true # Redirect HTTP to HTTPS when behind a TLS-terminating proxy
+#     - COOKIE_SECURE=false # Uncomment if accessing over plain HTTP (no HTTPS). Not recommended for production.
       - TRUST_PROXY=1 # Number of trusted proxies (for X-Forwarded-For / real client IP)
       - ALLOW_INTERNAL_NETWORK=false # Set to true if Immich or other services are hosted on your local network (RFC-1918 IPs). Loopback and link-local addresses remain blocked regardless.
-      - OIDC_ISSUER=https://auth.example.com # OpenID Connect provider URL
-      - OIDC_CLIENT_ID=trek # OpenID Connect client ID
-      - OIDC_CLIENT_SECRET=supersecret # OpenID Connect client secret
-      - OIDC_DISPLAY_NAME=SSO # Label shown on the SSO login button
-      - OIDC_ONLY=false # Set true to disable local password auth entirely (SSO only)
+#      - OIDC_ISSUER=https://auth.example.com # OpenID Connect provider URL
+#      - OIDC_CLIENT_ID=trek # OpenID Connect client ID
+#      - OIDC_CLIENT_SECRET=supersecret # OpenID Connect client secret
+#      - OIDC_DISPLAY_NAME=SSO # Label shown on the SSO login button
+#      - OIDC_ONLY=false # Set true to disable local password auth entirely (SSO only)
+#      - OIDC_DISCOVERY_URL= # Override the OIDC discovery endpoint for providers with non-standard paths (e.g. Authentik)
     volumes:
       - ./data:/app/data
       - ./uploads:/app/uploads
