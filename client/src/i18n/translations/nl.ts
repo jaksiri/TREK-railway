@@ -1497,6 +1497,19 @@ const nl: Record<string, string> = {
   'undo.importGpx': 'GPX import',
   'undo.importGoogleList': 'Google Maps import',
 
+  // Notifications
+  'notifications.title': 'Meldingen',
+  'notifications.markAllRead': 'Alles als gelezen markeren',
+  'notifications.deleteAll': 'Alles verwijderen',
+  'notifications.showAll': 'Alle meldingen weergeven',
+  'notifications.empty': 'Geen meldingen',
+  'notifications.emptyDescription': 'Je bent helemaal bijgewerkt!',
+  'notifications.all': 'Alle',
+  'notifications.unreadOnly': 'Ongelezen',
+  'notifications.markRead': 'Markeren als gelezen',
+  'notifications.markUnread': 'Markeren als ongelezen',
+  'notifications.delete': 'Verwijderen',
+  'notifications.system': 'Systeem',
 }
 
 export default nl

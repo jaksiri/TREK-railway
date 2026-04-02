@@ -218,6 +218,7 @@ export function getAppConfig(authenticatedUser: { id: number } | null) {
     notification_channel: notifChannel,
     trip_reminders_enabled: tripRemindersEnabled,
     permissions: authenticatedUser ? getAllPermissions() : undefined,
+    dev_mode: process.env.NODE_ENV === 'development',
   };
 }
 

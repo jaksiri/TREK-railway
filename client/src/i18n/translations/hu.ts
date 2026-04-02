@@ -1498,6 +1498,19 @@ const hu: Record<string, string | { name: string; category: string }[]> = {
   'undo.importGpx': 'GPX import',
   'undo.importGoogleList': 'Google Maps import',
 
+  // Notifications
+  'notifications.title': 'Értesítések',
+  'notifications.markAllRead': 'Összes olvasottnak jelölése',
+  'notifications.deleteAll': 'Összes törlése',
+  'notifications.showAll': 'Összes értesítés megtekintése',
+  'notifications.empty': 'Nincsenek értesítések',
+  'notifications.emptyDescription': 'Mindennel naprakész vagy!',
+  'notifications.all': 'Összes',
+  'notifications.unreadOnly': 'Olvasatlan',
+  'notifications.markRead': 'Olvasottnak jelölés',
+  'notifications.markUnread': 'Olvasatlannak jelölés',
+  'notifications.delete': 'Törlés',
+  'notifications.system': 'Rendszer',
 }
 
 export default hu

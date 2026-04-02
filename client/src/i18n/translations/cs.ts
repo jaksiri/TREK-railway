@@ -1499,6 +1499,19 @@ const cs: Record<string, string | { name: string; category: string }[]> = {
   'undo.importGpx': 'GPX import',
   'undo.importGoogleList': 'Google Maps import',
 
+  // Notifications
+  'notifications.title': 'Oznámení',
+  'notifications.markAllRead': 'Označit vše jako přečtené',
+  'notifications.deleteAll': 'Smazat vše',
+  'notifications.showAll': 'Zobrazit všechna oznámení',
+  'notifications.empty': 'Žádná oznámení',
+  'notifications.emptyDescription': 'Vše máte přečteno!',
+  'notifications.all': 'Vše',
+  'notifications.unreadOnly': 'Nepřečtené',
+  'notifications.markRead': 'Označit jako přečtené',
+  'notifications.markUnread': 'Označit jako nepřečtené',
+  'notifications.delete': 'Smazat',
+  'notifications.system': 'Systém',
 }
 
 export default cs

@@ -1501,6 +1501,19 @@ const ar: Record<string, string | { name: string; category: string }[]> = {
   'undo.importGpx': 'GPX import',
   'undo.importGoogleList': 'Google Maps import',
 
+  // Notifications
+  'notifications.title': 'الإشعارات',
+  'notifications.markAllRead': 'تحديد الكل كمقروء',
+  'notifications.deleteAll': 'حذف الكل',
+  'notifications.showAll': 'عرض جميع الإشعارات',
+  'notifications.empty': 'لا توجد إشعارات',
+  'notifications.emptyDescription': 'لقد اطلعت على كل شيء!',
+  'notifications.all': 'الكل',
+  'notifications.unreadOnly': 'غير مقروء',
+  'notifications.markRead': 'تحديد كمقروء',
+  'notifications.markUnread': 'تحديد كغير مقروء',
+  'notifications.delete': 'حذف',
+  'notifications.system': 'النظام',
 }
 
 export default ar

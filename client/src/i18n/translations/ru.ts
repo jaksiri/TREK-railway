@@ -1497,6 +1497,19 @@ const ru: Record<string, string> = {
   'undo.importGpx': 'GPX import',
   'undo.importGoogleList': 'Google Maps import',
 
+  // Notifications
+  'notifications.title': 'Уведомления',
+  'notifications.markAllRead': 'Отметить все прочитанными',
+  'notifications.deleteAll': 'Удалить все',
+  'notifications.showAll': 'Показать все уведомления',
+  'notifications.empty': 'Нет уведомлений',
+  'notifications.emptyDescription': 'Вы в курсе всех событий!',
+  'notifications.all': 'Все',
+  'notifications.unreadOnly': 'Непрочитанные',
+  'notifications.markRead': 'Отметить как прочитанное',
+  'notifications.markUnread': 'Отметить как непрочитанное',
+  'notifications.delete': 'Удалить',
+  'notifications.system': 'Система',
 }
 
 export default ru

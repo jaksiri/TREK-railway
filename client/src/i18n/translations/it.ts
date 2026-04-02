@@ -1500,6 +1500,19 @@ const it: Record<string, string | { name: string; category: string }[]> = {
   'undo.importGoogleList': 'Importazione Google Maps',
   'undo.addPlace': 'Luogo aggiunto',
   'undo.done': 'Annullato: {action}',
+  // Notifications
+  'notifications.title': 'Notifiche',
+  'notifications.markAllRead': 'Segna tutto come letto',
+  'notifications.deleteAll': 'Elimina tutto',
+  'notifications.showAll': 'Vedi tutte le notifiche',
+  'notifications.empty': 'Nessuna notifica',
+  'notifications.emptyDescription': 'Sei aggiornato!',
+  'notifications.all': 'Tutte',
+  'notifications.unreadOnly': 'Non lette',
+  'notifications.markRead': 'Segna come letto',
+  'notifications.markUnread': 'Segna come non letto',
+  'notifications.delete': 'Elimina',
+  'notifications.system': 'Sistema',
 }
 
 export default it

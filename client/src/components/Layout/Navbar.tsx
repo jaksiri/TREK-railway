@@ -7,6 +7,7 @@ import { useAddonStore } from '../../store/addonStore'
 import { useTranslation } from '../../i18n'
 import { Plane, LogOut, Settings, ChevronDown, Shield, ArrowLeft, Users, Moon, Sun, Monitor, CalendarDays, Briefcase, Globe } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
+import InAppNotificationBell from './InAppNotificationBell.tsx'
 
 const ADDON_ICONS: Record<string, LucideIcon> = { CalendarDays, Briefcase, Globe }
 
@@ -162,6 +163,9 @@ export default function Navbar({ tripTitle, tripId, onBack, showBack, onShare }:
         onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
         {dark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
       </button>
+
+      {/* Notification bell */}
+      {user && <InAppNotificationBell />}
 
       {/* User menu */}
       {user && (

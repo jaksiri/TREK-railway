@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import apiClient, { adminApi, authApi, notificationsApi } from '../api/client'
+import DevNotificationsPanel from '../components/Admin/DevNotificationsPanel'
 import { useAuthStore } from '../store/authStore'
 import { useSettingsStore } from '../store/settingsStore'
 import { useAddonStore } from '../store/addonStore'
@@ -61,6 +62,7 @@ export default function AdminPage(): React.ReactElement {
   const { t, locale } = useTranslation()
   const hour12 = useSettingsStore(s => s.settings.time_format) === '12h'
   const mcpEnabled = useAddonStore(s => s.isEnabled('mcp'))
+  const devMode = useAuthStore(s => s.devMode)
   const TABS = [
     { id: 'users', label: t('admin.tabs.users') },
     { id: 'config', label: t('admin.tabs.config') },
@@ -70,6 +72,7 @@ export default function AdminPage(): React.ReactElement {
     { id: 'audit', label: t('admin.tabs.audit') },
     ...(mcpEnabled ? [{ id: 'mcp-tokens', label: t('admin.tabs.mcpTokens') }] : []),
     { id: 'github', label: t('admin.tabs.github') },
+    ...(devMode ? [{ id: 'dev-notifications', label: 'Dev: Notifications' }] : []),
   ]
 
   const [activeTab, setActiveTab] = useState<string>('users')
@@ -1183,6 +1186,8 @@ export default function AdminPage(): React.ReactElement {
           {activeTab === 'mcp-tokens' && <AdminMcpTokensPanel />}
 
           {activeTab === 'github' && <GitHubPanel />}
+
+          {activeTab === 'dev-notifications' && <DevNotificationsPanel />}
         </div>
       </div>
 

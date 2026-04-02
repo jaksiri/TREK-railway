@@ -1496,6 +1496,19 @@ const br: Record<string, string | { name: string; category: string }[]> = {
   'undo.importGpx': 'GPX import',
   'undo.importGoogleList': 'Google Maps import',
 
+  // Notifications
+  'notifications.title': 'Notificações',
+  'notifications.markAllRead': 'Marcar tudo como lido',
+  'notifications.deleteAll': 'Excluir tudo',
+  'notifications.showAll': 'Ver todas as notificações',
+  'notifications.empty': 'Sem notificações',
+  'notifications.emptyDescription': 'Você está em dia!',
+  'notifications.all': 'Todas',
+  'notifications.unreadOnly': 'Não lidas',
+  'notifications.markRead': 'Marcar como lido',
+  'notifications.markUnread': 'Marcar como não lido',
+  'notifications.delete': 'Excluir',
+  'notifications.system': 'Sistema',
 }
 
 export default br

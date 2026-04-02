@@ -1497,6 +1497,19 @@ const zh: Record<string, string> = {
   'undo.importGpx': 'GPX import',
   'undo.importGoogleList': 'Google Maps import',
 
+  // Notifications
+  'notifications.title': '通知',
+  'notifications.markAllRead': '全部标为已读',
+  'notifications.deleteAll': '全部删除',
+  'notifications.showAll': '查看所有通知',
+  'notifications.empty': '暂无通知',
+  'notifications.emptyDescription': '您已全部查阅！',
+  'notifications.all': '全部',
+  'notifications.unreadOnly': '未读',
+  'notifications.markRead': '标为已读',
+  'notifications.markUnread': '标为未读',
+  'notifications.delete': '删除',
+  'notifications.system': '系统',
 }
 
 export default zh

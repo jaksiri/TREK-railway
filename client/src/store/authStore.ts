@@ -21,6 +21,7 @@ interface AuthState {
   isLoading: boolean
   error: string | null
   demoMode: boolean
+  devMode: boolean
   hasMapsKey: boolean
   serverTimezone: string
   /** Server policy: all users must enable MFA */
@@ -39,6 +40,7 @@ interface AuthState {
   uploadAvatar: (file: File) => Promise<AvatarResponse>
   deleteAvatar: () => Promise<void>
   setDemoMode: (val: boolean) => void
+  setDevMode: (val: boolean) => void
   setHasMapsKey: (val: boolean) => void
   setServerTimezone: (tz: string) => void
   setAppRequireMfa: (val: boolean) => void
@@ -52,6 +54,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   isLoading: true,
   error: null,
   demoMode: localStorage.getItem('demo_mode') === 'true',
+  devMode: false,
   hasMapsKey: false,
   serverTimezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
   appRequireMfa: false,
@@ -209,6 +212,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     set({ demoMode: val })
   },
 
+  setDevMode: (val: boolean) => set({ devMode: val }),
   setHasMapsKey: (val: boolean) => set({ hasMapsKey: val }),
   setServerTimezone: (tz: string) => set({ serverTimezone: tz }),
   setAppRequireMfa: (val: boolean) => set({ appRequireMfa: val }),

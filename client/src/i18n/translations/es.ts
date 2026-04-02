@@ -1503,6 +1503,19 @@ const es: Record<string, string> = {
   'undo.importGpx': 'GPX import',
   'undo.importGoogleList': 'Google Maps import',
 
+  // Notifications
+  'notifications.title': 'Notificaciones',
+  'notifications.markAllRead': 'Marcar todo como leído',
+  'notifications.deleteAll': 'Eliminar todo',
+  'notifications.showAll': 'Ver todas las notificaciones',
+  'notifications.empty': 'Sin notificaciones',
+  'notifications.emptyDescription': '¡Estás al día!',
+  'notifications.all': 'Todas',
+  'notifications.unreadOnly': 'No leídas',
+  'notifications.markRead': 'Marcar como leída',
+  'notifications.markUnread': 'Marcar como no leída',
+  'notifications.delete': 'Eliminar',
+  'notifications.system': 'Sistema',
 }
 
 export default es
