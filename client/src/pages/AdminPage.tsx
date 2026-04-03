@@ -1358,14 +1358,14 @@ export default function AdminPage(): React.ReactElement {
               <div style={{ marginTop: 14, padding: '12px 14px', borderRadius: 10, fontSize: 12, lineHeight: 1.8, fontFamily: 'monospace', whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}
                 className="bg-gray-900 dark:bg-gray-950 text-gray-100 border border-gray-700"
               >
-{`docker pull mauriceboe/nomad:latest
-docker stop nomad && docker rm nomad
-docker run -d --name nomad \\
+{`docker pull mauriceboe/trek:latest
+docker stop trek && docker rm trek
+docker run -d --name trek \\
   -p 3000:3000 \\
-  -v /opt/nomad/data:/app/data \\
-  -v /opt/nomad/uploads:/app/uploads \\
+  -v /opt/trek/data:/app/data \\
+  -v /opt/trek/uploads:/app/uploads \\
   --restart unless-stopped \\
-  mauriceboe/nomad:latest`}
+  mauriceboe/trek:latest`}
               </div>
 
               <div style={{ marginTop: 10, padding: '10px 12px', borderRadius: 10, fontSize: 12, lineHeight: 1.5 }}

@@ -74,9 +74,26 @@ router.post('/', authenticate, (req: Request, res: Response) => {
   if (!checkPermission('trip_create', authReq.user.role, null, authReq.user.id, false))
     return res.status(403).json({ error: 'No permission to create trips' });
 
-  const { title, description, start_date, end_date, currency, reminder_days } = req.body;
+  const { title, description, currency, reminder_days } = req.body;
   if (!title) return res.status(400).json({ error: 'Title is required' });
-  if (start_date && end_date && new Date(end_date) < new Date(start_date))
+
+  const toDateStr = (d: Date) => d.toISOString().slice(0, 10);
+  const addDays = (d: Date, n: number) => { const r = new Date(d); r.setDate(r.getDate() + n); return r; };
+
+  let start_date: string | null = req.body.start_date || null;
+  let end_date: string | null = req.body.end_date || null;
+
+  if (!start_date && !end_date) {
+    const tomorrow = addDays(new Date(), 1);
+    start_date = toDateStr(tomorrow);
+    end_date = toDateStr(addDays(tomorrow, 7));
+  } else if (start_date && !end_date) {
+    end_date = toDateStr(addDays(new Date(start_date), 7));
+  } else if (!start_date && end_date) {
+    start_date = toDateStr(addDays(new Date(end_date), -7));
+  }
+
+  if (new Date(end_date!) < new Date(start_date!))
     return res.status(400).json({ error: 'End date must be after start date' });
 
   const { trip, tripId, reminderDays } = createTrip(authReq.user.id, { title, description, start_date, end_date, currency, reminder_days });

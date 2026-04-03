@@ -3,7 +3,7 @@ import { Tag, Calendar, ExternalLink, ChevronDown, ChevronUp, Loader2, Heart, Co
 import { getLocaleForLanguage, useTranslation } from '../../i18n'
 import apiClient from '../../api/client'
 
-const REPO = 'mauriceboe/NOMAD'
+const REPO = 'mauriceboe/TREK'
 const PER_PAGE = 10
 
 export default function GitHubPanel() {
