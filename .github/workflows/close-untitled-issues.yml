@@ -19,7 +19,7 @@ jobs:
           script: |
             const title = context.payload.issue.title.trim();
             const badTitles = [
-              "[BUG]",
+              "[bug]",
               "bug report",
               "bug",
               "issue",

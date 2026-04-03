@@ -743,7 +743,7 @@ const DayPlanSidebar = React.memo(function DayPlanSidebar({
             <div style={{ fontWeight: 600, fontSize: 14, color: 'var(--text-primary)', lineHeight: '1.3' }}>{trip?.title}</div>
             {(trip?.start_date || trip?.end_date) && (
               <div style={{ fontSize: 11, color: 'var(--text-faint)', marginTop: 3 }}>
-                {[trip.start_date, trip.end_date].filter(Boolean).map(d => new Date(d + 'T00:00:00').toLocaleDateString(locale, { day: 'numeric', month: 'short' })).join(' – ')}
+                {[trip.start_date, trip.end_date].filter(Boolean).map(d => new Date(d + 'T00:00:00Z').toLocaleDateString(locale, { day: 'numeric', month: 'short', timeZone: 'UTC' })).join(' – ')}
                 {days.length > 0 && ` · ${days.length} ${t('dayplan.days')}`}
               </div>
             )}
@@ -1671,7 +1671,7 @@ const DayPlanSidebar = React.memo(function DayPlanSidebar({
                         {res.reservation_time?.includes('T')
                           ? new Date(res.reservation_time).toLocaleString(locale, { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', hour12: timeFormat === '12h' })
                           : res.reservation_time
-                            ? new Date(res.reservation_time + 'T00:00:00').toLocaleDateString(locale, { weekday: 'short', day: 'numeric', month: 'short' })
+                            ? new Date(res.reservation_time + 'T00:00:00Z').toLocaleDateString(locale, { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' })
                             : ''
                         }
                         {res.reservation_end_time?.includes('T') && ` – ${new Date(res.reservation_end_time).toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit', hour12: timeFormat === '12h' })}`}

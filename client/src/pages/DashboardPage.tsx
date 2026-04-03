@@ -59,12 +59,12 @@ function getTripStatus(trip: DashboardTrip): string | null {
 
 function formatDate(dateStr: string | null | undefined, locale: string = 'en-US'): string | null {
   if (!dateStr) return null
-  return new Date(dateStr + 'T00:00:00').toLocaleDateString(locale, { day: 'numeric', month: 'short', year: 'numeric' })
+  return new Date(dateStr + 'T00:00:00Z').toLocaleDateString(locale, { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' })
 }
 
 function formatDateShort(dateStr: string | null | undefined, locale: string = 'en-US'): string | null {
   if (!dateStr) return null
-  return new Date(dateStr + 'T00:00:00').toLocaleDateString(locale, { day: 'numeric', month: 'short' })
+  return new Date(dateStr + 'T00:00:00Z').toLocaleDateString(locale, { day: 'numeric', month: 'short', timeZone: 'UTC' })
 }
 
 function sortTrips(trips: DashboardTrip[]): DashboardTrip[] {

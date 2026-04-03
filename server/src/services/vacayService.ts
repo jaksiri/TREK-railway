@@ -496,6 +496,30 @@ export function deleteYear(planId: number, year: number, socketId: string | unde
   db.prepare('DELETE FROM vacay_years WHERE plan_id = ? AND year = ?').run(planId, year);
   db.prepare("DELETE FROM vacay_entries WHERE plan_id = ? AND date LIKE ?").run(planId, `${year}-%`);
   db.prepare("DELETE FROM vacay_company_holidays WHERE plan_id = ? AND date LIKE ?").run(planId, `${year}-%`);
+  db.prepare('DELETE FROM vacay_user_years WHERE plan_id = ? AND year = ?').run(planId, year);
+
+  // Recalculate carry-over for year+1 if it exists, since its previous year has changed
+  const nextYearExists = db.prepare('SELECT id FROM vacay_years WHERE plan_id = ? AND year = ?').get(planId, year + 1);
+  if (nextYearExists) {
+    const plan = db.prepare('SELECT * FROM vacay_plans WHERE id = ?').get(planId) as VacayPlan | undefined;
+    const carryOverEnabled = plan ? !!plan.carry_over_enabled : true;
+    const users = getPlanUsers(planId);
+    const prevYear = db.prepare('SELECT year FROM vacay_years WHERE plan_id = ? AND year < ? ORDER BY year DESC LIMIT 1').get(planId, year + 1) as { year: number } | undefined;
+
+    for (const u of users) {
+      let carry = 0;
+      if (carryOverEnabled && prevYear) {
+        const prevConfig = db.prepare('SELECT * FROM vacay_user_years WHERE user_id = ? AND plan_id = ? AND year = ?').get(u.id, planId, prevYear.year) as VacayUserYear | undefined;
+        if (prevConfig) {
+          const used = (db.prepare("SELECT COUNT(*) as count FROM vacay_entries WHERE user_id = ? AND plan_id = ? AND date LIKE ?").get(u.id, planId, `${prevYear.year}-%`) as { count: number }).count;
+          const total = prevConfig.vacation_days + prevConfig.carried_over;
+          carry = Math.max(0, total - used);
+        }
+      }
+      db.prepare('UPDATE vacay_user_years SET carried_over = ? WHERE user_id = ? AND plan_id = ? AND year = ?').run(carry, u.id, planId, year + 1);
+    }
+  }
+
   notifyPlanUsers(planId, socketId, 'vacay:settings');
   return listYears(planId);
 }

@@ -3,7 +3,7 @@ import { Camera, Plus, Share2, EyeOff, Eye, X, Check, Search, ArrowUpDown, MapPi
 import apiClient, { addonsApi } from '../../api/client'
 import { useAuthStore } from '../../store/authStore'
 import { useTranslation } from '../../i18n'
-import { getAuthUrl } from '../../api/authUrl'
+import { getAuthUrl, fetchImageAsBlob, clearImageQueue } from '../../api/authUrl'
 import { useToast } from '../shared/Toast'
 
 interface PhotoProvider {
@@ -16,8 +16,13 @@ interface PhotoProvider {
 function ProviderImg({ baseUrl, provider, style, loading }: { baseUrl: string; provider: string; style?: React.CSSProperties; loading?: 'lazy' | 'eager' }) {
   const [src, setSrc] = useState('')
   useEffect(() => {
-    getAuthUrl(baseUrl, provider).then(setSrc).catch(() => {})
-  }, [baseUrl, provider])
+    let revoke = ''
+    fetchImageAsBlob(baseUrl).then(blobUrl => {
+      revoke = blobUrl
+      setSrc(blobUrl)
+    })
+    return () => { if (revoke) URL.revokeObjectURL(revoke) }
+  }, [baseUrl])
   return src ? <img src={src} alt="" loading={loading} style={style} /> : null
 }
 
@@ -296,6 +301,7 @@ export default function MemoriesPanel({ tripId, startDate, endDate }: MemoriesPa
         shared: true,
       })
       setShowPicker(false)
+      clearImageQueue()
       loadInitial()
     } catch { toast.error(t('memories.error.addPhotos')) }
   }
@@ -500,7 +506,7 @@ export default function MemoriesPanel({ tripId, startDate, endDate }: MemoriesPa
             </h3>
             <ProviderTabs />
             <div style={{ display: 'flex', gap: 8 }}>
-              <button onClick={() => setShowPicker(false)}
+              <button onClick={() => { clearImageQueue(); setShowPicker(false) }}
                 style={{ padding: '7px 14px', borderRadius: 10, border: '1px solid var(--border-primary)', background: 'none', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', color: 'var(--text-muted)' }}>
                 {t('common.cancel')}
               </button>
@@ -769,9 +775,10 @@ export default function MemoriesPanel({ tripId, startDate, endDate }: MemoriesPa
                 <div key={`${photo.provider}:${photo.asset_id}`} className="group"
                   style={{ position: 'relative', aspectRatio: '1', borderRadius: 10, overflow: 'visible', cursor: 'pointer' }}
                   onClick={() => {
-                    setLightboxId(photo.asset_id); setLightboxUserId(photo.user_id); setLightboxInfo(null)
+                    setLightboxId(photo.immich_asset_id); setLightboxUserId(photo.user_id); setLightboxInfo(null)
+                    if (lightboxOriginalSrc) URL.revokeObjectURL(lightboxOriginalSrc)
                     setLightboxOriginalSrc('')
-                    getAuthUrl(`/api/integrations/${photo.provider}/assets/${photo.asset_id}/original?userId=${photo.user_id}`, photo.provider).then(setLightboxOriginalSrc).catch(() => {})
+                    fetchImageAsBlob(`/api/integrations/immich/assets/${photo.immich_asset_id}/original?userId=${photo.user_id}`).then(setLightboxOriginalSrc)
                     setLightboxInfoLoading(true)
                     apiClient.get(`/integrations/${photo.provider}/assets/${photo.asset_id}/info?userId=${photo.user_id}`)
                       .then(r => setLightboxInfo(r.data)).catch(() => {}).finally(() => setLightboxInfoLoading(false))
@@ -879,12 +886,12 @@ export default function MemoriesPanel({ tripId, startDate, endDate }: MemoriesPa
 
       {/* Lightbox */}
       {lightboxId && lightboxUserId && (
-        <div onClick={() => { setLightboxId(null); setLightboxUserId(null) }}
+        <div onClick={() => { if (lightboxOriginalSrc) URL.revokeObjectURL(lightboxOriginalSrc); setLightboxOriginalSrc(''); setLightboxId(null); setLightboxUserId(null) }}
           style={{
             position: 'absolute', inset: 0, zIndex: 100,
             background: 'rgba(0,0,0,0.92)', display: 'flex', alignItems: 'center', justifyContent: 'center',
           }}>
-          <button onClick={() => { setLightboxId(null); setLightboxUserId(null) }}
+          <button onClick={() => { if (lightboxOriginalSrc) URL.revokeObjectURL(lightboxOriginalSrc); setLightboxOriginalSrc(''); setLightboxId(null); setLightboxUserId(null) }}
             style={{
               position: 'absolute', top: 16, right: 16, width: 40, height: 40, borderRadius: '50%',
               background: 'rgba(255,255,255,0.1)', border: 'none', cursor: 'pointer',

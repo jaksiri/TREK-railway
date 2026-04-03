@@ -489,7 +489,7 @@ export default function BudgetPanel({ tripId, tripMembers = [] }: BudgetPanelPro
     const d = currencyDecimals(currency)
     const fmtPrice = (v: number | null | undefined) => v != null ? v.toFixed(d) : ''
 
-    const fmtDate = (iso: string) => { if (!iso) return ''; const d = new Date(iso + 'T00:00:00'); return d.toLocaleDateString(locale, { day: '2-digit', month: '2-digit', year: 'numeric' }) }
+    const fmtDate = (iso: string) => { if (!iso) return ''; const d = new Date(iso + 'T00:00:00Z'); return d.toLocaleDateString(locale, { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'UTC' }) }
     const header = ['Category', 'Name', 'Date', 'Total (' + currency + ')', 'Persons', 'Days', 'Per Person', 'Per Day', 'Per Person/Day', 'Note']
     const rows = [header.join(sep)]
 
