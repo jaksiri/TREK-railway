@@ -956,6 +956,9 @@ export default function MemoriesPanel({ tripId, startDate, endDate }: MemoriesPa
           setLightboxUserId(photo.user_id)
           setLightboxInfo(null)
           fetchImageAsBlob('/api' + buildProviderAssetUrl(photo, 'original')).then(setLightboxOriginalSrc)
+          setLightboxInfoLoading(true)
+          apiClient.get(buildProviderAssetUrl(photo, 'info'))
+            .then(r => setLightboxInfo(r.data)).catch(() => {}).finally(() => setLightboxInfoLoading(false))
         }
 
         const exifContent = lightboxInfo ? (
