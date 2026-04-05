@@ -12,7 +12,7 @@ import {
     getSynologyAssetInfo,
     streamSynologyAsset,
 } from '../../services/memories/synologyService';
-import { canAccessUserPhoto, handleServiceResult, fail } from '../../services/memories/helpersService';
+import { canAccessUserPhoto, handleServiceResult, fail, success } from '../../services/memories/helpersService';
 
 const router = express.Router();
 
@@ -57,7 +57,11 @@ router.post('/test', authenticate, async (req: Request, res: Response) => {
     const synology_password = _parseStringBodyField(body.synology_password);
 
     if (!synology_url || !synology_username || !synology_password) {
-        handleServiceResult(res, fail('URL, username, and password are required', 400));
+        const missingFields: string[] = [];
+        if (!synology_url) missingFields.push('URL');
+        if (!synology_username) missingFields.push('Username');
+        if (!synology_password) missingFields.push('Password');
+        handleServiceResult(res, success({ connected: false, error: `${missingFields.join(', ')} ${missingFields.length > 1 ? 'are' : 'is'} required` }));
     }
     else{
         handleServiceResult(res, await testSynologyConnection(synology_url, synology_username, synology_password));
