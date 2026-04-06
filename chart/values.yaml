@@ -53,6 +53,8 @@ env:
   # Enable demo mode (hourly data resets).
   # MCP_RATE_LIMIT: "60"
   # Max MCP API requests per user per minute. Defaults to 60.
+  # MCP_MAX_SESSION_PER_USER: "5"
+  # Max concurrent MCP sessions per user. Defaults to 5.
 
 
 # Secret environment variables stored in a Kubernetes Secret.
