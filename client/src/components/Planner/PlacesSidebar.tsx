@@ -48,6 +48,7 @@ const PlacesSidebar = React.memo(function PlacesSidebar({
   const toast = useToast()
   const ctxMenu = useContextMenu()
   const gpxInputRef = useRef<HTMLInputElement>(null)
+  const kmlKmzInputRef = useRef<HTMLInputElement>(null)
   const trip = useTripStore((s) => s.trip)
   const loadTrip = useTripStore((s) => s.loadTrip)
   const can = useCanDo()
@@ -602,43 +603,52 @@ const PlacesSidebar = React.memo(function PlacesSidebar({
             <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 6 }}>
               {t('places.importKmlKmz')}
             </div>
-            <div style={{ fontSize: 12, color: 'var(--text-faint)', marginBottom: 10 }}>
+            <div style={{ fontSize: 12, color: 'var(--text-faint)', marginBottom: 14, lineHeight: 1.45 }}>
               {t('places.kmlKmzHint')}
-            </div>
-            <div style={{ fontSize: 12, color: 'var(--text-faint)', marginBottom: 14 }}>
-              {t('places.kmlKmzSizeHint', { maxMb: 10 })}
             </div>
 
             <input
+              ref={kmlKmzInputRef}
               type="file"
               accept=".kml,.kmz"
+              style={{ display: 'none' }}
               onChange={e => {
                 const file = e.target.files?.[0] || null
                 setKmlKmzFile(file)
                 setKmlKmzSummary(null)
                 setKmlKmzError('')
               }}
-              style={{
-                width: '100%', padding: '8px 10px', borderRadius: 10,
-                border: '1px solid var(--border-primary)', background: 'var(--bg-tertiary)',
-                fontSize: 12, color: 'var(--text-primary)', boxSizing: 'border-box', marginBottom: 12,
-              }}
             />
 
-            {kmlKmzFile && (
-              <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 10 }}>
-                {t('places.kmlKmzSelectedFile', { name: kmlKmzFile.name })}
-              </div>
-            )}
+            <button
+              onClick={() => kmlKmzInputRef.current?.click()}
+              style={{
+                width: '100%',
+                height: 44,
+                borderRadius: 12,
+                border: '1px dashed var(--border-primary)',
+                background: 'transparent',
+                color: 'var(--text-primary)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 8,
+                fontSize: 13,
+                fontWeight: 500,
+                cursor: 'pointer',
+                marginBottom: 12,
+                fontFamily: 'inherit',
+              }}
+            >
+              <Upload size={14} strokeWidth={2} />
+              {kmlKmzFile ? t('places.kmlKmzSelectedFile', { name: kmlKmzFile.name }) : t('places.kmlKmzSelectFile')}
+            </button>
 
             {kmlKmzSummary && (
               <div style={{
                 border: '1px solid var(--border-primary)', borderRadius: 10,
                 background: 'var(--bg-tertiary)', padding: 10, marginBottom: 10,
               }}>
-                <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 6 }}>
-                  {t('places.kmlKmzSummaryTitle')}
-                </div>
                 <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
                   {t('places.kmlKmzSummaryValues', {
                     total: kmlKmzSummary.totalPlacemarks,
@@ -663,6 +673,10 @@ const PlacesSidebar = React.memo(function PlacesSidebar({
                 {kmlKmzError}
               </div>
             )}
+
+            <div style={{ fontSize: 11, color: 'var(--text-faint)', marginBottom: 12 }}>
+              {t('places.kmlKmzSizeHint', { maxMb: 10 })}
+            </div>
 
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
               <button
