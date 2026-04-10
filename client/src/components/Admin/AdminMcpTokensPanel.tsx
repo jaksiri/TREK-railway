@@ -26,13 +26,23 @@ interface AdminMcpToken {
   username: string
 }
 
+const SCOPES_PREVIEW = 6
+
 export default function AdminMcpTokensPanel() {
   const [sessions, setSessions] = useState<AdminOAuthSession[]>([])
   const [sessionsLoading, setSessionsLoading] = useState(true)
   const [tokens, setTokens] = useState<AdminMcpToken[]>([])
   const [tokensLoading, setTokensLoading] = useState(true)
+  const [expandedScopes, setExpandedScopes] = useState<Set<number>>(new Set())
   const [revokeConfirmId, setRevokeConfirmId] = useState<number | null>(null)
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null)
+
+  const toggleScopes = (id: number) =>
+    setExpandedScopes(prev => {
+      const next = new Set(prev)
+      next.has(id) ? next.delete(id) : next.add(id)
+      return next
+    })
   const toast = useToast()
   const { t, locale } = useTranslation()
 
@@ -99,35 +109,54 @@ export default function AdminMcpTokensPanel() {
                 <span className="text-right">{t('admin.oauthSessions.created')}</span>
                 <span></span>
               </div>
-              {sessions.map((session, i) => (
-                <div key={session.id}
-                  className="grid grid-cols-[1fr_auto_auto_auto] items-center gap-x-6 px-4 py-3"
-                  style={{ borderBottom: i < sessions.length - 1 ? '1px solid var(--border-primary)' : undefined }}>
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium truncate" style={{ color: 'var(--text-primary)' }}>{session.client_name}</p>
-                    <div className="flex flex-wrap gap-1 mt-1">
-                      {session.scopes.map(scope => (
-                        <span key={scope} className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-mono"
-                          style={{ background: 'var(--bg-secondary)', color: 'var(--text-tertiary)', border: '1px solid var(--border-primary)' }}>
-                          {scope}
-                        </span>
-                      ))}
+              {sessions.map((session, i) => {
+                const expanded = expandedScopes.has(session.id)
+                const visible = expanded ? session.scopes : session.scopes.slice(0, SCOPES_PREVIEW)
+                const hidden = session.scopes.length - SCOPES_PREVIEW
+                return (
+                  <div key={session.id}
+                    className="grid grid-cols-[1fr_auto_auto_auto] items-start gap-x-6 px-4 py-3"
+                    style={{ borderBottom: i < sessions.length - 1 ? '1px solid var(--border-primary)' : undefined }}>
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium truncate" style={{ color: 'var(--text-primary)' }}>{session.client_name}</p>
+                      <div className="flex flex-wrap gap-1 mt-1.5">
+                        {visible.map(scope => (
+                          <span key={scope} className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-mono"
+                            style={{ background: 'var(--bg-secondary)', color: 'var(--text-tertiary)', border: '1px solid var(--border-primary)' }}>
+                            {scope}
+                          </span>
+                        ))}
+                        {!expanded && hidden > 0 && (
+                          <button onClick={() => toggleScopes(session.id)}
+                            className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium transition-colors hover:opacity-80"
+                            style={{ background: 'var(--bg-secondary)', color: 'var(--text-secondary)', border: '1px solid var(--border-primary)' }}>
+                            +{hidden} more
+                          </button>
+                        )}
+                        {expanded && hidden > 0 && (
+                          <button onClick={() => toggleScopes(session.id)}
+                            className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium transition-colors hover:opacity-80"
+                            style={{ background: 'var(--bg-secondary)', color: 'var(--text-secondary)', border: '1px solid var(--border-primary)' }}>
+                            show less
+                          </button>
+                        )}
+                      </div>
                     </div>
+                    <div className="flex items-center gap-1.5 text-sm pt-0.5" style={{ color: 'var(--text-secondary)' }}>
+                      <User className="w-3.5 h-3.5 flex-shrink-0" />
+                      <span className="whitespace-nowrap">{session.username}</span>
+                    </div>
+                    <span className="text-xs whitespace-nowrap text-right pt-0.5" style={{ color: 'var(--text-tertiary)' }}>
+                      {new Date(session.created_at).toLocaleDateString(locale)}
+                    </span>
+                    <button onClick={() => setRevokeConfirmId(session.id)}
+                      className="p-1.5 rounded-lg transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20"
+                      style={{ color: 'var(--text-tertiary)' }} title={t('common.delete')}>
+                      <Trash2 className="w-4 h-4" />
+                    </button>
                   </div>
-                  <div className="flex items-center gap-1.5 text-sm" style={{ color: 'var(--text-secondary)' }}>
-                    <User className="w-3.5 h-3.5 flex-shrink-0" />
-                    <span className="whitespace-nowrap">{session.username}</span>
-                  </div>
-                  <span className="text-xs whitespace-nowrap text-right" style={{ color: 'var(--text-tertiary)' }}>
-                    {new Date(session.created_at).toLocaleDateString(locale)}
-                  </span>
-                  <button onClick={() => setRevokeConfirmId(session.id)}
-                    className="p-1.5 rounded-lg transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20"
-                    style={{ color: 'var(--text-tertiary)' }} title={t('common.delete')}>
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </div>
-              ))}
+                )
+              })}
             </>
           )}
         </div>
