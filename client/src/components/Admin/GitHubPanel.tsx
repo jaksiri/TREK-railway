@@ -6,7 +6,7 @@ import apiClient from '../../api/client'
 const REPO = 'mauriceboe/TREK'
 const PER_PAGE = 10
 
-export default function GitHubPanel() {
+export default function GitHubPanel({ isPrerelease = false }: { isPrerelease?: boolean }) {
   const { t, language } = useTranslation()
   const [releases, setReleases] = useState([])
   const [loading, setLoading] = useState(true)
@@ -273,7 +273,7 @@ export default function GitHubPanel() {
             <div className="absolute left-[11px] top-3 bottom-3 w-px" style={{ background: 'var(--border-primary)' }} />
 
             <div className="space-y-0">
-              {releases.map((release, idx) => {
+              {(isPrerelease ? releases : releases.filter((r: any) => !r.prerelease)).map((release, idx) => {
                 const isLatest = idx === 0
                 const isExpanded = expanded[release.id]
 

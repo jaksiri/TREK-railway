@@ -27,7 +27,7 @@ interface Addon {
 }
 
 export default function Navbar({ tripTitle, tripId, onBack, showBack, onShare }: NavbarProps): React.ReactElement {
-  const { user, logout } = useAuthStore()
+  const { user, logout, isPrerelease } = useAuthStore()
   const { settings, updateSetting } = useSettingsStore()
   const { addons: allAddons, loadAddons } = useAddonStore()
   const { t, locale } = useTranslation()
@@ -153,6 +153,17 @@ export default function Navbar({ tripTitle, tripId, onBack, showBack, onShare }:
           <Users className="w-4 h-4" />
           <span className="hidden sm:inline">{t('nav.share')}</span>
         </button>
+      )}
+
+      {/* Prerelease badge */}
+      {isPrerelease && appVersion && (
+        <span
+          className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold flex-shrink-0"
+          style={{ background: 'rgba(245,158,11,0.15)', color: '#d97706', border: '1px solid rgba(245,158,11,0.3)' }}
+        >
+          <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: '#f59e0b' }} />
+          {appVersion}
+        </span>
       )}
 
       {/* Dark mode toggle (light ↔ dark, overrides auto) — hidden on mobile */}

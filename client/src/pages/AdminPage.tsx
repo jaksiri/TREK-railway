@@ -55,6 +55,7 @@ interface UpdateInfo {
   current: string
   release_url?: string
   is_docker?: boolean
+  is_prerelease?: boolean
 }
 
 const ADMIN_EVENT_LABEL_KEYS: Record<string, string> = {
@@ -1370,7 +1371,7 @@ export default function AdminPage(): React.ReactElement {
 
           {activeTab === 'mcp-tokens' && <AdminMcpTokensPanel />}
 
-          {activeTab === 'github' && <GitHubPanel />}
+          {activeTab === 'github' && <GitHubPanel isPrerelease={updateInfo?.is_prerelease ?? false} />}
 
           {activeTab === 'dev-notifications' && <DevNotificationsPanel />}
         </div>

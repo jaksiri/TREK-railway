@@ -304,19 +304,41 @@ export async function getGithubReleases(perPage: string = '10', page: string = '
 }
 
 export async function checkVersion() {
-  const { version: currentVersion } = require('../../package.json');
+  const currentVersion: string = process.env.APP_VERSION ?? require('../../package.json').version;
+  const isPrerelease = currentVersion.includes('-pre.');
+  const fallback = { current: currentVersion, latest: currentVersion, update_available: false, is_docker: isDocker, is_prerelease: isPrerelease };
   try {
-    const resp = await fetch(
-      'https://api.github.com/repos/mauriceboe/TREK/releases/latest',
-      { headers: { 'Accept': 'application/vnd.github.v3+json', 'User-Agent': 'TREK-Server' } }
-    );
-    if (!resp.ok) return { current: currentVersion, latest: currentVersion, update_available: false };
-    const data = await resp.json() as { tag_name?: string; html_url?: string };
-    const latest = (data.tag_name || '').replace(/^v/, '');
-    const update_available = latest && latest !== currentVersion && compareVersions(latest, currentVersion) > 0;
-    return { current: currentVersion, latest, update_available, release_url: data.html_url || '', is_docker: isDocker };
+    if (isPrerelease) {
+      // Fetch release list and find the newest prerelease
+      const resp = await fetch(
+        'https://api.github.com/repos/mauriceboe/TREK/releases?per_page=20',
+        { headers: { 'Accept': 'application/vnd.github.v3+json', 'User-Agent': 'TREK-Server' } }
+      );
+      if (!resp.ok) return fallback;
+      const data = await resp.json() as Array<{ tag_name?: string; html_url?: string; prerelease?: boolean }>;
+      const prereleases = Array.isArray(data) ? data.filter(r => r.prerelease) : [];
+      if (!prereleases.length) return fallback;
+      // Sort by version descending and pick highest
+      const sorted = prereleases.sort((a, b) => compareVersions(
+        (b.tag_name || '').replace(/^v/, ''),
+        (a.tag_name || '').replace(/^v/, '')
+      ));
+      const latest = (sorted[0].tag_name || '').replace(/^v/, '');
+      const update_available = !!latest && latest !== currentVersion && compareVersions(latest, currentVersion) > 0;
+      return { current: currentVersion, latest, update_available, release_url: sorted[0].html_url || '', is_docker: isDocker, is_prerelease: true };
+    } else {
+      const resp = await fetch(
+        'https://api.github.com/repos/mauriceboe/TREK/releases/latest',
+        { headers: { 'Accept': 'application/vnd.github.v3+json', 'User-Agent': 'TREK-Server' } }
+      );
+      if (!resp.ok) return fallback;
+      const data = await resp.json() as { tag_name?: string; html_url?: string };
+      const latest = (data.tag_name || '').replace(/^v/, '');
+      const update_available = !!latest && latest !== currentVersion && compareVersions(latest, currentVersion) > 0;
+      return { current: currentVersion, latest, update_available, release_url: data.html_url || '', is_docker: isDocker, is_prerelease: false };
+    }
   } catch {
-    return { current: currentVersion, latest: currentVersion, update_available: false, is_docker: isDocker };
+    return fallback;
   }
 }
 

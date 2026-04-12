@@ -212,7 +212,7 @@ export function getAppConfig(authenticatedUser: { id: number } | null) {
   const userCount = (db.prepare('SELECT COUNT(*) as count FROM users').get() as { count: number }).count;
   const isDemo = process.env.DEMO_MODE === 'true';
   const toggles = resolveAuthToggles();
-  const { version } = require('../../package.json');
+  const version: string = process.env.APP_VERSION ?? require('../../package.json').version;
   const hasGoogleKey = !!db.prepare("SELECT maps_api_key FROM users WHERE role = 'admin' AND maps_api_key IS NOT NULL AND maps_api_key != '' LIMIT 1").get();
   const oidcDisplayName = process.env.OIDC_DISPLAY_NAME ||
     (db.prepare("SELECT value FROM app_settings WHERE key = 'oidc_display_name'").get() as { value: string } | undefined)?.value || null;
@@ -244,6 +244,7 @@ export function getAppConfig(authenticatedUser: { id: number } | null) {
     has_users: userCount > 0,
     setup_complete: setupComplete,
     version,
+    is_prerelease: version.includes('-pre.'),
     has_maps_key: hasGoogleKey,
     oidc_configured: oidcConfigured,
     oidc_display_name: oidcConfigured ? (oidcDisplayName || 'SSO') : undefined,
