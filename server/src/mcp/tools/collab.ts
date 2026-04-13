@@ -8,16 +8,23 @@ import {
   listMessages, createMessage, deleteMessage, addOrRemoveReaction,
 } from '../../services/collabService';
 import { isAddonEnabled } from '../../services/adminService';
+import { ADDON_IDS } from '../../addons';
 import {
   safeBroadcast, TOOL_ANNOTATIONS_WRITE, TOOL_ANNOTATIONS_DELETE,
   TOOL_ANNOTATIONS_NON_IDEMPOTENT, TOOL_ANNOTATIONS_READONLY,
   demoDenied, noAccess, ok,
 } from './_shared';
+import { canRead, canWrite } from '../scopes';
 
-export function registerCollabTools(server: McpServer, userId: number): void {
+export function registerCollabTools(server: McpServer, userId: number, scopes: string[] | null): void {
+  const R = canRead(scopes, 'collab');
+  const W = canWrite(scopes, 'collab');
+
+  if (!isAddonEnabled(ADDON_IDS.COLLAB)) return;
+
   // --- COLLAB NOTES ---
 
-  server.registerTool(
+  if (W) server.registerTool(
     'create_collab_note',
     {
       description: 'Create a shared collaborative note on a trip (visible to all trip members in the Collab tab).',
@@ -40,7 +47,7 @@ export function registerCollabTools(server: McpServer, userId: number): void {
     }
   );
 
-  server.registerTool(
+  if (W) server.registerTool(
     'update_collab_note',
     {
       description: 'Edit an existing collaborative note on a trip.',
@@ -65,7 +72,7 @@ export function registerCollabTools(server: McpServer, userId: number): void {
     }
   );
 
-  server.registerTool(
+  if (W) server.registerTool(
     'delete_collab_note',
     {
       description: 'Delete a collaborative note from a trip.',
@@ -87,9 +94,8 @@ export function registerCollabTools(server: McpServer, userId: number): void {
 
   // --- COLLAB POLLS & CHAT ---
 
-  if (isAddonEnabled('collab')) {
-    server.registerTool(
-      'list_collab_polls',
+  if (R) server.registerTool(
+    'list_collab_polls',
       {
         description: 'List all polls for a trip.',
         inputSchema: {
@@ -104,7 +110,7 @@ export function registerCollabTools(server: McpServer, userId: number): void {
       }
     );
 
-    server.registerTool(
+    if (W) server.registerTool(
       'create_collab_poll',
       {
         description: 'Create a new poll in the collab panel.',
@@ -126,7 +132,7 @@ export function registerCollabTools(server: McpServer, userId: number): void {
       }
     );
 
-    server.registerTool(
+    if (W) server.registerTool(
       'vote_collab_poll',
       {
         description: 'Vote on a poll option (or remove vote if already voted for that option).',
@@ -146,7 +152,7 @@ export function registerCollabTools(server: McpServer, userId: number): void {
       }
     );
 
-    server.registerTool(
+    if (W) server.registerTool(
       'close_collab_poll',
       {
         description: 'Close a poll so no more votes can be cast.',
@@ -166,7 +172,7 @@ export function registerCollabTools(server: McpServer, userId: number): void {
       }
     );
 
-    server.registerTool(
+    if (W) server.registerTool(
       'delete_collab_poll',
       {
         description: 'Delete a poll and all its votes.',
@@ -186,7 +192,7 @@ export function registerCollabTools(server: McpServer, userId: number): void {
       }
     );
 
-    server.registerTool(
+    if (R) server.registerTool(
       'list_collab_messages',
       {
         description: 'List chat messages for a trip (most recent 100, oldest-first).',
@@ -203,7 +209,7 @@ export function registerCollabTools(server: McpServer, userId: number): void {
       }
     );
 
-    server.registerTool(
+    if (W) server.registerTool(
       'send_collab_message',
       {
         description: "Send a chat message to a trip's collab channel.",
@@ -224,7 +230,7 @@ export function registerCollabTools(server: McpServer, userId: number): void {
       }
     );
 
-    server.registerTool(
+    if (W) server.registerTool(
       'delete_collab_message',
       {
         description: 'Delete a chat message (only the message owner can delete their own messages).',
@@ -244,7 +250,7 @@ export function registerCollabTools(server: McpServer, userId: number): void {
       }
     );
 
-    server.registerTool(
+    if (W) server.registerTool(
       'react_collab_message',
       {
         description: 'Toggle a reaction emoji on a chat message (adds if not present, removes if already reacted).',
@@ -264,5 +270,4 @@ export function registerCollabTools(server: McpServer, userId: number): void {
         return ok({ reactions: result.reactions });
       }
     );
-  }
 }

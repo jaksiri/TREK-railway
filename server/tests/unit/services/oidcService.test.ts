@@ -389,3 +389,74 @@ describe('findOrCreateUser', () => {
     expect(token.used_count).toBe(1);
   });
 });
+
+// ── exchangeCodeForToken ──────────────────────────────────────────────────────
+
+describe('exchangeCodeForToken', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('OIDC-SVC-030: sends correct POST body and returns token data', async () => {
+    const { exchangeCodeForToken } = await import('../../../src/services/oidcService');
+
+    const mockTokenData = { access_token: 'tok', token_type: 'Bearer' };
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => mockTokenData,
+    }));
+
+    const doc = { token_endpoint: 'https://oidc.example.com/token' } as any;
+    const result = await exchangeCodeForToken(doc, 'auth-code-123', 'https://app/callback', 'client-id', 'client-secret');
+
+    expect(result.access_token).toBe('tok');
+    expect(result._ok).toBe(true);
+    expect(result._status).toBe(200);
+
+    const fetchCall = (fetch as ReturnType<typeof vi.fn>).mock.calls[0];
+    expect(fetchCall[0]).toBe('https://oidc.example.com/token');
+    expect(fetchCall[1].method).toBe('POST');
+  });
+
+  it('OIDC-SVC-031: reflects _ok=false when provider returns error status', async () => {
+    const { exchangeCodeForToken } = await import('../../../src/services/oidcService');
+
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: false,
+      status: 400,
+      json: async () => ({ error: 'invalid_grant' }),
+    }));
+
+    const doc = { token_endpoint: 'https://oidc.example.com/token' } as any;
+    const result = await exchangeCodeForToken(doc, 'bad-code', 'https://app/callback', 'c', 's');
+
+    expect(result._ok).toBe(false);
+    expect(result._status).toBe(400);
+  });
+});
+
+// ── getUserInfo ───────────────────────────────────────────────────────────────
+
+describe('getUserInfo', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('OIDC-SVC-032: fetches userinfo with Bearer token and returns parsed JSON', async () => {
+    const { getUserInfo } = await import('../../../src/services/oidcService');
+
+    const userInfoData = { sub: 'user-sub', email: 'user@example.com', name: 'User Name' };
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      json: async () => userInfoData,
+    }));
+
+    const result = await getUserInfo('https://oidc.example.com/userinfo', 'access-token-123');
+
+    expect(result.sub).toBe('user-sub');
+    expect(result.email).toBe('user@example.com');
+
+    const fetchCall = (fetch as ReturnType<typeof vi.fn>).mock.calls[0];
+    expect(fetchCall[1].headers.Authorization).toBe('Bearer access-token-123');
+  });
+});

@@ -4,7 +4,7 @@ declare global { interface Window { __dragData: DragDataPayload | null } }
 
 import React, { useState, useEffect, useRef, useMemo } from 'react'
 import ReactDOM from 'react-dom'
-import { ChevronDown, ChevronRight, ChevronUp, Navigation, RotateCcw, ExternalLink, Clock, Pencil, GripVertical, Ticket, Plus, FileText, Check, Trash2, Info, MapPin, Star, Heart, Camera, Lightbulb, Flag, Bookmark, Train, Bus, Plane, Car, Ship, Coffee, ShoppingBag, AlertTriangle, FileDown, Lock, Hotel, Utensils, Users, Undo2 } from 'lucide-react'
+import { ChevronDown, ChevronRight, ChevronUp, Navigation, RotateCcw, ExternalLink, Clock, Pencil, GripVertical, Ticket, Plus, FileText, Check, Trash2, Info, MapPin, Star, Heart, Camera, Lightbulb, Flag, Bookmark, Train, Bus, Plane, Car, Ship, Coffee, ShoppingBag, AlertTriangle, FileDown, Lock, Hotel, Utensils, Users, Undo2, X } from 'lucide-react'
 
 const RES_ICONS = { flight: Plane, hotel: Hotel, restaurant: Utensils, train: Train, car: Car, cruise: Ship, event: Ticket, tour: Users, other: FileText }
 import { assignmentsApi, reservationsApi } from '../../api/client'
@@ -55,6 +55,99 @@ const TYPE_ICONS = {
   car: '🚗', cruise: '🚢', event: '🎫', other: '📋',
 }
 
+function MobileAddPlaceButton({ dayId, places, assignments, onAssign, onAddNew }: {
+  dayId: number
+  places: Place[]
+  assignments: AssignmentsMap
+  onAssign?: (placeId: number, dayId: number) => void
+  onAddNew?: () => void
+}) {
+  const { t } = useTranslation()
+  const [open, setOpen] = useState(false)
+  const [search, setSearch] = useState('')
+
+  // Find places not assigned to this day
+  const assignedToDay = new Set((assignments[String(dayId)] || []).map(a => a.place_id))
+  const available = places.filter(p => !assignedToDay.has(p.id))
+  const filtered = search.trim()
+    ? available.filter(p => p.name.toLowerCase().includes(search.toLowerCase()))
+    : available
+
+  return (
+    <div className="md:hidden" style={{ padding: '8px 12px 12px' }}>
+      {!open ? (
+        <button
+          onClick={e => { e.stopPropagation(); setOpen(true) }}
+          style={{
+            width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+            padding: '10px 0', borderRadius: 12,
+            border: '1.5px dashed var(--border-primary)',
+            background: 'transparent', color: 'var(--text-muted)',
+            fontSize: 12, fontWeight: 600, fontFamily: 'inherit', cursor: 'pointer',
+          }}
+        >
+          <Plus size={14} />
+          Add Place
+        </button>
+      ) : (
+        <div style={{ borderRadius: 14, border: '1px solid var(--border-primary)', background: 'var(--bg-card)', overflow: 'hidden' }}>
+          <div style={{ padding: '8px 10px', borderBottom: '1px solid var(--border-faint)', display: 'flex', gap: 6 }}>
+            <input
+              autoFocus
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder={t('dayplan.mobile.searchPlaces')}
+              style={{ flex: 1, border: 'none', outline: 'none', background: 'transparent', fontSize: 13, fontFamily: 'inherit', color: 'var(--text-primary)' }}
+            />
+            <button onClick={() => { setOpen(false); setSearch('') }} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 2, color: 'var(--text-faint)' }}>
+              <X size={14} />
+            </button>
+          </div>
+          <div style={{ maxHeight: 200, overflowY: 'auto' }}>
+            {filtered.length === 0 && (
+              <div style={{ padding: '16px 12px', textAlign: 'center', fontSize: 12, color: 'var(--text-faint)' }}>
+                {available.length === 0 ? t('dayplan.mobile.allAssigned') : t('dayplan.mobile.noMatch')}
+              </div>
+            )}
+            {filtered.slice(0, 20).map(p => (
+              <button
+                key={p.id}
+                onClick={() => {
+                  onAssign?.(p.id, dayId)
+                  setOpen(false)
+                  setSearch('')
+                }}
+                style={{
+                  width: '100%', display: 'flex', alignItems: 'center', gap: 8,
+                  padding: '10px 12px', border: 'none', background: 'transparent',
+                  cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left',
+                }}
+              >
+                <MapPin size={13} style={{ color: 'var(--text-faint)', flexShrink: 0 }} />
+                <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name}</span>
+              </button>
+            ))}
+          </div>
+          {onAddNew && (
+            <button
+              onClick={() => { onAddNew(); setOpen(false); setSearch('') }}
+              style={{
+                width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                padding: '10px 0', borderTop: '1px solid var(--border-faint)',
+                background: 'transparent', border: 'none', color: 'var(--text-muted)',
+                fontSize: 12, fontWeight: 600, fontFamily: 'inherit', cursor: 'pointer',
+              }}
+            >
+              <Plus size={13} />
+              Create new place
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
 interface DayPlanSidebarProps {
   tripId: number
   trip: Trip
@@ -79,6 +172,8 @@ interface DayPlanSidebarProps {
   reservations?: Reservation[]
   onAddReservation: () => void
   onNavigateToFiles?: () => void
+  onAddPlace?: () => void
+  onAddPlaceToDay?: (placeId: number, dayId: number) => void
   onExpandedDaysChange?: (expandedDayIds: Set<number>) => void
   pushUndo?: (label: string, undoFn: () => Promise<void> | void) => void
   canUndo?: boolean
@@ -95,6 +190,8 @@ const DayPlanSidebar = React.memo(function DayPlanSidebar({
   onAssignToDay, onRemoveAssignment, onEditPlace, onDeletePlace,
   reservations = [],
   onAddReservation,
+  onAddPlace,
+  onAddPlaceToDay,
   onNavigateToFiles,
   onExpandedDaysChange,
   pushUndo,
@@ -519,7 +616,7 @@ const DayPlanSidebar = React.memo(function DayPlanSidebar({
           await tripActions.reorderAssignments(tripId, capturedDayId, capturedPrevIds)
         })
       }
-    } catch (err: unknown) { toast.error(err instanceof Error ? err.message : 'Unknown error') }
+    } catch (err: unknown) { toast.error(err instanceof Error ? err.message : t('common.unknownError')) }
   }
 
   const handleMergedDrop = async (dayId, fromType, fromId, toType, toId, insertAfter = false) => {
@@ -606,7 +703,7 @@ const DayPlanSidebar = React.memo(function DayPlanSidebar({
         tripActions.setAssignments(currentAssignments)
       }
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Unknown error')
+      toast.error(err instanceof Error ? err.message : t('common.unknownError'))
       return
     }
 
@@ -755,9 +852,9 @@ const DayPlanSidebar = React.memo(function DayPlanSidebar({
             await tripActions.moveAssignment(tripId, Number(assignmentId), dayId, capturedFromDayId, capturedOrderIndex)
           })
         })
-        .catch((err: unknown) => toast.error(err instanceof Error ? err.message : 'Unknown error'))
+        .catch((err: unknown) => toast.error(err instanceof Error ? err.message : t('common.unknownError')))
     } else if (noteId && fromDayId !== dayId) {
-      tripActions.moveDayNote(tripId, fromDayId, dayId, Number(noteId)).catch((err: unknown) => toast.error(err instanceof Error ? err.message : 'Unknown error'))
+      tripActions.moveDayNote(tripId, fromDayId, dayId, Number(noteId)).catch((err: unknown) => toast.error(err instanceof Error ? err.message : t('common.unknownError')))
     }
     setDraggingId(null)
     setDropTargetKey(null)
@@ -862,7 +959,7 @@ const DayPlanSidebar = React.memo(function DayPlanSidebar({
                   a.download = `${trip?.title || 'trip'}.ics`
                   a.click()
                   URL.revokeObjectURL(url)
-                } catch { toast.error('ICS export failed') }
+                } catch { toast.error(t('planner.icsExportFailed')) }
               }}
               onMouseEnter={() => setIcsHover(true)}
               onMouseLeave={() => setIcsHover(false)}
@@ -1089,11 +1186,11 @@ const DayPlanSidebar = React.memo(function DayPlanSidebar({
                       if (placeId) {
                         onAssignToDay?.(parseInt(placeId), day.id)
                       } else if (assignmentId && fromDayId !== day.id) {
-                        tripActions.moveAssignment(tripId, Number(assignmentId), fromDayId, day.id).catch((err: unknown) => toast.error(err instanceof Error ? err.message : 'Unknown error'))
+                        tripActions.moveAssignment(tripId, Number(assignmentId), fromDayId, day.id).catch((err: unknown) => toast.error(err instanceof Error ? err.message : t('common.unknownError')))
                       } else if (assignmentId) {
                         handleMergedDrop(day.id, 'place', Number(assignmentId), 'transport', transportId, isAfter)
                       } else if (noteId && fromDayId !== day.id) {
-                        tripActions.moveDayNote(tripId, fromDayId, day.id, Number(noteId)).catch((err: unknown) => toast.error(err instanceof Error ? err.message : 'Unknown error'))
+                        tripActions.moveDayNote(tripId, fromDayId, day.id, Number(noteId)).catch((err: unknown) => toast.error(err instanceof Error ? err.message : t('common.unknownError')))
                       } else if (noteId) {
                         handleMergedDrop(day.id, 'note', Number(noteId), 'transport', transportId, isAfter)
                       }
@@ -1107,11 +1204,11 @@ const DayPlanSidebar = React.memo(function DayPlanSidebar({
                       setDropTargetKey(null); window.__dragData = null; return
                     }
                     if (assignmentId && fromDayId !== day.id) {
-                      tripActions.moveAssignment(tripId, Number(assignmentId), fromDayId, day.id).catch((err: unknown) => toast.error(err instanceof Error ? err.message : 'Unknown error'))
+                      tripActions.moveAssignment(tripId, Number(assignmentId), fromDayId, day.id).catch((err: unknown) => toast.error(err instanceof Error ? err.message : t('common.unknownError')))
                       setDraggingId(null); setDropTargetKey(null); dragDataRef.current = null; return
                     }
                     if (noteId && fromDayId !== day.id) {
-                      tripActions.moveDayNote(tripId, fromDayId, day.id, Number(noteId)).catch((err: unknown) => toast.error(err instanceof Error ? err.message : 'Unknown error'))
+                      tripActions.moveDayNote(tripId, fromDayId, day.id, Number(noteId)).catch((err: unknown) => toast.error(err instanceof Error ? err.message : t('common.unknownError')))
                       setDraggingId(null); setDropTargetKey(null); dragDataRef.current = null; return
                     }
                     const m = getMergedItems(day.id)
@@ -1207,7 +1304,7 @@ const DayPlanSidebar = React.memo(function DayPlanSidebar({
                                 setDropTargetKey(null); window.__dragData = null
                               } else if (fromAssignmentId && fromDayId !== day.id) {
                                 const toIdx = getDayAssignments(day.id).findIndex(a => a.id === assignment.id)
-                                tripActions.moveAssignment(tripId, Number(fromAssignmentId), fromDayId, day.id, toIdx).catch((err: unknown) => toast.error(err instanceof Error ? err.message : 'Unknown error'))
+                                tripActions.moveAssignment(tripId, Number(fromAssignmentId), fromDayId, day.id, toIdx).catch((err: unknown) => toast.error(err instanceof Error ? err.message : t('common.unknownError')))
                                 setDraggingId(null); setDropTargetKey(null); dragDataRef.current = null
                               } else if (fromAssignmentId) {
                                 handleMergedDrop(day.id, 'place', Number(fromAssignmentId), 'place', assignment.id)
@@ -1215,7 +1312,7 @@ const DayPlanSidebar = React.memo(function DayPlanSidebar({
                                 const tm = getMergedItems(day.id)
                                 const toIdx = tm.findIndex(i => i.type === 'place' && i.data.id === assignment.id)
                                 const so = toIdx <= 0 ? (tm[0]?.sortKey ?? 0) - 1 : (tm[toIdx - 1].sortKey + tm[toIdx].sortKey) / 2
-                                tripActions.moveDayNote(tripId, fromDayId, day.id, Number(noteId), so).catch((err: unknown) => toast.error(err instanceof Error ? err.message : 'Unknown error'))
+                                tripActions.moveDayNote(tripId, fromDayId, day.id, Number(noteId), so).catch((err: unknown) => toast.error(err instanceof Error ? err.message : t('common.unknownError')))
                                 setDraggingId(null); setDropTargetKey(null); dragDataRef.current = null
                               } else if (noteId) {
                                 handleMergedDrop(day.id, 'note', Number(noteId), 'place', assignment.id)
@@ -1227,7 +1324,7 @@ const DayPlanSidebar = React.memo(function DayPlanSidebar({
                               canEditDays && onEditPlace && { label: t('common.edit'), icon: Pencil, onClick: () => onEditPlace(place, assignment.id) },
                               canEditDays && onRemoveAssignment && { label: t('planner.removeFromDay'), icon: Trash2, onClick: () => onRemoveAssignment(day.id, assignment.id) },
                               place.website && { label: t('inspector.website'), icon: ExternalLink, onClick: () => window.open(place.website, '_blank') },
-                              (place.lat && place.lng) && { label: 'Google Maps', icon: Navigation, onClick: () => window.open(`https://www.google.com/maps/search/?api=1&query=${place.lat},${place.lng}`, '_blank') },
+                              (place.lat && place.lng) && { label: 'Google Maps', icon: Navigation, onClick: () => window.open(`https://www.google.com/maps/search/?api=1&query=${place.google_place_id ? encodeURIComponent(place.name) + '&query_place_id=' + place.google_place_id : place.lat + ',' + place.lng}`, '_blank') },
                               { divider: true },
                               canEditDays && onDeletePlace && { label: t('common.delete'), icon: Trash2, danger: true, onClick: () => onDeletePlace(place.id) },
                             ])}
@@ -1411,11 +1508,11 @@ const DayPlanSidebar = React.memo(function DayPlanSidebar({
                               if (placeId) {
                                 onAssignToDay?.(parseInt(placeId), day.id)
                               } else if (fromAssignmentId && fromDayId !== day.id) {
-                                tripActions.moveAssignment(tripId, Number(fromAssignmentId), fromDayId, day.id).catch((err: unknown) => toast.error(err instanceof Error ? err.message : 'Unknown error'))
+                                tripActions.moveAssignment(tripId, Number(fromAssignmentId), fromDayId, day.id).catch((err: unknown) => toast.error(err instanceof Error ? err.message : t('common.unknownError')))
                               } else if (fromAssignmentId) {
                                 handleMergedDrop(day.id, 'place', Number(fromAssignmentId), 'transport', res.id, insertAfter)
                               } else if (noteId && fromDayId !== day.id) {
-                                tripActions.moveDayNote(tripId, fromDayId, day.id, Number(noteId)).catch((err: unknown) => toast.error(err instanceof Error ? err.message : 'Unknown error'))
+                                tripActions.moveDayNote(tripId, fromDayId, day.id, Number(noteId)).catch((err: unknown) => toast.error(err instanceof Error ? err.message : t('common.unknownError')))
                               } else if (noteId) {
                                 handleMergedDrop(day.id, 'note', Number(noteId), 'transport', res.id, insertAfter)
                               }
@@ -1499,7 +1596,7 @@ const DayPlanSidebar = React.memo(function DayPlanSidebar({
                               const tm = getMergedItems(day.id)
                               const toIdx = tm.findIndex(i => i.type === 'note' && i.data.id === note.id)
                               const so = toIdx <= 0 ? (tm[0]?.sortKey ?? 0) - 1 : (tm[toIdx - 1].sortKey + tm[toIdx].sortKey) / 2
-                              tripActions.moveDayNote(tripId, fromDayId, day.id, Number(fromNoteId), so).catch((err: unknown) => toast.error(err instanceof Error ? err.message : 'Unknown error'))
+                              tripActions.moveDayNote(tripId, fromDayId, day.id, Number(fromNoteId), so).catch((err: unknown) => toast.error(err instanceof Error ? err.message : t('common.unknownError')))
                               setDraggingId(null); setDropTargetKey(null)
                             } else if (fromNoteId && fromNoteId !== String(note.id)) {
                               handleMergedDrop(day.id, 'note', Number(fromNoteId), 'note', note.id)
@@ -1507,7 +1604,7 @@ const DayPlanSidebar = React.memo(function DayPlanSidebar({
                               const tm = getMergedItems(day.id)
                               const noteIdx = tm.findIndex(i => i.type === 'note' && i.data.id === note.id)
                               const toIdx = tm.slice(0, noteIdx).filter(i => i.type === 'place').length
-                              tripActions.moveAssignment(tripId, Number(fromAssignmentId), fromDayId, day.id, toIdx).catch((err: unknown) => toast.error(err instanceof Error ? err.message : 'Unknown error'))
+                              tripActions.moveAssignment(tripId, Number(fromAssignmentId), fromDayId, day.id, toIdx).catch((err: unknown) => toast.error(err instanceof Error ? err.message : t('common.unknownError')))
                               setDraggingId(null); setDropTargetKey(null)
                             } else if (fromAssignmentId) {
                               handleMergedDrop(day.id, 'place', Number(fromAssignmentId), 'note', note.id)
@@ -1572,11 +1669,11 @@ const DayPlanSidebar = React.memo(function DayPlanSidebar({
                       }
                       if (!assignmentId && !noteId) { dragDataRef.current = null; window.__dragData = null; return }
                       if (assignmentId && fromDayId !== day.id) {
-                        tripActions.moveAssignment(tripId, Number(assignmentId), fromDayId, day.id).catch((err: unknown) => toast.error(err instanceof Error ? err.message : 'Unknown error'))
+                        tripActions.moveAssignment(tripId, Number(assignmentId), fromDayId, day.id).catch((err: unknown) => toast.error(err instanceof Error ? err.message : t('common.unknownError')))
                         setDraggingId(null); setDropTargetKey(null); dragDataRef.current = null; return
                       }
                       if (noteId && fromDayId !== day.id) {
-                        tripActions.moveDayNote(tripId, fromDayId, day.id, Number(noteId)).catch((err: unknown) => toast.error(err instanceof Error ? err.message : 'Unknown error'))
+                        tripActions.moveDayNote(tripId, fromDayId, day.id, Number(noteId)).catch((err: unknown) => toast.error(err instanceof Error ? err.message : t('common.unknownError')))
                         setDraggingId(null); setDropTargetKey(null); dragDataRef.current = null; return
                       }
                       const m = getMergedItems(day.id)
@@ -1623,6 +1720,15 @@ const DayPlanSidebar = React.memo(function DayPlanSidebar({
                       </div>
                     </div>
                   )}
+
+                  {/* Mobile: Add Place from list */}
+                  <MobileAddPlaceButton
+                    dayId={day.id}
+                    places={places}
+                    assignments={assignments}
+                    onAssign={onAssignToDay}
+                    onAddNew={onAddPlace}
+                  />
                 </div>
               )}
             </div>

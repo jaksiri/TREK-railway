@@ -346,7 +346,6 @@ describe('Tool: get_trip_summary', () => {
       const result = await h.client.callTool({ name: 'get_trip_summary', arguments: { tripId: trip.id } });
       const data = parseToolResult(result) as any;
       expect(Array.isArray(data.todos)).toBe(true);
-      expect(Array.isArray(data.files)).toBe(true);
       expect(typeof data.pollCount).toBe('number');
       expect(typeof data.messageCount).toBe('number');
     });

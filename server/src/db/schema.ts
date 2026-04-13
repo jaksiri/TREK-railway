@@ -245,6 +245,7 @@ function createTables(db: Database.Database): void {
       label TEXT NOT NULL,
       input_type TEXT NOT NULL DEFAULT 'text',
       placeholder TEXT,
+      hint TEXT,
       required INTEGER DEFAULT 0,
       secret INTEGER DEFAULT 0,
       settings_key TEXT,

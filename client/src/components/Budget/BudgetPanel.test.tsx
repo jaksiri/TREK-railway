@@ -1,4 +1,4 @@
-// FE-COMP-BUDGET-001 to FE-COMP-BUDGET-020
+// FE-COMP-BUDGET-001 to FE-COMP-BUDGET-040
 import { render, screen, waitFor } from '../../../tests/helpers/render';
 import userEvent from '@testing-library/user-event';
 import { http, HttpResponse } from 'msw';
@@ -6,6 +6,7 @@ import { server } from '../../../tests/helpers/msw/server';
 import { useAuthStore } from '../../store/authStore';
 import { useTripStore } from '../../store/tripStore';
 import { useSettingsStore } from '../../store/settingsStore';
+import { usePermissionsStore } from '../../store/permissionsStore';
 import { resetAllStores, seedStore } from '../../../tests/helpers/store';
 import { buildUser, buildTrip, buildBudgetItem, buildSettings } from '../../../tests/helpers/factories';
 import BudgetPanel from './BudgetPanel';
@@ -417,5 +418,81 @@ describe('BudgetPanel', () => {
     await screen.findByText('Hotel');
     // Grand total card shows 300.00
     expect(screen.getByText('300.00')).toBeInTheDocument();
+  });
+
+  it('FE-COMP-BUDGET-033: read-only mode hides add/delete/edit controls', async () => {
+    // Restrict budget_edit to trip owners only; user is not the owner (owner_id=1, user.id > 1)
+    seedStore(usePermissionsStore, { permissions: { budget_edit: 'trip_owner' } });
+    // Use a user with id != 1 so they're not the owner
+    seedStore(useAuthStore, { user: buildUser(), isAuthenticated: true });
+    seedStore(useTripStore, { trip: buildTrip({ id: 1, owner_id: 9999 }) });
+    const item = { ...buildBudgetItem({ trip_id: 1, category: 'Food', name: 'Read Only Item' }), total_price: 50 };
+    server.use(
+      http.get('/api/trips/1/budget', () => HttpResponse.json({ items: [item] }))
+    );
+    render(<BudgetPanel tripId={1} />);
+    await screen.findByText('Read Only Item');
+    // In read-only mode the Delete button should not be visible
+    expect(screen.queryByTitle('Delete')).not.toBeInTheDocument();
+  });
+
+  it('FE-COMP-BUDGET-034: read-only mode shows expense_date as text span', async () => {
+    seedStore(usePermissionsStore, { permissions: { budget_edit: 'trip_owner' } });
+    seedStore(useAuthStore, { user: buildUser(), isAuthenticated: true });
+    seedStore(useTripStore, { trip: buildTrip({ id: 1, owner_id: 9999 }) });
+    const item = { ...buildBudgetItem({ trip_id: 1, category: 'Transport', name: 'Train' }), total_price: 30, expense_date: '2025-06-15' };
+    server.use(
+      http.get('/api/trips/1/budget', () => HttpResponse.json({ items: [item] }))
+    );
+    render(<BudgetPanel tripId={1} />);
+    await screen.findByText('Train');
+    // expense_date is rendered as plain text in read-only mode
+    await screen.findByText('2025-06-15');
+  });
+
+  it('FE-COMP-BUDGET-035: settlement section with avatar renders user avatar image', async () => {
+    const user = userEvent.setup();
+    const item = { ...buildBudgetItem({ trip_id: 1, category: 'Food', name: 'Lunch' }), total_price: 60 };
+    server.use(
+      http.get('/api/trips/1/budget', () => HttpResponse.json({ items: [item] })),
+      http.get('/api/trips/1/budget/settlement', () =>
+        HttpResponse.json({
+          balances: [
+            { user_id: 1, username: 'alice', avatar_url: '/uploads/avatars/alice.jpg', balance: -30 },
+            { user_id: 2, username: 'bob', avatar_url: null, balance: 30 },
+          ],
+          flows: [{ from: { username: 'alice', avatar_url: '/uploads/avatars/alice.jpg' }, to: { username: 'bob', avatar_url: null }, amount: 30 }]
+        })
+      ),
+      http.get('/api/trips/1/budget/per-person', () => HttpResponse.json({ summary: [] })),
+    );
+    const tripMembers = [
+      { id: 1, username: 'alice', avatar_url: '/uploads/avatars/alice.jpg' },
+      { id: 2, username: 'bob', avatar_url: null },
+    ];
+    render(<BudgetPanel tripId={1} tripMembers={tripMembers} />);
+    await screen.findByText('Lunch');
+    // Trigger settlement display
+    const settlementBtn = await screen.findByRole('button', { name: /settlement/i });
+    await user.click(settlementBtn);
+    await screen.findByText('alice');
+    // Avatar image should be rendered for alice
+    const avatarImg = screen.getAllByRole('img');
+    expect(avatarImg.length).toBeGreaterThan(0);
+  });
+
+  it('FE-COMP-BUDGET-036: expense_date shows dash when not set in read-only mode', async () => {
+    seedStore(usePermissionsStore, { permissions: { budget_edit: 'trip_owner' } });
+    seedStore(useAuthStore, { user: buildUser(), isAuthenticated: true });
+    seedStore(useTripStore, { trip: buildTrip({ id: 1, owner_id: 9999 }) });
+    const item = { ...buildBudgetItem({ trip_id: 1, category: 'Food', name: 'Snack' }), total_price: 5, expense_date: null };
+    server.use(
+      http.get('/api/trips/1/budget', () => HttpResponse.json({ items: [item] }))
+    );
+    render(<BudgetPanel tripId={1} />);
+    await screen.findByText('Snack');
+    // When expense_date is null, the fallback '—' is shown
+    const dashes = screen.getAllByText('—');
+    expect(dashes.length).toBeGreaterThan(0);
   });
 });

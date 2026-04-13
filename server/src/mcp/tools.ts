@@ -15,34 +15,34 @@ import { registerTripTools } from './tools/trips';
 import { registerVacayTools } from './tools/vacay';
 import { registerMcpPrompts } from './tools/prompts';
 
-export function registerTools(server: McpServer, userId: number): void {
-  registerTripTools(server, userId);
+export function registerTools(server: McpServer, userId: number, scopes: string[] | null, isStaticToken = false, getDeprecationNotice: () => string | null = () => null): void {
+  registerTripTools(server, userId, scopes, getDeprecationNotice);
 
-  registerPlaceTools(server, userId);
+  registerPlaceTools(server, userId, scopes);
 
-  registerBudgetTools(server, userId);
+  registerBudgetTools(server, userId, scopes);
 
-  registerPackingTools(server, userId);
+  registerPackingTools(server, userId, scopes);
 
-  registerReservationTools(server, userId);
+  registerReservationTools(server, userId, scopes);
 
-  registerDayTools(server, userId);
+  registerDayTools(server, userId, scopes);
 
-  registerAssignmentTools(server, userId);
+  registerAssignmentTools(server, userId, scopes);
 
-  registerTagTools(server, userId);
+  registerTagTools(server, userId, scopes);
 
-  registerMapsWeatherTools(server, userId);
+  registerMapsWeatherTools(server, userId, scopes);
 
-  registerNotificationTools(server, userId);
+  registerNotificationTools(server, userId, scopes);
 
-  registerAtlasTools(server, userId);
+  registerAtlasTools(server, userId, scopes);
 
-  registerCollabTools(server, userId);
+  registerCollabTools(server, userId, scopes);
 
-  registerVacayTools(server, userId);
+  registerVacayTools(server, userId, scopes);
 
-  registerTodoTools(server, userId);
+  registerTodoTools(server, userId, scopes);
 
-  registerMcpPrompts(server, userId);
+  registerMcpPrompts(server, userId, isStaticToken);
 }

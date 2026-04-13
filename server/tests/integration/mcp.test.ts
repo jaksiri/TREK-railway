@@ -205,7 +205,7 @@ describe('MCP session management', () => {
     testDb.prepare("UPDATE addons SET enabled = 1 WHERE id = 'mcp'").run();
 
     // Create 5 sessions
-    for (let i = 0; i < 5; i++) {
+    for (let i = 0; i < 20; i++) {
       await createSession(user.id);
     }
 

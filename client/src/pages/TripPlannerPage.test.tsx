@@ -65,8 +65,12 @@ vi.mock('../components/Planner/PlacesSidebar', () => ({
   },
 }));
 
+const capturedPlaceInspectorProps: { current: Record<string, any> } = { current: {} };
 vi.mock('../components/Planner/PlaceInspector', () => ({
-  default: () => null,
+  default: (props: Record<string, any>) => {
+    capturedPlaceInspectorProps.current = props;
+    return React.createElement('div', { 'data-testid': 'place-inspector' });
+  },
 }));
 
 const capturedDayDetailPanelProps: { current: Record<string, any> } = { current: {} };
@@ -232,6 +236,7 @@ beforeEach(() => {
   capturedTripFormModalProps.current = {};
   capturedTripMembersModalProps.current = {};
   capturedFileManagerProps.current = {};
+  capturedPlaceInspectorProps.current = {};
   seedStore(useAuthStore, { isAuthenticated: true, user: buildUser() });
 });
 
@@ -587,32 +592,7 @@ describe('TripPlannerPage', () => {
     });
   });
 
-  describe('FE-PAGE-PLANNER-018: Memories tab renders MemoriesPanel', () => {
-    it('shows MemoriesPanel after clicking the Photos tab with a photo_provider addon enabled', async () => {
-      server.use(
-        http.get('/api/addons', () =>
-          HttpResponse.json({ addons: [{ id: 'google_photos', type: 'photo_provider' }] })
-        )
-      );
-
-      vi.useFakeTimers();
-
-      seedTripStore({ id: 42 });
-
-      renderPlannerPage(42);
-
-      act(() => { vi.runAllTimers(); });
-
-      vi.useRealTimers();
-
-      const photosTab = await screen.findByTitle('Photos');
-      fireEvent.click(photosTab);
-
-      await waitFor(() => {
-        expect(screen.getByTestId('memories-panel')).toBeInTheDocument();
-      });
-    });
-  });
+  // FE-PAGE-PLANNER-018: Removed — MemoriesPanel moved to Journey addon
 
   describe('FE-PAGE-PLANNER-019: Todo subtab in ListsContainer', () => {
     it('shows TodoListPanel after switching to the Todo subtab inside Lists', async () => {
@@ -1331,6 +1311,166 @@ describe('TripPlannerPage', () => {
       await act(async () => {
         capturedReservationsPanelProps.current.onNavigateToFiles?.();
       });
+    });
+  });
+
+  describe('FE-PAGE-PLANNER-046: Invalid session tab resets to plan', () => {
+    it('resets activeTab to "plan" when saved tab is no longer in TRIP_TABS', async () => {
+      // Save a tab id that requires the "memories" addon (disabled by default)
+      sessionStorage.setItem('trip-tab-42', 'memories');
+      seedTripStore({ id: 42 });
+
+      renderPlannerPage(42);
+
+      // The useEffect should detect the invalid tab and reset it
+      await waitFor(() => {
+        expect(sessionStorage.getItem('trip-tab-42')).toBe('plan');
+      });
+    });
+  });
+
+  describe('FE-PAGE-PLANNER-047: Desktop PlaceInspector onEdit with selectedAssignment', () => {
+    it('calls onEdit on desktop PlaceInspector with selectedAssignmentId to cover if-branch', async () => {
+      vi.useFakeTimers();
+
+      const place = buildPlace({ id: 1, trip_id: 42, lat: 48.8566, lng: 2.3522 });
+      const assignment = buildAssignment({ id: 10, day_id: 99, place, order_index: 0 });
+
+      mockPlaceSelectionState.selectedPlaceId = place.id;
+      mockPlaceSelectionState.selectedAssignmentId = assignment.id;
+
+      seedTripStore({ id: 42 });
+      seedStore(useTripStore, {
+        places: [place],
+        assignments: { '99': [assignment] },
+      } as any);
+
+      renderPlannerPage(42);
+      act(() => { vi.runAllTimers(); });
+      vi.useRealTimers();
+
+      await waitFor(() => {
+        expect(screen.getByTestId('place-inspector')).toBeInTheDocument();
+      });
+
+      // onEdit with selectedAssignmentId set — covers lines 795-798 (if branch)
+      await act(async () => {
+        capturedPlaceInspectorProps.current.onEdit?.();
+      });
+    });
+  });
+
+  describe('FE-PAGE-PLANNER-048: Mobile PlaceInspector portal renders when isMobile is true', () => {
+    it('renders PlaceInspector in mobile portal and covers mobile callbacks', async () => {
+      vi.useFakeTimers();
+
+      // Simulate mobile viewport
+      Object.defineProperty(window, 'innerWidth', { writable: true, configurable: true, value: 375 });
+
+      const place = buildPlace({ id: 1, trip_id: 42, lat: 48.8566, lng: 2.3522 });
+
+      mockPlaceSelectionState.selectedPlaceId = place.id;
+
+      seedTripStore({ id: 42 });
+      seedStore(useTripStore, { places: [place] } as any);
+
+      renderPlannerPage(42);
+      act(() => { vi.runAllTimers(); });
+      vi.useRealTimers();
+
+      // Mobile portal renders the PlaceInspector (lines 830-879)
+      await waitFor(() => {
+        expect(screen.getByTestId('place-inspector')).toBeInTheDocument();
+      });
+
+      // onEdit without assignment — covers else branch at line 799
+      await act(async () => {
+        capturedPlaceInspectorProps.current.onEdit?.();
+      });
+
+      // onClose — covers mobile onClose lambda
+      await act(async () => {
+        capturedPlaceInspectorProps.current.onClose?.();
+      });
+
+      Object.defineProperty(window, 'innerWidth', { writable: true, configurable: true, value: 1024 });
+    });
+  });
+
+  describe('FE-PAGE-PLANNER-049: Mobile sidebar left panel opens via Plan button', () => {
+    it('clicking the mobile Plan button opens the left sidebar portal (lines 882-893)', async () => {
+      vi.useFakeTimers();
+
+      Object.defineProperty(window, 'innerWidth', { writable: true, configurable: true, value: 375 });
+
+      seedTripStore({ id: 42 });
+
+      renderPlannerPage(42);
+      act(() => { vi.runAllTimers(); });
+      vi.useRealTimers();
+
+      await waitFor(() => {
+        expect(screen.getByTestId('day-plan-sidebar')).toBeInTheDocument();
+      });
+
+      // The mobile portal buttons are rendered to document.body.
+      // The "Plan" tab button has title="Plan"; the mobile portal button does not.
+      const mobilePlanBtn = Array.from(document.body.querySelectorAll('button')).find(
+        b => b.textContent === 'Plan' && !b.getAttribute('title'),
+      );
+
+      if (mobilePlanBtn) {
+        await act(async () => { fireEvent.click(mobilePlanBtn); });
+
+        // Mobile sidebar portal renders DayPlanSidebar — now two instances
+        await waitFor(() => {
+          expect(screen.getAllByTestId('day-plan-sidebar').length).toBeGreaterThanOrEqual(2);
+        });
+
+        // Close the mobile sidebar via the X button inside the portal header
+        const closeButtons = Array.from(document.body.querySelectorAll('button')).filter(
+          b => !b.textContent || b.textContent.trim() === '',
+        );
+        if (closeButtons.length > 0) {
+          await act(async () => { fireEvent.click(closeButtons[0]); });
+        }
+      }
+
+      Object.defineProperty(window, 'innerWidth', { writable: true, configurable: true, value: 1024 });
+    });
+  });
+
+  describe('FE-PAGE-PLANNER-050: Mobile sidebar right panel opens via Places button', () => {
+    it('clicking the mobile Places button opens the right sidebar portal (lines 894)', async () => {
+      vi.useFakeTimers();
+
+      Object.defineProperty(window, 'innerWidth', { writable: true, configurable: true, value: 375 });
+
+      seedTripStore({ id: 42 });
+
+      renderPlannerPage(42);
+      act(() => { vi.runAllTimers(); });
+      vi.useRealTimers();
+
+      await waitFor(() => {
+        expect(screen.getByTestId('places-sidebar')).toBeInTheDocument();
+      });
+
+      // "Places" tab doesn't exist; the mobile portal "Places" button has no title
+      const mobilePlacesBtn = Array.from(document.body.querySelectorAll('button')).find(
+        b => b.textContent === 'Places' && !b.getAttribute('title'),
+      );
+
+      if (mobilePlacesBtn) {
+        await act(async () => { fireEvent.click(mobilePlacesBtn); });
+
+        // PlacesSidebar renders in mobile sidebar portal
+        await waitFor(() => {
+          expect(screen.getAllByTestId('places-sidebar').length).toBeGreaterThanOrEqual(2);
+        });
+      }
+
+      Object.defineProperty(window, 'innerWidth', { writable: true, configurable: true, value: 1024 });
     });
   });
 

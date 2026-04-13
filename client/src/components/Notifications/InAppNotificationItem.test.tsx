@@ -1,4 +1,4 @@
-// FE-COMP-NOTIF-001 to FE-COMP-NOTIF-010
+// FE-COMP-NOTIF-001 to FE-COMP-NOTIF-016
 import { render, screen, waitFor } from '../../../tests/helpers/render';
 import userEvent from '@testing-library/user-event';
 import { useAuthStore } from '../../store/authStore';
@@ -98,5 +98,110 @@ describe('InAppNotificationItem', () => {
     render(<InAppNotificationItem notification={buildNotification({ created_at: new Date().toISOString() })} />);
     // Recent notification shows "just now"
     expect(screen.getByText('just now')).toBeInTheDocument();
+  });
+
+  it('FE-COMP-NOTIF-011: shows avatar image when sender_avatar is provided', () => {
+    render(
+      <InAppNotificationItem
+        notification={buildNotification({ sender_avatar: 'https://example.com/avatar.png' })}
+      />
+    );
+    expect(document.querySelector('img')).toBeInTheDocument();
+    expect(document.querySelector('img')?.getAttribute('src')).toBe('https://example.com/avatar.png');
+  });
+
+  it('FE-COMP-NOTIF-012: boolean notification shows Accept and Reject buttons', () => {
+    render(
+      <InAppNotificationItem
+        notification={buildNotification({
+          type: 'boolean',
+          positive_text_key: 'common.yes',
+          negative_text_key: 'common.no',
+        })}
+      />
+    );
+    expect(screen.getByText('Yes')).toBeInTheDocument();
+    expect(screen.getByText('No')).toBeInTheDocument();
+  });
+
+  it('FE-COMP-NOTIF-013: clicking Accept calls respondToBoolean with positive', async () => {
+    const user = userEvent.setup();
+    const respondToBoolean = vi.fn().mockResolvedValue(undefined);
+    seedStore(useInAppNotificationStore, { respondToBoolean });
+    render(
+      <InAppNotificationItem
+        notification={buildNotification({
+          id: 55,
+          type: 'boolean',
+          positive_text_key: 'common.yes',
+          negative_text_key: 'common.no',
+          response: null,
+        })}
+      />
+    );
+    await user.click(screen.getByText('Yes'));
+    expect(respondToBoolean).toHaveBeenCalledWith(55, 'positive');
+  });
+
+  it('FE-COMP-NOTIF-014: clicking Reject calls respondToBoolean with negative', async () => {
+    const user = userEvent.setup();
+    const respondToBoolean = vi.fn().mockResolvedValue(undefined);
+    seedStore(useInAppNotificationStore, { respondToBoolean });
+    render(
+      <InAppNotificationItem
+        notification={buildNotification({
+          id: 66,
+          type: 'boolean',
+          positive_text_key: 'common.yes',
+          negative_text_key: 'common.no',
+          response: null,
+        })}
+      />
+    );
+    await user.click(screen.getByText('No'));
+    expect(respondToBoolean).toHaveBeenCalledWith(66, 'negative');
+  });
+
+  it('FE-COMP-NOTIF-015: navigate notification shows action button', () => {
+    render(
+      <InAppNotificationItem
+        notification={buildNotification({
+          type: 'navigate',
+          navigate_text_key: 'notifications.title',
+          navigate_target: '/trips/1',
+        })}
+      />
+    );
+    // t('notifications.title') = "Notifications" — the navigate button renders this
+    const navigateBtn = document.querySelector('button[style*="pointer"]') ??
+      Array.from(document.querySelectorAll('button')).find(b => b.textContent?.includes('Notifications'));
+    expect(navigateBtn).toBeInTheDocument();
+  });
+
+  it('FE-COMP-NOTIF-016: clicking navigate button marks read and navigates', async () => {
+    const user = userEvent.setup();
+    const markRead = vi.fn().mockResolvedValue(undefined);
+    const onClose = vi.fn();
+    seedStore(useInAppNotificationStore, { markRead });
+    render(
+      <InAppNotificationItem
+        notification={buildNotification({
+          id: 77,
+          type: 'navigate',
+          navigate_text_key: 'notifications.title',
+          navigate_target: '/trips/1',
+          is_read: 0,
+        })}
+        onClose={onClose}
+      />
+    );
+    // The navigate button renders t('notifications.title') = "Notifications"
+    const btn = Array.from(document.querySelectorAll('button')).find(
+      b => b.textContent?.includes('Notifications')
+    );
+    expect(btn).toBeTruthy();
+    await user.click(btn!);
+    expect(markRead).toHaveBeenCalledWith(77);
+    expect(onClose).toHaveBeenCalled();
   });
 });

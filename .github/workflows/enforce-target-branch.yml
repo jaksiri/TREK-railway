@@ -1,7 +1,7 @@
 name: Enforce PR Target Branch
 
 on:
-  pull_request:
+  pull_request_target:
     types: [opened, reopened, edited, synchronize]
 
 jobs:
@@ -9,6 +9,8 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       pull-requests: write
+      issues: write
+      contents: read
 
     steps:
       - name: Flag or clear wrong base branch
@@ -63,14 +65,16 @@ jobs:
                 repo: context.repo.repo,
                 name: 'wrong-base-branch',
               });
-            } catch {
-              await github.rest.issues.createLabel({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                name: 'wrong-base-branch',
-                color: 'd73a4a',
-                description: 'PR is targeting the wrong base branch',
-              });
+            } catch (err) {
+              if (err.status === 404) {
+                await github.rest.issues.createLabel({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  name: 'wrong-base-branch',
+                  color: 'd73a4a',
+                  description: 'PR is targeting the wrong base branch',
+                });
+              }
             }
 
             await github.rest.issues.addLabels({

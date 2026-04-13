@@ -15,6 +15,11 @@ interface AppConfig {
   oidc_configured: boolean
   oidc_display_name?: string
   oidc_only_mode: boolean
+  password_login: boolean
+  password_registration: boolean
+  oidc_login: boolean
+  oidc_registration: boolean
+  env_override_oidc_only: boolean
 }
 
 export default function LoginPage(): React.ReactElement {
@@ -60,7 +65,7 @@ export default function LoginPage(): React.ReactElement {
       authApi.validateInvite(invite).then(() => {
         setInviteValid(true)
       }).catch(() => {
-        setError('Invalid or expired invite link')
+        setError(t('login.invalidInviteLink'))
       })
       window.history.replaceState({}, '', window.location.pathname)
     }
@@ -77,12 +82,12 @@ export default function LoginPage(): React.ReactElement {
             await loadUser()
             navigate('/dashboard', { replace: true })
           } else {
-            setError(data.error || 'OIDC login failed')
+            setError(data.error || t('login.oidcFailed'))
           }
         })
         .catch(() => {
           window.history.replaceState({}, '', '/login')
-          setError('OIDC login failed')
+          setError(t('login.oidcFailed'))
         })
         .finally(() => setIsLoading(false))
       return
@@ -104,7 +109,7 @@ export default function LoginPage(): React.ReactElement {
       if (config) {
         setAppConfig(config)
         if (!config.has_users) setMode('register')
-        if (config.oidc_only_mode && config.oidc_configured && config.has_users && !invite && !noRedirect) {
+        if (!config.password_login && config.oidc_login && config.oidc_configured && config.has_users && !invite && !noRedirect) {
           window.location.href = '/api/auth/oidc/login'
         }
       }
@@ -167,8 +172,8 @@ export default function LoginPage(): React.ReactElement {
         return
       }
       if (mode === 'register') {
-        if (!username.trim()) { setError('Username is required'); setIsLoading(false); return }
-        if (password.length < 8) { setError('Password must be at least 8 characters'); setIsLoading(false); return }
+        if (!username.trim()) { setError(t('login.usernameRequired')); setIsLoading(false); return }
+        if (password.length < 8) { setError(t('login.passwordMinLength')); setIsLoading(false); return }
         await register(username, email, password, inviteToken || undefined)
       } else {
         const result = await login(email, password)
@@ -194,10 +199,10 @@ export default function LoginPage(): React.ReactElement {
     }
   }
 
-  const showRegisterOption = (appConfig?.allow_registration || !appConfig?.has_users || inviteValid) && !appConfig?.oidc_only_mode && (appConfig?.setup_complete !== false || !appConfig?.has_users)
+  const showRegisterOption = (appConfig?.password_registration || !appConfig?.has_users || inviteValid) && (appConfig?.setup_complete !== false || !appConfig?.has_users)
 
   // In OIDC-only mode, show a minimal page that redirects directly to the IdP
-  const oidcOnly = appConfig?.oidc_only_mode && appConfig?.oidc_configured
+  const oidcOnly = !appConfig?.password_login && appConfig?.oidc_login && appConfig?.oidc_configured
 
   const inputBase: React.CSSProperties = {
     width: '100%', padding: '11px 12px 11px 40px', border: '1px solid #e5e7eb',
@@ -730,8 +735,8 @@ export default function LoginPage(): React.ReactElement {
             </>)}
           </div>
 
-          {/* OIDC / SSO login button (only when OIDC is configured but not in oidc-only mode) */}
-          {appConfig?.oidc_configured && !oidcOnly && (
+          {/* OIDC / SSO login button (only when OIDC is configured, oidc_login enabled, not in oidc-only mode) */}
+          {appConfig?.oidc_configured && appConfig?.oidc_login && !oidcOnly && (
             <>
               <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 16 }}>
                 <div style={{ flex: 1, height: 1, background: '#e5e7eb' }} />

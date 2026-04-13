@@ -370,6 +370,11 @@ export default function CollabChat({ tripId, currentUser }: CollabChatProps) {
   const [showEmoji, setShowEmoji] = useState(false)
   const [reactMenu, setReactMenu] = useState(null) // { msgId, x, y }
   const [deletingIds, setDeletingIds] = useState(new Set())
+  const deleteTimersRef = useRef<ReturnType<typeof setTimeout>[]>([])
+
+  useEffect(() => {
+    return () => { deleteTimersRef.current.forEach(clearTimeout) }
+  }, [])
 
   const containerRef = useRef(null)
   const messagesRef = useRef(messages)
@@ -483,13 +488,14 @@ export default function CollabChat({ tripId, currentUser }: CollabChatProps) {
     requestAnimationFrame(() => {
       setDeletingIds(prev => new Set(prev).add(msgId))
     })
-    setTimeout(async () => {
+    const t = setTimeout(async () => {
       try {
         await collabApi.deleteMessage(tripId, msgId)
         setMessages(prev => prev.map(m => m.id === msgId ? { ...m, _deleted: true } : m))
       } catch {}
       setDeletingIds(prev => { const s = new Set(prev); s.delete(msgId); return s })
     }, 400)
+    deleteTimersRef.current.push(t)
   }, [tripId])
 
   const handleReact = useCallback(async (msgId, emoji) => {
@@ -762,7 +768,7 @@ export default function CollabChat({ tripId, currentUser }: CollabChatProps) {
       )}
 
       {/* Composer */}
-      <div style={{ flexShrink: 0, padding: '8px 12px calc(12px + env(safe-area-inset-bottom, 0px))', borderTop: '1px solid var(--border-faint)', background: 'var(--bg-card)' }}>
+      <div style={{ flexShrink: 0, paddingTop: 8, paddingLeft: 12, paddingRight: 12, borderTop: '1px solid var(--border-faint)', background: 'var(--bg-card)' }} className="pb-[96px] md:pb-3">
         {/* Reply preview */}
         {replyTo && (
           <div style={{

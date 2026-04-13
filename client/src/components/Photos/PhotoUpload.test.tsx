@@ -43,15 +43,15 @@ describe('PhotoUpload', () => {
 
   it('FE-COMP-PHOTOUPLOAD-001: renders dropzone with upload instructions', () => {
     render(<PhotoUpload {...defaultProps} />)
-    expect(screen.getByText('Fotos hier ablegen')).toBeInTheDocument()
+    expect(screen.getByText('Drop photos here')).toBeInTheDocument()
     // Upload icon rendered via lucide-react as SVG
     expect(document.querySelector('svg')).toBeTruthy()
   })
 
   it('FE-COMP-PHOTOUPLOAD-002: options section hidden before files are selected', () => {
     render(<PhotoUpload {...defaultProps} />)
-    expect(screen.queryByText('Tag verknüpfen')).not.toBeInTheDocument()
-    expect(screen.queryByPlaceholderText('Optionale Beschriftung...')).not.toBeInTheDocument()
+    expect(screen.queryByText('Link Day')).not.toBeInTheDocument()
+    expect(screen.queryByPlaceholderText('Optional caption...')).not.toBeInTheDocument()
   })
 
   it('FE-COMP-PHOTOUPLOAD-003: upload button is disabled when no files selected', () => {
@@ -65,27 +65,27 @@ describe('PhotoUpload', () => {
     render(<PhotoUpload {...defaultProps} />)
     await uploadFiles([makeFile()])
     expect(screen.getByAltText('photo.jpg')).toBeInTheDocument()
-    expect(screen.getByText('Tag verknüpfen')).toBeInTheDocument()
-    expect(screen.getByPlaceholderText('Optionale Beschriftung...')).toBeInTheDocument()
+    expect(screen.getByText('Link Day')).toBeInTheDocument()
+    expect(screen.getByPlaceholderText('Optional caption...')).toBeInTheDocument()
   })
 
   it('FE-COMP-PHOTOUPLOAD-005: file count label updates correctly', async () => {
     render(<PhotoUpload {...defaultProps} />)
     await uploadFiles([makeFile('photo1.jpg'), makeFile('photo2.jpg')])
-    expect(screen.getByText('2 Fotos ausgewählt')).toBeInTheDocument()
+    expect(screen.getByText('2 Photos selected')).toBeInTheDocument()
   })
 
   it('FE-COMP-PHOTOUPLOAD-006: remove button removes a file from preview', async () => {
     render(<PhotoUpload {...defaultProps} />)
     await uploadFiles([makeFile('photo1.jpg'), makeFile('photo2.jpg')])
-    expect(screen.getByText('2 Fotos ausgewählt')).toBeInTheDocument()
+    expect(screen.getByText('2 Photos selected')).toBeInTheDocument()
 
     // Remove buttons are inside `.relative.aspect-square` wrappers in the preview grid
     const removeButtons = document.querySelectorAll('.relative.aspect-square button')
     expect(removeButtons.length).toBe(2)
     await userEvent.click(removeButtons[0])
 
-    expect(screen.getByText('1 Foto ausgewählt')).toBeInTheDocument()
+    expect(screen.getByText('1 Photo selected')).toBeInTheDocument()
     expect(screen.getAllByRole('img').length).toBe(1)
   })
 
@@ -120,7 +120,7 @@ describe('PhotoUpload', () => {
     render(<PhotoUpload {...defaultProps} />)
     await uploadFiles([makeFile()])
 
-    await userEvent.type(screen.getByPlaceholderText('Optionale Beschriftung...'), 'Vacation')
+    await userEvent.type(screen.getByPlaceholderText('Optional caption...'), 'Vacation')
 
     await userEvent.click(getSubmitButton())
 
@@ -146,7 +146,7 @@ describe('PhotoUpload', () => {
     await userEvent.click(getSubmitButton())
 
     await waitFor(() => {
-      expect(screen.getByText(/wird hochgeladen/i)).toBeInTheDocument()
+      expect(screen.getAllByText(/uploading/i).length).toBeGreaterThan(0)
     })
 
     expect(getSubmitButton()).toBeDisabled()

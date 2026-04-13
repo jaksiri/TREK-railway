@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { screen, waitFor } from '@testing-library/react'
+import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { render } from '../../../tests/helpers/render'
 import { resetAllStores, seedStore } from '../../../tests/helpers/store'
@@ -75,17 +75,7 @@ describe('VacaySettings', () => {
     render(<VacaySettings onClose={vi.fn()} />)
 
     // Day buttons should be visible (Mon, Tue, Wed, Thu, Fri, Sat, Sun)
-    // They have text from translation keys; in test env they fallback to keys or English
-    // Check that 7 day-selector buttons exist (they are inside the paddingLeft:36 div)
-    const allButtons = screen.getAllByRole('button')
-    // The day buttons are not toggle buttons (no inline-flex/rounded-full class)
-    const dayButtons = allButtons.filter(b =>
-      !b.className.includes('inline-flex') &&
-      !b.className.includes('rounded-full') &&
-      !b.className.includes('rounded-md') &&
-      !b.className.includes('rounded-xl') &&
-      !b.className.includes('rounded-lg')
-    )
+    const dayButtons = within(screen.getByTestId('weekend-days')).getAllByRole('button')
     // There should be 7 day buttons
     expect(dayButtons.length).toBe(7)
   })
@@ -98,14 +88,8 @@ describe('VacaySettings', () => {
     })
     render(<VacaySettings onClose={vi.fn()} />)
 
-    // When block_weekends is false, the day selector section is not rendered
-    // There should only be toggle buttons (4 toggles), no day buttons
-    const allButtons = screen.getAllByRole('button')
-    // None of the buttons should be day selectors (they have borderRadius:8 inline style)
-    const dayButtons = allButtons.filter(b =>
-      b.style.borderRadius === '8px' && b.style.padding === '4px 10px'
-    )
-    expect(dayButtons).toHaveLength(0)
+    // When block_weekends is false, the weekend-days container is not rendered
+    expect(screen.queryByTestId('weekend-days')).toBeNull()
   })
 
   it('FE-COMP-VACAYSETTINGS-005: clicking an active weekend day removes it', async () => {

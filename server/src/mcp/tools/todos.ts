@@ -12,11 +12,19 @@ import {
   TOOL_ANNOTATIONS_DELETE, TOOL_ANNOTATIONS_NON_IDEMPOTENT,
   demoDenied, noAccess, ok,
 } from './_shared';
+import { canRead, canWrite } from '../scopes';
+import { isAddonEnabled } from '../../services/adminService';
+import { ADDON_IDS } from '../../addons';
 
-export function registerTodoTools(server: McpServer, userId: number): void {
+export function registerTodoTools(server: McpServer, userId: number, scopes: string[] | null): void {
+  const R = canRead(scopes, 'todos');
+  const W = canWrite(scopes, 'todos');
+
+  if (!isAddonEnabled(ADDON_IDS.PACKING)) return;
+
   // --- TODOS ---
 
-  server.registerTool(
+  if (R) server.registerTool(
     'list_todos',
     {
       description: 'List all to-do items for a trip, ordered by position.',
@@ -32,7 +40,7 @@ export function registerTodoTools(server: McpServer, userId: number): void {
     }
   );
 
-  server.registerTool(
+  if (W) server.registerTool(
     'create_todo',
     {
       description: 'Create a new to-do item for a trip.',
@@ -56,7 +64,7 @@ export function registerTodoTools(server: McpServer, userId: number): void {
     }
   );
 
-  server.registerTool(
+  if (W) server.registerTool(
     'update_todo',
     {
       description: 'Update an existing to-do item. Only provided fields are changed; omitted fields stay as-is. Pass null to clear a nullable field.',
@@ -88,7 +96,7 @@ export function registerTodoTools(server: McpServer, userId: number): void {
     }
   );
 
-  server.registerTool(
+  if (W) server.registerTool(
     'toggle_todo',
     {
       description: 'Mark a to-do item as checked (done) or unchecked.',
@@ -109,7 +117,7 @@ export function registerTodoTools(server: McpServer, userId: number): void {
     }
   );
 
-  server.registerTool(
+  if (W) server.registerTool(
     'delete_todo',
     {
       description: 'Delete a to-do item.',
@@ -129,7 +137,7 @@ export function registerTodoTools(server: McpServer, userId: number): void {
     }
   );
 
-  server.registerTool(
+  if (W) server.registerTool(
     'reorder_todos',
     {
       description: 'Reorder to-do items within a trip by providing a new ordered list of item IDs.',
@@ -147,7 +155,7 @@ export function registerTodoTools(server: McpServer, userId: number): void {
     }
   );
 
-  server.registerTool(
+  if (R) server.registerTool(
     'get_todo_category_assignees',
     {
       description: 'Get the default assignees configured per to-do category for a trip.',
@@ -163,7 +171,7 @@ export function registerTodoTools(server: McpServer, userId: number): void {
     }
   );
 
-  server.registerTool(
+  if (W) server.registerTool(
     'set_todo_category_assignees',
     {
       description: 'Set the default assignees for a to-do category on a trip. Pass an empty array to clear.',

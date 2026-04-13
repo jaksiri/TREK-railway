@@ -19,26 +19,62 @@ import {
     SyncAlbumResult,
     AssetInfo
 } from './helpersService';
+import { send as sendNotification } from '../notificationService';
 
 const SYNOLOGY_PROVIDER = 'synologyphotos';
-const SYNOLOGY_ENDPOINT_PATH = '/photo/webapi/entry.cgi';
+// Users provide the full base URL including the Photos app path (e.g. https://nas:5001/photo).
+// The API endpoint is always at {base_url}/webapi/entry.cgi.
+const SYNOLOGY_ENDPOINT_PATH = '/webapi/entry.cgi';
+
+const SYNOLOGY_ERROR_MESSAGES: Record<number, string> = {
+    101: 'Missing API, method, or version parameter.',
+    102: 'Requested API does not exist.',
+    103: 'Requested method does not exist.',
+    104: 'Requested API version is not supported.',
+    105: 'Insufficient privilege.',
+    106: 'Connection timeout.',
+    107: 'Multiple logins blocked from this IP.',
+    117: 'Manager privilege required.',
+    119: 'Session is invalid or expired.',
+    400: 'Invalid credentials.',
+    401: 'Session expired or account disabled.',
+    402: 'No permission to use this account.',
+    403: 'Two-factor authentication code required.',
+    404: 'Two-factor authentication failed.',
+    406: 'Two-factor authentication is enforced for this account.',
+    407: 'Maximum login attempts reached.',
+    408: 'Password expired.',
+    409: 'Remote password expired.',
+    410: 'Password must be changed before login.',
+    412: 'Guest account cannot log in.',
+    413: 'OTP system files are corrupted.',
+    414: 'Unable to log in.',
+    416: 'Unable to log in.',
+    417: 'OTP system is full.',
+    498: 'System is upgrading.',
+    499: 'System is not ready.',
+};
 
 interface SynologyUserRecord {
     synology_url?: string | null;
     synology_username?: string | null;
     synology_password?: string | null;
     synology_sid?: string | null;
+    synology_did?: string | null;
+    synology_skip_ssl?: number | null;
 };
 
 interface SynologyCredentials {
     synology_url: string;
     synology_username: string;
     synology_password: string;
+    synology_skip_ssl: boolean;
 }
 
 interface SynologySettings {
     synology_url: string;
     synology_username: string;
+    synology_skip_ssl: boolean;
     connected: boolean;
 }
 
@@ -84,7 +120,7 @@ interface SynologyPhotoItem {
 
 function _readSynologyUser(userId: number, columns: string[]): ServiceResult<SynologyUserRecord> {
     try {
-        const row = db.prepare(`SELECT synology_url, synology_username, synology_password, synology_sid FROM users WHERE id = ?`).get(userId) as SynologyUserRecord | undefined;
+        const row = db.prepare(`SELECT synology_url, synology_username, synology_password, synology_sid, synology_did, synology_skip_ssl FROM users WHERE id = ?`).get(userId) as SynologyUserRecord | undefined;
 
         if (!row) {
             return fail('User not found', 404);
@@ -102,7 +138,7 @@ function _readSynologyUser(userId: number, columns: string[]): ServiceResult<Syn
 }
 
 function _getSynologyCredentials(userId: number): ServiceResult<SynologyCredentials> {
-    const user = _readSynologyUser(userId, ['synology_url', 'synology_username', 'synology_password']);
+    const user = _readSynologyUser(userId, ['synology_url', 'synology_username', 'synology_password', 'synology_skip_ssl']);
     if (!user.success) return user as ServiceResult<SynologyCredentials>;
     if (!user?.data.synology_url || !user.data.synology_username || !user.data.synology_password) return fail('Synology not configured', 400);
     const password = decrypt_api_key(user.data.synology_password);
@@ -111,6 +147,7 @@ function _getSynologyCredentials(userId: number): ServiceResult<SynologyCredenti
         synology_url: user.data.synology_url,
         synology_username: user.data.synology_username,
         synology_password: password,
+        synology_skip_ssl: user.data.synology_skip_ssl !== 0,
     });
 }
 
@@ -129,7 +166,7 @@ function _buildSynologyFormBody(params: ApiCallParams): URLSearchParams {
     return body;
 }
 
-async function _fetchSynologyJson<T>(url: string, body: URLSearchParams): Promise<ServiceResult<T>> {
+async function _fetchSynologyJson<T>(url: string, body: URLSearchParams, skipSsl = true): Promise<ServiceResult<T>> {
     const endpoint = _buildSynologyEndpoint(url, `api=${body.get('api')}`);
     try {
         const resp = await safeFetch(endpoint, {
@@ -139,12 +176,20 @@ async function _fetchSynologyJson<T>(url: string, body: URLSearchParams): Promis
             },
             body,
             signal: AbortSignal.timeout(30000) as any,
-        });
+        }, { rejectUnauthorized: !skipSsl });
         if (!resp.ok) {
             return fail('Synology API request failed with status ' + resp.status, resp.status);
         }
         const response = await resp.json() as SynologyApiResponse<T>;
-        return response.success ? success(response.data) : fail('Synology failed with code ' + response.error.code, response.error.code);
+        if (!response.success) {
+            const code = response.error.code;
+            const message = SYNOLOGY_ERROR_MESSAGES[code] ?? 'Synology API request failed (code ' + code + ')';
+            // Preserve session error codes (106, 107, 119) for internal retry logic in _requestSynologyApi.
+            // All other Synology app-level codes are mapped to HTTP 400 — they are not HTTP status codes.
+            const httpStatus = [106, 107, 119].includes(code) ? code : 400;
+            return fail(message, httpStatus);
+        }
+        return success(response.data);
     } catch (error) {
         if (error instanceof SsrfBlockedError) {
             return fail(error.message, 400);
@@ -153,25 +198,41 @@ async function _fetchSynologyJson<T>(url: string, body: URLSearchParams): Promis
     }
 }
 
-async function _loginToSynology(url: string, username: string, password: string): Promise<ServiceResult<string>> {
+const SYNOLOGY_DEVICE_NAME = 'trek';
+
+async function _loginToSynology(
+    url: string,
+    username: string,
+    password: string,
+    opts: { otp?: string; deviceId?: string; skipSsl?: boolean } = {},
+): Promise<ServiceResult<{ sid: string; did?: string }>> {
+    const { otp, deviceId, skipSsl = false } = opts;
     const body = new URLSearchParams({
         api: 'SYNO.API.Auth',
         method: 'login',
-        version: '3',
+        version: '6',
         account: username,
         passwd: password,
+        format: 'sid',
+        client: 'browser',
+        device_name: SYNOLOGY_DEVICE_NAME,
     });
+    if (otp && otp.trim()) {
+        body.append('otp_code', otp.trim());
+        body.append('enable_device_token', 'yes');
+    }
+    if (deviceId) {
+        body.append('device_id', deviceId);
+    }
 
-    const result = await _fetchSynologyJson<{ sid?: string }>(url, body);
+    const result = await _fetchSynologyJson<{ sid?: string; did?: string }>(url, body, skipSsl);
     if (!result.success) {
-        return result as ServiceResult<string>;
+        return result as ServiceResult<{ sid: string; did?: string }>;
     }
     if (!result.data.sid) {
         return fail('Failed to get session ID from Synology', 500);
     }
-    return success(result.data.sid);
-
-
+    return success({ sid: result.data.sid, did: result.data.did });
 }
 
 async function _requestSynologyApi<T>(userId: number, params: ApiCallParams): Promise<ServiceResult<T>> {
@@ -185,8 +246,9 @@ async function _requestSynologyApi<T>(userId: number, params: ApiCallParams): Pr
         return session as ServiceResult<T>;
     }
 
+    const skipSsl = creds.data.synology_skip_ssl;
     const body = _buildSynologyFormBody({ ...params, _sid: session.data });
-    const result = await _fetchSynologyJson<T>(creds.data.synology_url, body);
+    const result = await _fetchSynologyJson<T>(creds.data.synology_url, body, skipSsl);
     // 106 = session timeout, 107 = duplicate login kicked us out, 119 = SID not found/invalid
     if ('error' in result && [106, 107, 119].includes(result.error.status)) {
         _clearSynologySID(userId);
@@ -194,7 +256,7 @@ async function _requestSynologyApi<T>(userId: number, params: ApiCallParams): Pr
         if (!retrySession.success || !retrySession.data) {
             return retrySession as ServiceResult<T>;
         }
-        return _fetchSynologyJson<T>(creds.data.synology_url, _buildSynologyFormBody({ ...params, _sid: retrySession.data }));
+        return _fetchSynologyJson<T>(creds.data.synology_url, _buildSynologyFormBody({ ...params, _sid: retrySession.data }), skipSsl);
     }
     return result;
 }
@@ -232,6 +294,10 @@ function _clearSynologySID(userId: number): void {
     db.prepare('UPDATE users SET synology_sid = NULL WHERE id = ?').run(userId);
 }
 
+function _clearSynologySession(userId: number): void {
+    db.prepare('UPDATE users SET synology_sid = NULL, synology_did = NULL WHERE id = ?').run(userId);
+}
+
 function _splitPackedSynologyId(rawId: string): { id: string; cacheKey: string; assetId: string } | null {
     // cache_key format from Synology is "{unit_id}_{timestamp}", e.g. "40808_1633659236".
     // The first segment must be a non-empty integer (the unit ID used for API calls).
@@ -241,9 +307,9 @@ function _splitPackedSynologyId(rawId: string): { id: string; cacheKey: string; 
 }
 
 async function _getSynologySession(userId: number): Promise<ServiceResult<string>> {
-    const cachedSid = _readSynologyUser(userId, ['synology_sid']);
-    if (cachedSid.success && cachedSid.data?.synology_sid) {
-        const decryptedSid = decrypt_api_key(cachedSid.data.synology_sid);
+    const cached = _readSynologyUser(userId, ['synology_sid', 'synology_did']);
+    if (cached.success && cached.data?.synology_sid) {
+        const decryptedSid = decrypt_api_key(cached.data.synology_sid);
         if (decryptedSid) return success(decryptedSid);
         // Decryption failed (e.g. key rotation) — clear the stale SID and re-login
         _clearSynologySID(userId);
@@ -254,15 +320,22 @@ async function _getSynologySession(userId: number): Promise<ServiceResult<string
         return creds as ServiceResult<string>;
     }
 
-    const resp = await _loginToSynology(creds.data.synology_url, creds.data.synology_username, creds.data.synology_password);
+    // Use stored device ID to skip OTP on re-login (trusted device flow)
+    const storedDid = cached.success && cached.data?.synology_did
+        ? (decrypt_api_key(cached.data.synology_did) || undefined)
+        : undefined;
+
+    const resp = await _loginToSynology(creds.data.synology_url, creds.data.synology_username, creds.data.synology_password, {
+        deviceId: storedDid,
+        skipSsl: creds.data.synology_skip_ssl,
+    });
 
     if (!resp.success) {
         return resp as ServiceResult<string>;
     }
 
-    const encrypted = encrypt_api_key(resp.data);
-    db.prepare('UPDATE users SET synology_sid = ? WHERE id = ?').run(encrypted, userId);
-    return success(resp.data);
+    db.prepare('UPDATE users SET synology_sid = ? WHERE id = ?').run(encrypt_api_key(resp.data.sid), userId);
+    return success(resp.data.sid);
 }
 
 export async function getSynologySettings(userId: number): Promise<ServiceResult<SynologySettings>> {
@@ -272,11 +345,12 @@ export async function getSynologySettings(userId: number): Promise<ServiceResult
     return success({
         synology_url: creds.data.synology_url || '',
         synology_username: creds.data.synology_username || '',
+        synology_skip_ssl: creds.data.synology_skip_ssl,
         connected: session.success,
     });
 }
 
-export async function updateSynologySettings(userId: number, synologyUrl: string, synologyUsername: string, synologyPassword?: string): Promise<ServiceResult<string>> {
+export async function updateSynologySettings(userId: number, synologyUrl: string, synologyUsername: string, synologyPassword?: string, synologySkipSsl = false): Promise<ServiceResult<string>> {
 
     const ssrf = await checkSsrf(synologyUrl);
     if (!ssrf.allowed) {
@@ -291,24 +365,42 @@ export async function updateSynologySettings(userId: number, synologyUrl: string
         return fail('No stored password found. Please provide a password to save settings.', 400);
     }
 
+    // Only invalidate the session when the account itself changes (different URL or username).
+    // If the user just tested the connection, testSynologyConnection already stored a fresh
+    // sid + did — clearing them here would force an unnecessary re-login that may fail (MFA).
+    const existing = _readSynologyUser(userId, ['synology_url', 'synology_username']);
+    const urlChanged = existing.success && existing.data.synology_url !== synologyUrl;
+    const userChanged = existing.success && existing.data.synology_username !== synologyUsername;
+    const sessionCleared = urlChanged || userChanged;
+    if (sessionCleared) {
+        _clearSynologySession(userId);
+        sendNotification({
+            event: 'synology_session_cleared',
+            actorId: null,
+            params: {},
+            scope: 'user',
+            targetId: userId,
+        });
+    }
+
     try {
-        db.prepare('UPDATE users SET synology_url = ?, synology_username = ?, synology_password = ? WHERE id = ?').run(
+        db.prepare('UPDATE users SET synology_url = ?, synology_username = ?, synology_password = ?, synology_skip_ssl = ? WHERE id = ?').run(
             synologyUrl,
             synologyUsername,
             synologyPassword ? maybe_encrypt_api_key(synologyPassword) : existingEncryptedPassword,
+            synologySkipSsl ? 1 : 0,
             userId,
         );
     } catch {
         return fail('Failed to update Synology settings', 500);
     }
 
-    _clearSynologySID(userId);
-    return success("settings updated");
+    return success('settings updated');
 }
 
 export async function getSynologyStatus(userId: number): Promise<ServiceResult<StatusResult>> {
     const sid = await _getSynologySession(userId);
-    if ('error' in sid) return success({ connected: false, error: sid.error.status === 400 ? 'Invalid credentials' : sid.error.message });
+    if ('error' in sid) return success({ connected: false, error: sid.error.message });
     if (!sid.data) return success({ connected: false, error: 'Not connected to Synology' });
     try {
         const user = db.prepare('SELECT synology_username FROM users WHERE id = ?').get(userId) as { synology_username?: string } | undefined;
@@ -318,17 +410,25 @@ export async function getSynologyStatus(userId: number): Promise<ServiceResult<S
     }
 }
 
-export async function testSynologyConnection(synologyUrl: string, synologyUsername: string, synologyPassword: string): Promise<ServiceResult<StatusResult>> {
+export async function testSynologyConnection(userId: number, synologyUrl: string, synologyUsername: string, synologyPassword: string, synologyOtp?: string, synologySkipSsl = false): Promise<ServiceResult<StatusResult>> {
 
     const ssrf = await checkSsrf(synologyUrl);
     if (!ssrf.allowed) {
         return fail(ssrf.error, 400);
     }
 
-    const resp = await _loginToSynology(synologyUrl, synologyUsername, synologyPassword);
+    const resp = await _loginToSynology(synologyUrl, synologyUsername, synologyPassword, { otp: synologyOtp, skipSsl: synologySkipSsl });
     if ('error' in resp) {
-        return success({ connected: false, error: resp.error.status === 400 ? 'Invalid credentials' : resp.error.message });
+        return success({ connected: false, error: resp.error.message });
     }
+
+    // Persist the session so the OTP code is not required again on save.
+    // The did (device token) allows future re-logins without OTP.
+    db.prepare('UPDATE users SET synology_sid = ? WHERE id = ?').run(encrypt_api_key(resp.data.sid), userId);
+    if (resp.data.did) {
+        db.prepare('UPDATE users SET synology_did = ? WHERE id = ?').run(encrypt_api_key(resp.data.did), userId);
+    }
+
     return success({ connected: true, user: { name: synologyUsername } });
 }
 

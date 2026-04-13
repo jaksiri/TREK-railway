@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import Modal from '../shared/Modal'
 import { tripsApi, authApi, shareApi } from '../../api/client'
 import { useToast } from '../shared/Toast'
@@ -40,6 +40,11 @@ function ShareLinkSection({ tripId, t }: { tripId: number; t: (key: string, para
   const [copied, setCopied] = useState(false)
   const [perms, setPerms] = useState({ share_map: true, share_bookings: true, share_packing: false, share_budget: false, share_collab: false })
   const toast = useToast()
+  const copyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useEffect(() => {
+    return () => { if (copyTimerRef.current) clearTimeout(copyTimerRef.current) }
+  }, [])
 
   useEffect(() => {
     shareApi.getLink(tripId).then(d => {
@@ -77,7 +82,8 @@ function ShareLinkSection({ tripId, t }: { tripId: number; t: (key: string, para
     if (shareUrl) {
       navigator.clipboard.writeText(shareUrl)
       setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
+      if (copyTimerRef.current) clearTimeout(copyTimerRef.current)
+      copyTimerRef.current = setTimeout(() => setCopied(false), 2000)
     }
   }
 

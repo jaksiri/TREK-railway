@@ -16,8 +16,11 @@ import {
   TOOL_ANNOTATIONS_NON_IDEMPOTENT,
   demoDenied, noAccess, ok,
 } from './_shared';
+import { canWrite } from '../scopes';
 
-export function registerDayTools(server: McpServer, userId: number): void {
+export function registerDayTools(server: McpServer, userId: number, scopes: string[] | null): void {
+  if (!canWrite(scopes, 'trips')) return;
+
   // --- DAYS ---
 
   server.registerTool(
@@ -75,6 +78,7 @@ export function registerDayTools(server: McpServer, userId: number): void {
     async ({ tripId, dayId }) => {
       if (isDemoUser(userId)) return demoDenied();
       if (!canAccessTrip(tripId, userId)) return noAccess();
+      if (!getDay(dayId, tripId)) return { content: [{ type: 'text' as const, text: 'Day not found.' }], isError: true };
       deleteDay(dayId);
       safeBroadcast(tripId, 'day:deleted', { id: dayId });
       return ok({ success: true });
@@ -149,6 +153,7 @@ export function registerDayTools(server: McpServer, userId: number): void {
     async ({ tripId, accommodationId }) => {
       if (isDemoUser(userId)) return demoDenied();
       if (!canAccessTrip(tripId, userId)) return noAccess();
+      if (!getAccommodation(accommodationId, tripId)) return { content: [{ type: 'text' as const, text: 'Accommodation not found.' }], isError: true };
       const { linkedReservationId } = deleteAccommodation(accommodationId);
       safeBroadcast(tripId, 'accommodation:deleted', { id: accommodationId, linkedReservationId });
       return ok({ success: true, linkedReservationId });

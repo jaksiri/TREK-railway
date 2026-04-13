@@ -92,6 +92,18 @@ export const adminHandlers = [
     return HttpResponse.json({ tokens: [] });
   }),
 
+  http.get('/api/admin/oauth-sessions', () => {
+    return HttpResponse.json({ sessions: [] });
+  }),
+
+  http.delete('/api/admin/oauth-sessions/:id', () => {
+    return HttpResponse.json({ success: true });
+  }),
+
+  http.delete('/api/admin/mcp-tokens/:id', () => {
+    return HttpResponse.json({ success: true });
+  }),
+
   http.get('/api/admin/permissions', () => {
     return HttpResponse.json({ permissions: {} });
   }),

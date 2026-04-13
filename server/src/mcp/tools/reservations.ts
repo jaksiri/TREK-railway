@@ -13,8 +13,11 @@ import {
   TOOL_ANNOTATIONS_NON_IDEMPOTENT,
   demoDenied, noAccess, ok,
 } from './_shared';
+import { canWrite } from '../scopes';
 
-export function registerReservationTools(server: McpServer, userId: number): void {
+export function registerReservationTools(server: McpServer, userId: number, scopes: string[] | null): void {
+  if (!canWrite(scopes, 'reservations')) return;
+
 
   server.registerTool(
     'create_reservation',

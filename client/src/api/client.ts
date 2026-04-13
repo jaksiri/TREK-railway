@@ -1,7 +1,36 @@
 import axios, { AxiosInstance } from 'axios'
 import { getSocketId } from './websocket'
+import en from '../i18n/translations/en'
+import br from '../i18n/translations/br'
+import de from '../i18n/translations/de'
+import es from '../i18n/translations/es'
+import fr from '../i18n/translations/fr'
+import it from '../i18n/translations/it'
+import nl from '../i18n/translations/nl'
+import pl from '../i18n/translations/pl'
+import cs from '../i18n/translations/cs'
+import hu from '../i18n/translations/hu'
+import ru from '../i18n/translations/ru'
+import zh from '../i18n/translations/zh'
+import zhTw from '../i18n/translations/zhTw'
+import ar from '../i18n/translations/ar'
 
-const apiClient: AxiosInstance = axios.create({
+const rateLimitTranslations: Record<string, Record<string, string | unknown>> = {
+  en, br, de, es, fr, it, nl, pl, cs, hu, ru, zh, 'zh-TW': zhTw, ar,
+}
+
+function translateRateLimit(): string {
+  const fallback = 'Too many attempts. Please try again later.'
+  try {
+    const lang = localStorage.getItem('app_language') || 'en'
+    const table = rateLimitTranslations[lang] || rateLimitTranslations.en
+    return (table['common.tooManyAttempts'] as string) || (rateLimitTranslations.en['common.tooManyAttempts'] as string) || fallback
+  } catch {
+    return fallback
+  }
+}
+
+export const apiClient: AxiosInstance = axios.create({
   baseURL: '/api',
   withCredentials: true,
   headers: {
@@ -21,12 +50,12 @@ apiClient.interceptors.request.use(
   (error) => Promise.reject(error)
 )
 
-// Response interceptor - handle 401
+// Response interceptor - handle 401, 403 MFA, 429 rate limit
 apiClient.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401 && (error.response?.data as { code?: string } | undefined)?.code === 'AUTH_REQUIRED') {
-      if (!window.location.pathname.includes('/login') && !window.location.pathname.includes('/register') && !window.location.pathname.startsWith('/shared/')) {
+      if (!window.location.pathname.includes('/login') && !window.location.pathname.includes('/register') && !window.location.pathname.startsWith('/shared/') && !window.location.pathname.startsWith('/public/')) {
         const currentPath = window.location.pathname + window.location.search
         window.location.href = '/login?redirect=' + encodeURIComponent(currentPath)
       }
@@ -37,6 +66,16 @@ apiClient.interceptors.response.use(
       !window.location.pathname.startsWith('/settings')
     ) {
       window.location.href = '/settings?mfa=required'
+    }
+    if (error.response?.status === 429) {
+      const translated = translateRateLimit()
+      const data = error.response.data as { error?: string } | undefined
+      if (data && typeof data === 'object') {
+        data.error = translated
+      } else {
+        error.response.data = { error: translated }
+      }
+      error.message = translated
     }
     return Promise.reject(error)
   }
@@ -69,6 +108,43 @@ export const authApi = {
     list: () => apiClient.get('/auth/mcp-tokens').then(r => r.data),
     create: (name: string) => apiClient.post('/auth/mcp-tokens', { name }).then(r => r.data),
     delete: (id: number) => apiClient.delete(`/auth/mcp-tokens/${id}`).then(r => r.data),
+  },
+}
+
+export const oauthApi = {
+  /** Validate OAuth authorize params — called by consent page on load */
+  validate: (params: {
+    response_type: string
+    client_id: string
+    redirect_uri: string
+    scope: string
+    state?: string
+    code_challenge: string
+    code_challenge_method: string
+  }) => apiClient.get('/oauth/authorize/validate', { params }).then(r => r.data),
+
+  /** Submit user consent (approve or deny) */
+  authorize: (body: {
+    client_id: string
+    redirect_uri: string
+    scope: string
+    state?: string
+    code_challenge: string
+    code_challenge_method: string
+    approved: boolean
+  }) => apiClient.post('/oauth/authorize', body).then(r => r.data),
+
+  clients: {
+    list: () => apiClient.get('/oauth/clients').then(r => r.data),
+    create: (data: { name: string; redirect_uris: string[]; allowed_scopes: string[] }) =>
+      apiClient.post('/oauth/clients', data).then(r => r.data),
+    rotate: (id: string) => apiClient.post(`/oauth/clients/${id}/rotate`).then(r => r.data),
+    delete: (id: string) => apiClient.delete(`/oauth/clients/${id}`).then(r => r.data),
+  },
+
+  sessions: {
+    list: () => apiClient.get('/oauth/sessions').then(r => r.data),
+    revoke: (id: number) => apiClient.delete(`/oauth/sessions/${id}`).then(r => r.data),
   },
 }
 
@@ -197,6 +273,8 @@ export const adminApi = {
     apiClient.get('/admin/audit-log', { params }).then(r => r.data),
   mcpTokens: () => apiClient.get('/admin/mcp-tokens').then(r => r.data),
   deleteMcpToken: (id: number) => apiClient.delete(`/admin/mcp-tokens/${id}`).then(r => r.data),
+  oauthSessions: () => apiClient.get('/admin/oauth-sessions').then(r => r.data),
+  revokeOAuthSession: (id: number) => apiClient.delete(`/admin/oauth-sessions/${id}`).then(r => r.data),
   getPermissions: () => apiClient.get('/admin/permissions').then(r => r.data),
   updatePermissions: (permissions: Record<string, string>) => apiClient.put('/admin/permissions', { permissions }).then(r => r.data),
   rotateJwtSecret: () => apiClient.post('/admin/rotate-jwt-secret').then(r => r.data),
@@ -208,6 +286,48 @@ export const adminApi = {
 
 export const addonsApi = {
   enabled: () => apiClient.get('/addons').then(r => r.data),
+}
+
+export const journeyApi = {
+  list: () => apiClient.get('/journeys').then(r => r.data),
+  create: (data: { title: string; subtitle?: string; trip_ids?: number[] }) => apiClient.post('/journeys', data).then(r => r.data),
+  get: (id: number) => apiClient.get(`/journeys/${id}`).then(r => r.data),
+  update: (id: number, data: Record<string, unknown>) => apiClient.patch(`/journeys/${id}`, data).then(r => r.data),
+  delete: (id: number) => apiClient.delete(`/journeys/${id}`).then(r => r.data),
+
+  suggestions: () => apiClient.get('/journeys/suggestions').then(r => r.data),
+  availableTrips: () => apiClient.get('/journeys/available-trips').then(r => r.data),
+
+  // Trips (sync sources)
+  addTrip: (id: number, tripId: number) => apiClient.post(`/journeys/${id}/trips`, { trip_id: tripId }).then(r => r.data),
+  removeTrip: (id: number, tripId: number) => apiClient.delete(`/journeys/${id}/trips/${tripId}`).then(r => r.data),
+
+  // Entries
+  listEntries: (id: number) => apiClient.get(`/journeys/${id}/entries`).then(r => r.data),
+  createEntry: (id: number, data: Record<string, unknown>) => apiClient.post(`/journeys/${id}/entries`, data).then(r => r.data),
+  updateEntry: (entryId: number, data: Record<string, unknown>) => apiClient.patch(`/journeys/entries/${entryId}`, data).then(r => r.data),
+  deleteEntry: (entryId: number) => apiClient.delete(`/journeys/entries/${entryId}`).then(r => r.data),
+
+  // Photos
+  uploadPhotos: (entryId: number, formData: FormData) => apiClient.post(`/journeys/entries/${entryId}/photos`, formData, { headers: { 'Content-Type': undefined as any } }).then(r => r.data),
+  addProviderPhoto: (entryId: number, provider: string, assetId: string, caption?: string) => apiClient.post(`/journeys/entries/${entryId}/provider-photos`, { provider, asset_id: assetId, caption }).then(r => r.data),
+  linkPhoto: (entryId: number, photoId: number) => apiClient.post(`/journeys/entries/${entryId}/link-photo`, { photo_id: photoId }).then(r => r.data),
+  updatePhoto: (photoId: number, data: Record<string, unknown>) => apiClient.patch(`/journeys/photos/${photoId}`, data).then(r => r.data),
+  deletePhoto: (photoId: number) => apiClient.delete(`/journeys/photos/${photoId}`).then(r => r.data),
+
+  // Cover
+  uploadCover: (id: number, formData: FormData) => apiClient.post(`/journeys/${id}/cover`, formData, { headers: { 'Content-Type': undefined as any } }).then(r => r.data),
+
+  // Contributors
+  addContributor: (id: number, userId: number, role: string) => apiClient.post(`/journeys/${id}/contributors`, { user_id: userId, role }).then(r => r.data),
+  updateContributor: (id: number, userId: number, role: string) => apiClient.patch(`/journeys/${id}/contributors/${userId}`, { role }).then(r => r.data),
+  removeContributor: (id: number, userId: number) => apiClient.delete(`/journeys/${id}/contributors/${userId}`).then(r => r.data),
+
+  // Share
+  getShareLink: (id: number) => apiClient.get(`/journeys/${id}/share-link`).then(r => r.data),
+  createShareLink: (id: number, perms: { share_timeline?: boolean; share_gallery?: boolean; share_map?: boolean }) => apiClient.post(`/journeys/${id}/share-link`, perms).then(r => r.data),
+  deleteShareLink: (id: number) => apiClient.delete(`/journeys/${id}/share-link`).then(r => r.data),
+  getPublicJourney: (token: string) => apiClient.get(`/public/journey/${token}`).then(r => r.data),
 }
 
 export const mapsApi = {

@@ -16,7 +16,7 @@ beforeEach(() => {
     http.get('/api/auth/app-config', () => HttpResponse.json({ version: '2.9.10' })),
     http.get('/api/addons', () => HttpResponse.json({ addons: [] })),
   );
-  seedStore(useAuthStore, { user: buildUser({ username: 'testuser', role: 'user' }), isAuthenticated: true });
+  seedStore(useAuthStore, { user: buildUser({ username: 'testuser', role: 'user' }), isAuthenticated: true, appVersion: '2.9.10' });
   seedStore(useSettingsStore, { settings: buildSettings() });
 });
 

@@ -133,7 +133,7 @@ describe('GitHubPanel', () => {
     server.use(
       http.get('/api/admin/github-releases', () => HttpResponse.json([r])),
     );
-    render(<GitHubPanel />);
+    render(<GitHubPanel isPrerelease={true} />);
     await screen.findByText('v3.0.0-beta.1');
     expect(screen.getByText('Pre-release')).toBeInTheDocument();
   });

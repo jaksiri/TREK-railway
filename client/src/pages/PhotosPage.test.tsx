@@ -118,7 +118,7 @@ describe('PhotosPage', () => {
         expect(screen.getByTestId('photo-gallery')).toBeInTheDocument();
       });
 
-      expect(screen.getByText(/1 Fotos/)).toBeInTheDocument();
+      expect(screen.getByText(/1 photos for/i)).toBeInTheDocument();
     });
   });
 
@@ -224,7 +224,7 @@ describe('PhotosPage', () => {
         expect(screen.getByTestId('photo-gallery')).toBeInTheDocument();
       });
 
-      expect(screen.getByRole('heading', { name: /fotos/i })).toBeInTheDocument();
+      expect(screen.getByRole('heading', { name: /photos/i })).toBeInTheDocument();
     });
   });
 });

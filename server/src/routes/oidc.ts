@@ -15,12 +15,17 @@ import {
   frontendUrl,
   getAppUrl,
 } from '../services/oidcService';
+import { resolveAuthToggles } from '../services/authService';
 
 const router = express.Router();
 
 // ---- GET /login ----------------------------------------------------------
 
 router.get('/login', async (req: Request, res: Response) => {
+  if (!resolveAuthToggles().oidc_login) {
+    return res.status(403).json({ error: 'SSO login is disabled.' });
+  }
+
   const config = getOidcConfig();
   if (!config) return res.status(400).json({ error: 'OIDC not configured' });
 
@@ -57,6 +62,10 @@ router.get('/login', async (req: Request, res: Response) => {
 // ---- GET /callback -------------------------------------------------------
 
 router.get('/callback', async (req: Request, res: Response) => {
+  if (!resolveAuthToggles().oidc_login) {
+    return res.redirect(frontendUrl('/login?oidc_error=sso_disabled'));
+  }
+
   const { code, state, error: oidcError } = req.query as { code?: string; state?: string; error?: string };
 
   if (oidcError) {

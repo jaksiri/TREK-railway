@@ -107,7 +107,7 @@ export default function NotificationsTab(): React.ReactElement {
   }
 
   const renderContent = () => {
-    if (!matrix) return <p style={{ fontSize: 12, color: 'var(--text-faint)', fontStyle: 'italic' }}>Loading…</p>
+    if (!matrix) return <p style={{ fontSize: 12, color: 'var(--text-faint)', fontStyle: 'italic' }}>{t('common.loading')}</p>
 
     if (visibleChannels.length === 0) {
       return (
@@ -119,7 +119,7 @@ export default function NotificationsTab(): React.ReactElement {
 
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
-        {saving && <p style={{ fontSize: 11, color: 'var(--text-faint)', marginBottom: 8 }}>Saving…</p>}
+        {saving && <p style={{ fontSize: 11, color: 'var(--text-faint)', marginBottom: 8 }}>{t('common.saving')}</p>}
         {matrix.available_channels.webhook && (
           <div style={{ marginBottom: 16, padding: '12px', background: 'var(--bg-secondary)', borderRadius: 8, border: '1px solid var(--border-primary)' }}>
             <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 4 }}>

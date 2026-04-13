@@ -27,6 +27,8 @@ RUN mkdir -p /app/data/logs /app/uploads/files /app/uploads/covers /app/uploads/
 
 ENV NODE_ENV=production
 ENV PORT=3000
+ARG APP_VERSION=dev
+ENV APP_VERSION=${APP_VERSION}
 
 EXPOSE 3000
 

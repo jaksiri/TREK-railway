@@ -142,7 +142,7 @@ export default function AccountTab(): React.ReactElement {
       await updateProfile({ username, email })
       toast.success(t('settings.toast.profileSaved'))
     } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : 'Error')
+      toast.error(err instanceof Error ? err.message : t('common.error'))
     } finally {
       setSaving(false)
     }

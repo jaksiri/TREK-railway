@@ -31,6 +31,7 @@ const ADMIN_SETTINGS_KEYS = [
   'allow_registration', 'allowed_file_types', 'require_mfa',
   'smtp_host', 'smtp_port', 'smtp_user', 'smtp_pass', 'smtp_from', 'smtp_skip_tls_verify',
   'notification_channels', 'admin_webhook_url',
+  'password_login', 'password_registration', 'oidc_login', 'oidc_registration',
 ];
 
 const avatarDir = path.join(__dirname, '../../uploads/avatars');
@@ -107,16 +108,51 @@ export function avatarUrl(user: { avatar?: string | null }): string | null {
   return user.avatar ? `/uploads/avatars/${user.avatar}` : null;
 }
 
-export function isOidcOnlyMode(): boolean {
+export function resolveAuthToggles(): {
+  password_login: boolean;
+  password_registration: boolean;
+  oidc_login: boolean;
+  oidc_registration: boolean;
+} {
   const get = (key: string) =>
-    (db.prepare("SELECT value FROM app_settings WHERE key = ?").get(key) as { value: string } | undefined)?.value || null;
-  const enabled = process.env.OIDC_ONLY === 'true' || get('oidc_only') === 'true';
-  if (!enabled) return false;
+    (db.prepare("SELECT value FROM app_settings WHERE key = ?").get(key) as { value: string } | undefined)?.value ?? null;
+
+  const hasNewKeys = ['password_login', 'password_registration', 'oidc_login', 'oidc_registration']
+    .some(k => get(k) !== null);
+
+  if (hasNewKeys) {
+    const result = {
+      password_login: get('password_login') !== 'false',
+      password_registration: get('password_registration') !== 'false',
+      oidc_login: get('oidc_login') !== 'false',
+      oidc_registration: get('oidc_registration') !== 'false',
+    };
+    if (process.env.OIDC_ONLY === 'true') {
+      result.password_login = false;
+      result.password_registration = false;
+    }
+    return result;
+  }
+
+  // Legacy fallback
+  const oidcOnlyEnabled = process.env.OIDC_ONLY === 'true' || get('oidc_only') === 'true';
   const oidcConfigured = !!(
     (process.env.OIDC_ISSUER || get('oidc_issuer')) &&
     (process.env.OIDC_CLIENT_ID || get('oidc_client_id'))
   );
-  return oidcConfigured;
+  const oidcOnly = oidcOnlyEnabled && oidcConfigured;
+  const allowReg = (get('allow_registration') ?? 'true') === 'true';
+
+  return {
+    password_login: !oidcOnly,
+    password_registration: !oidcOnly && allowReg,
+    oidc_login: true,
+    oidc_registration: allowReg,
+  };
+}
+
+export function isOidcOnlyMode(): boolean {
+  return !resolveAuthToggles().password_login;
 }
 
 export function generateToken(user: { id: number | bigint }) {
@@ -174,10 +210,9 @@ export function getPendingMfaSecret(userId: number): string | null {
 
 export function getAppConfig(authenticatedUser: { id: number } | null) {
   const userCount = (db.prepare('SELECT COUNT(*) as count FROM users').get() as { count: number }).count;
-  const setting = db.prepare("SELECT value FROM app_settings WHERE key = 'allow_registration'").get() as { value: string } | undefined;
-  const allowRegistration = userCount === 0 || (setting?.value ?? 'true') === 'true';
   const isDemo = process.env.DEMO_MODE === 'true';
-  const { version } = require('../../package.json');
+  const toggles = resolveAuthToggles();
+  const version: string = process.env.APP_VERSION ?? require('../../package.json').version;
   const hasGoogleKey = !!db.prepare("SELECT maps_api_key FROM users WHERE role = 'admin' AND maps_api_key IS NOT NULL AND maps_api_key != '' LIMIT 1").get();
   const oidcDisplayName = process.env.OIDC_DISPLAY_NAME ||
     (db.prepare("SELECT value FROM app_settings WHERE key = 'oidc_display_name'").get() as { value: string } | undefined)?.value || null;
@@ -185,9 +220,6 @@ export function getAppConfig(authenticatedUser: { id: number } | null) {
     (process.env.OIDC_ISSUER || (db.prepare("SELECT value FROM app_settings WHERE key = 'oidc_issuer'").get() as { value: string } | undefined)?.value) &&
     (process.env.OIDC_CLIENT_ID || (db.prepare("SELECT value FROM app_settings WHERE key = 'oidc_client_id'").get() as { value: string } | undefined)?.value)
   );
-  const oidcOnlySetting = process.env.OIDC_ONLY ||
-    (db.prepare("SELECT value FROM app_settings WHERE key = 'oidc_only'").get() as { value: string } | undefined)?.value;
-  const oidcOnlyMode = oidcConfigured && oidcOnlySetting === 'true';
   const requireMfaRow = db.prepare("SELECT value FROM app_settings WHERE key = 'require_mfa'").get() as { value: string } | undefined;
   const notifChannel = (db.prepare("SELECT value FROM app_settings WHERE key = 'notification_channel'").get() as { value: string } | undefined)?.value || 'none';
   const tripReminderSetting = (db.prepare("SELECT value FROM app_settings WHERE key = 'notify_trip_reminder'").get() as { value: string } | undefined)?.value;
@@ -200,14 +232,22 @@ export function getAppConfig(authenticatedUser: { id: number } | null) {
   const setupComplete = userCount > 0 && !(db.prepare("SELECT id FROM users WHERE role = 'admin' AND must_change_password = 1 LIMIT 1").get());
 
   return {
-    allow_registration: isDemo ? false : allowRegistration,
+    // Legacy fields (backward compat)
+    allow_registration: isDemo ? false : (toggles.password_registration || toggles.oidc_registration),
+    oidc_only_mode: !toggles.password_login && !toggles.password_registration,
+    // Granular toggles
+    password_login: toggles.password_login,
+    password_registration: isDemo ? false : toggles.password_registration,
+    oidc_login: toggles.oidc_login,
+    oidc_registration: isDemo ? false : toggles.oidc_registration,
+    env_override_oidc_only: process.env.OIDC_ONLY === 'true',
     has_users: userCount > 0,
     setup_complete: setupComplete,
     version,
+    is_prerelease: version.includes('-pre.'),
     has_maps_key: hasGoogleKey,
     oidc_configured: oidcConfigured,
     oidc_display_name: oidcConfigured ? (oidcDisplayName || 'SSO') : undefined,
-    oidc_only_mode: oidcOnlyMode,
     require_mfa: requireMfaRow?.value === 'true',
     allowed_file_types: (db.prepare("SELECT value FROM app_settings WHERE key = 'allowed_file_types'").get() as { value: string } | undefined)?.value || 'jpg,jpeg,png,gif,webp,heic,pdf,doc,docx,xls,xlsx,txt,csv',
     demo_mode: isDemo,
@@ -265,12 +305,9 @@ export function registerUser(body: {
   }
 
   if (userCount > 0 && !validInvite) {
-    if (isOidcOnlyMode()) {
-      return { error: 'Password authentication is disabled. Please sign in with SSO.', status: 403 };
-    }
-    const setting = db.prepare("SELECT value FROM app_settings WHERE key = 'allow_registration'").get() as { value: string } | undefined;
-    if (setting?.value === 'false') {
-      return { error: 'Registration is disabled. Contact your administrator.', status: 403 };
+    const toggles = resolveAuthToggles();
+    if (!toggles.password_registration) {
+      return { error: 'Password registration is disabled. Contact your administrator.', status: 403 };
     }
   }
 
@@ -704,6 +741,20 @@ export function updateAppSettings(
         error: 'Enable two-factor authentication on your own account before requiring it for all users.',
         status: 400,
       };
+    }
+  }
+
+  // Lockout prevention: can't disable all login methods
+  if (body.password_login !== undefined || body.oidc_login !== undefined) {
+    const current = resolveAuthToggles();
+    const oidcConfigured = !!(
+      (process.env.OIDC_ISSUER || (db.prepare("SELECT value FROM app_settings WHERE key = 'oidc_issuer'").get() as { value: string } | undefined)?.value) &&
+      (process.env.OIDC_CLIENT_ID || (db.prepare("SELECT value FROM app_settings WHERE key = 'oidc_client_id'").get() as { value: string } | undefined)?.value)
+    );
+    const nextPasswordLogin = body.password_login !== undefined ? (String(body.password_login) === 'true') : current.password_login;
+    const nextOidcLogin = body.oidc_login !== undefined ? (String(body.oidc_login) === 'true') : current.oidc_login;
+    if (!nextPasswordLogin && (!nextOidcLogin || !oidcConfigured)) {
+      return { error: 'Cannot disable all login methods. At least one must remain enabled.', status: 400 };
     }
   }
 

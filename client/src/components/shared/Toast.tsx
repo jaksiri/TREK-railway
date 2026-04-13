@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useCallback, useEffect } from 'react'
+import React, { useState, useCallback, useEffect, useRef } from 'react'
 import { CheckCircle, XCircle, AlertCircle, Info, X } from 'lucide-react'
 
 type ToastType = 'success' | 'error' | 'warning' | 'info'
@@ -28,18 +28,27 @@ const ICON_COLORS: Record<ToastType, string> = {
 
 export function ToastContainer() {
   const [toasts, setToasts] = useState<Toast[]>([])
+  const timersRef = useRef<ReturnType<typeof setTimeout>[]>([])
+
+  useEffect(() => {
+    return () => {
+      timersRef.current.forEach(clearTimeout)
+    }
+  }, [])
 
   const addToast = useCallback((message: string, type: ToastType = 'info', duration: number = 3000) => {
     const id = ++toastIdCounter
     setToasts(prev => [...prev, { id, message, type, duration, removing: false }])
 
     if (duration > 0) {
-      setTimeout(() => {
+      const t1 = setTimeout(() => {
         setToasts(prev => prev.map(t => t.id === id ? { ...t, removing: true } : t))
-        setTimeout(() => {
+        const t2 = setTimeout(() => {
           setToasts(prev => prev.filter(t => t.id !== id))
         }, 400)
+        timersRef.current.push(t2)
       }, duration)
+      timersRef.current.push(t1)
     }
 
     return id
@@ -47,9 +56,10 @@ export function ToastContainer() {
 
   const removeToast = useCallback((id: number) => {
     setToasts(prev => prev.map(t => t.id === id ? { ...t, removing: true } : t))
-    setTimeout(() => {
+    const t = setTimeout(() => {
       setToasts(prev => prev.filter(t => t.id !== id))
     }, 400)
+    timersRef.current.push(t)
   }, [])
 
   useEffect(() => {

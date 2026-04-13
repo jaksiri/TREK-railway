@@ -74,7 +74,7 @@ export default function MapSettingsTab(): React.ReactElement {
       })
       toast.success(t('settings.toast.mapSaved'))
     } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : 'Error')
+      toast.error(err instanceof Error ? err.message : t('common.error'))
     } finally {
       setSaving(false)
     }

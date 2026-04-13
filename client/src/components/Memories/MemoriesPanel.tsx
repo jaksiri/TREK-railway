@@ -714,6 +714,23 @@ export default function MemoriesPanel({ tripId, startDate, endDate }: MemoriesPa
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', ...font }}>
 
+      {/* Disconnected banner — shown when photos exist but provider is unreachable */}
+      {!connected && allVisible.length > 0 && enabledProviders.length > 0 && (
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 8,
+          padding: '8px 16px', flexShrink: 0,
+          background: 'rgba(234,179,8,0.08)', borderBottom: '1px solid rgba(234,179,8,0.25)',
+          fontSize: 12, color: 'var(--text-muted)',
+        }}>
+          <Camera size={13} style={{ color: '#ca8a04', flexShrink: 0 }} />
+          <span>
+            {t('memories.providerDisconnectedBanner', {
+              provider_name: enabledProviders.length === 1 ? enabledProviders[0].name : enabledProviders.map(p => p.name).join(', ')
+            })}
+          </span>
+        </div>
+      )}
+
       {/* Header */}
       <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border-secondary)', flexShrink: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>

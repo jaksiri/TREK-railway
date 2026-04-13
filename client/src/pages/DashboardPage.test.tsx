@@ -18,6 +18,12 @@ beforeEach(() => {
   seedStore(usePermissionsStore, {
     level: 'owner',
   } as any);
+  // Intercept CurrencyWidget's external fetch so it resolves before teardown
+  server.use(
+    http.get('https://api.exchangerate-api.com/v4/latest/:currency', () => {
+      return HttpResponse.json({ rates: { USD: 1.08, EUR: 1, CHF: 0.97 } });
+    }),
+  );
 });
 
 describe('DashboardPage', () => {
@@ -40,7 +46,7 @@ describe('DashboardPage', () => {
 
       // After data loads, trip cards should appear
       await waitFor(() => {
-        expect(screen.getByText('Paris Adventure')).toBeInTheDocument();
+        expect(screen.getAllByText('Paris Adventure')[0]).toBeInTheDocument();
       });
     });
   });
@@ -50,11 +56,11 @@ describe('DashboardPage', () => {
       render(<DashboardPage />);
 
       await waitFor(() => {
-        expect(screen.getByText('Paris Adventure')).toBeInTheDocument();
+        expect(screen.getAllByText('Paris Adventure')[0]).toBeInTheDocument();
       });
 
       // At least the first trip name should be visible
-      expect(screen.getByText('Paris Adventure')).toBeVisible();
+      expect(screen.getAllByText('Paris Adventure')[0]).toBeVisible();
     });
   });
 
@@ -80,10 +86,10 @@ describe('DashboardPage', () => {
       render(<DashboardPage />);
 
       await waitFor(() => {
-        expect(screen.getByRole('button', { name: /new trip/i })).toBeInTheDocument();
+        expect(screen.getAllByRole('button', { name: /new trip/i }).length).toBeGreaterThan(0);
       });
 
-      await user.click(screen.getByRole('button', { name: /new trip/i }));
+      await user.click(screen.getAllByRole('button', { name: /new trip/i })[0]);
 
       // TripFormModal opens — "Create New Trip" appears in heading and submit button
       await waitFor(() => {
@@ -129,7 +135,7 @@ describe('DashboardPage', () => {
       render(<DashboardPage />);
 
       await waitFor(() => {
-        expect(screen.getByText('Paris Adventure')).toBeInTheDocument();
+        expect(screen.getAllByText('Paris Adventure')[0]).toBeInTheDocument();
       });
 
       // Find delete button — CardAction with label t('common.delete')
@@ -149,7 +155,7 @@ describe('DashboardPage', () => {
       render(<DashboardPage />);
 
       await waitFor(() => {
-        expect(screen.getByText('Paris Adventure')).toBeInTheDocument();
+        expect(screen.getAllByText('Paris Adventure')[0]).toBeInTheDocument();
       });
 
       // Open confirm dialog
@@ -182,7 +188,7 @@ describe('DashboardPage', () => {
       render(<DashboardPage />);
 
       await waitFor(() => {
-        expect(screen.getByText('Paris Adventure')).toBeInTheDocument();
+        expect(screen.getAllByText('Paris Adventure')[0]).toBeInTheDocument();
       });
 
       // Open confirm dialog
@@ -196,7 +202,7 @@ describe('DashboardPage', () => {
       await user.click(screen.getByRole('button', { name: /cancel/i }));
 
       // Trip still visible
-      expect(screen.getByText('Paris Adventure')).toBeInTheDocument();
+      expect(screen.getAllByText('Paris Adventure')[0]).toBeInTheDocument();
     });
   });
 
@@ -217,7 +223,7 @@ describe('DashboardPage', () => {
       render(<DashboardPage />);
 
       await waitFor(() => {
-        expect(screen.getByText('Paris Adventure')).toBeInTheDocument();
+        expect(screen.getAllByText('Paris Adventure')[0]).toBeInTheDocument();
       });
 
       // Click archive button
@@ -233,7 +239,7 @@ describe('DashboardPage', () => {
       await user.click(screen.getByRole('button', { name: /archived/i }));
 
       await waitFor(() => {
-        expect(screen.getByText('Paris Adventure')).toBeInTheDocument();
+        expect(screen.getAllByText('Paris Adventure')[0]).toBeInTheDocument();
       });
     });
   });
@@ -244,7 +250,7 @@ describe('DashboardPage', () => {
       render(<DashboardPage />);
 
       await waitFor(() => {
-        expect(screen.getByText('Paris Adventure')).toBeInTheDocument();
+        expect(screen.getAllByText('Paris Adventure')[0]).toBeInTheDocument();
       });
 
       const editButtons = screen.getAllByRole('button', { name: /edit/i });
@@ -263,7 +269,7 @@ describe('DashboardPage', () => {
       render(<DashboardPage />);
 
       await waitFor(() => {
-        expect(screen.getByText('Paris Adventure')).toBeInTheDocument();
+        expect(screen.getAllByText('Paris Adventure')[0]).toBeInTheDocument();
       });
 
       // Find the view mode toggle button (shows List icon when in grid mode, title "List view")
@@ -293,7 +299,7 @@ describe('DashboardPage', () => {
 
       // Wait for active trips to load
       await waitFor(() => {
-        expect(screen.getByText('Paris Adventure')).toBeInTheDocument();
+        expect(screen.getAllByText('Paris Adventure')[0]).toBeInTheDocument();
       });
 
       // Archived section toggle should be present
@@ -316,17 +322,13 @@ describe('DashboardPage', () => {
       render(<DashboardPage />);
 
       await waitFor(() => {
-        expect(screen.getByText('Tokyo Trip')).toBeInTheDocument();
+        // Mobile + desktop may render the same trip twice
+        expect(screen.getAllByText('Tokyo Trip').length).toBeGreaterThan(0);
       });
 
-      // Click the trip title text (not an action button) on a non-spotlight card
-      // Tokyo Trip appears as a TripCard (not SpotlightCard since Paris Adventure is spotlight)
-      // Find the card by its title text — clicking it triggers navigate
-      const tokyoTrip = screen.getByText('Tokyo Trip');
+      const tokyoTrip = screen.getAllByText('Tokyo Trip')[0];
       await user.click(tokyoTrip);
 
-      // After click, MemoryRouter won't actually navigate but we verify no errors occur
-      // and the click was processed (the card was clickable)
       expect(tokyoTrip).toBeInTheDocument();
     });
   });
@@ -337,21 +339,19 @@ describe('DashboardPage', () => {
       render(<DashboardPage />);
 
       await waitFor(() => {
-        expect(screen.getByText('Paris Adventure')).toBeInTheDocument();
+        expect(screen.getAllByText('Tokyo Trip').length).toBeGreaterThan(0);
       });
 
       // Switch to list view
       const viewToggle = screen.getByTitle(/list view/i);
       await user.click(viewToggle);
 
-      // Both trips should still be visible in list view
+      // Non-spotlight trips should be visible in list view
       await waitFor(() => {
-        expect(screen.getByText('Paris Adventure')).toBeInTheDocument();
-        expect(screen.getByText('Tokyo Trip')).toBeInTheDocument();
+        expect(screen.getAllByText('Tokyo Trip').length).toBeGreaterThan(0);
       });
 
-      // In list view, clicking Tokyo Trip card should work
-      const tokyoTrip = screen.getByText('Tokyo Trip');
+      const tokyoTrip = screen.getAllByText('Tokyo Trip')[0];
       await user.click(tokyoTrip);
       expect(tokyoTrip).toBeInTheDocument();
     });
@@ -363,25 +363,19 @@ describe('DashboardPage', () => {
       render(<DashboardPage />);
 
       await waitFor(() => {
-        expect(screen.getByText('Paris Adventure')).toBeInTheDocument();
+        expect(screen.getAllByText('Tokyo Trip').length).toBeGreaterThan(0);
       });
 
       // Switch to list view
       const viewToggle = screen.getByTitle(/list view/i);
       await user.click(viewToggle);
 
-      // Both trips render in list view
+      // Non-spotlight trips render in list view
       await waitFor(() => {
-        expect(screen.getByText('Paris Adventure')).toBeInTheDocument();
-        expect(screen.getByText('Tokyo Trip')).toBeInTheDocument();
+        expect(screen.getAllByText('Tokyo Trip').length).toBeGreaterThan(0);
       });
 
-      // In list view, CardAction buttons have no label/title — find by icon content
-      // The delete buttons are CardAction with danger style; there are multiple action groups
-      // Each trip row has: Edit, Copy, Archive, Delete buttons (4 per row)
       const allButtons = screen.getAllByRole('button');
-      // Find delete buttons — they are the 4th in each group, but simpler:
-      // Just verify there are multiple action buttons rendered in list view
       expect(allButtons.length).toBeGreaterThan(4);
     });
   });
@@ -400,7 +394,7 @@ describe('DashboardPage', () => {
       render(<DashboardPage />);
 
       await waitFor(() => {
-        expect(screen.getByText('Paris Adventure')).toBeInTheDocument();
+        expect(screen.getAllByText('Paris Adventure')[0]).toBeInTheDocument();
       });
 
       // Find copy buttons
@@ -408,7 +402,7 @@ describe('DashboardPage', () => {
       await user.click(copyButtons[0]);
 
       await waitFor(() => {
-        expect(screen.getByText('Paris Adventure (Copy)')).toBeInTheDocument();
+        expect(screen.getAllByText('Paris Adventure (Copy)')[0]).toBeInTheDocument();
       });
     });
   });
@@ -419,20 +413,23 @@ describe('DashboardPage', () => {
       render(<DashboardPage />);
 
       await waitFor(() => {
-        expect(screen.getByText('Paris Adventure')).toBeInTheDocument();
+        expect(screen.getAllByText('Paris Adventure').length).toBeGreaterThan(0);
       });
 
-      // Header has 3 buttons: view-toggle (has title), settings gear (no title, no text), New Trip (has text)
-      // Find settings button: no title attr, and text content doesn't include 'New Trip'
+      // Find settings button — it's the gear icon button without title or text
       const allBtns = screen.getAllByRole('button');
       const settingsButton = allBtns.find(
-        btn => !btn.getAttribute('title') && !btn.textContent?.trim()
+        btn => {
+          const title = btn.getAttribute('title');
+          const text = btn.textContent?.trim() || '';
+          // Settings gear: no title, no meaningful text, not the notification bell
+          return !title && !text && btn.querySelector('.lucide-settings');
+        }
       );
 
       expect(settingsButton).toBeDefined();
       if (settingsButton) {
         await user.click(settingsButton);
-        // Widget settings panel shows "Widgets:" label
         await waitFor(() => {
           expect(screen.getByText('Widgets:')).toBeInTheDocument();
         });
@@ -501,10 +498,10 @@ describe('DashboardPage', () => {
       render(<DashboardPage />);
 
       await waitFor(() => {
-        expect(screen.getByRole('button', { name: /new trip/i })).toBeInTheDocument();
+        expect(screen.getAllByRole('button', { name: /new trip/i }).length).toBeGreaterThan(0);
       });
 
-      await user.click(screen.getByRole('button', { name: /new trip/i }));
+      await user.click(screen.getAllByRole('button', { name: /new trip/i })[0]);
 
       await waitFor(() => {
         expect(screen.getAllByText(/create new trip/i).length).toBeGreaterThan(0);
@@ -520,7 +517,7 @@ describe('DashboardPage', () => {
       if (submitBtn) {
         await user.click(submitBtn);
         await waitFor(() => {
-          expect(screen.getByText('New Trip Test')).toBeInTheDocument();
+          expect(screen.getAllByText('New Trip Test').length).toBeGreaterThan(0);
         });
       }
     });
@@ -544,6 +541,339 @@ describe('DashboardPage', () => {
         // After error, loading state resolves and empty state or the title remains
         expect(screen.queryByText(/my trips/i)).toBeInTheDocument();
       });
+    });
+  });
+
+  describe('FE-PAGE-DASH-023: SpotlightCard shows progress bar for ongoing trip', () => {
+    it('renders progress bar and live badge when trip is currently ongoing', async () => {
+      const today = new Date().toISOString().split('T')[0];
+      const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
+      const nextWeek = new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0];
+
+      const ongoingTrip = buildTrip({
+        title: 'Current Voyage',
+        start_date: yesterday,
+        end_date: nextWeek,
+        day_count: 9,
+        place_count: 3,
+        shared_count: 1,
+      });
+
+      server.use(
+        http.get('/api/trips', ({ request }) => {
+          const url = new URL(request.url);
+          if (url.searchParams.get('archived')) return HttpResponse.json({ trips: [] });
+          return HttpResponse.json({ trips: [ongoingTrip] });
+        }),
+      );
+
+      render(<DashboardPage />);
+
+      await waitFor(() => {
+        expect(screen.getAllByText('Current Voyage').length).toBeGreaterThan(0);
+      });
+
+      // Live badge text appears (mobile + desktop spotlight)
+      await waitFor(() => {
+        expect(screen.getAllByText(/live now/i).length).toBeGreaterThan(0);
+      });
+
+      // Progress bar label "Trip progress" appears
+      expect(screen.getAllByText(/trip progress/i).length).toBeGreaterThan(0);
+
+      // "days left" label appears inside the progress section
+      expect(screen.getAllByText(/days left/i).length).toBeGreaterThan(0);
+    });
+  });
+
+  describe('FE-PAGE-DASH-024: SpotlightCard shows countdown for upcoming trip', () => {
+    it('renders countdown badge for a future trip', async () => {
+      const inFiveDays = new Date(Date.now() + 5 * 86400000).toISOString().split('T')[0];
+      const inTenDays = new Date(Date.now() + 10 * 86400000).toISOString().split('T')[0];
+
+      const upcomingTrip = buildTrip({
+        title: 'Upcoming Safari',
+        start_date: inFiveDays,
+        end_date: inTenDays,
+        place_count: 2,
+        shared_count: 0,
+      });
+
+      server.use(
+        http.get('/api/trips', ({ request }) => {
+          const url = new URL(request.url);
+          if (url.searchParams.get('archived')) return HttpResponse.json({ trips: [] });
+          return HttpResponse.json({ trips: [upcomingTrip] });
+        }),
+      );
+
+      render(<DashboardPage />);
+
+      await waitFor(() => {
+        expect(screen.getAllByText('Upcoming Safari').length).toBeGreaterThan(0);
+      });
+
+      // Badge should show "X days left" countdown (not "Live now")
+      expect(screen.queryByText(/live now/i)).not.toBeInTheDocument();
+      // The SpotlightCard renders a badge with the countdown text containing "days"
+      await waitFor(() => {
+        expect(screen.getAllByText(/days/i).length).toBeGreaterThan(0);
+      });
+    });
+  });
+
+  describe('FE-PAGE-DASH-025: Mobile Quick Actions section renders', () => {
+    it('shows New Trip quick action button on mobile', async () => {
+      render(<DashboardPage />);
+
+      await waitFor(() => {
+        expect(screen.getAllByText('Paris Adventure').length).toBeGreaterThan(0);
+      });
+
+      // Mobile Quick Actions: "New Trip" button rendered in the quick-actions grid
+      // getAllByText because it appears in both mobile quick-actions and desktop header
+      const newTripButtons = screen.getAllByText(/new trip/i);
+      expect(newTripButtons.length).toBeGreaterThan(0);
+    });
+  });
+
+  describe('FE-PAGE-DASH-026: Widget settings toggles currency and timezone', () => {
+    it('toggling currency widget off hides it from settings', async () => {
+      const user = userEvent.setup();
+      render(<DashboardPage />);
+
+      await waitFor(() => {
+        expect(screen.getAllByText('Paris Adventure').length).toBeGreaterThan(0);
+      });
+
+      // Open widget settings
+      const allBtns = screen.getAllByRole('button');
+      const settingsButton = allBtns.find(
+        btn => {
+          const title = btn.getAttribute('title');
+          const text = btn.textContent?.trim() || '';
+          return !title && !text && btn.querySelector('.lucide-settings');
+        }
+      );
+
+      expect(settingsButton).toBeDefined();
+      if (settingsButton) {
+        await user.click(settingsButton);
+
+        await waitFor(() => {
+          expect(screen.getByText('Widgets:')).toBeInTheDocument();
+        });
+
+        // Both currency and timezone toggle labels should be visible
+        // Use getAllByText because labels may appear in both widget settings and quick actions
+        expect(screen.getAllByText(/currency/i).length).toBeGreaterThan(0);
+        expect(screen.getAllByText(/timezone/i).length).toBeGreaterThan(0);
+      }
+    });
+  });
+
+  describe('FE-PAGE-DASH-027: Archived section expand and collapse', () => {
+    it('expands and then collapses the archived trips section', async () => {
+      const activeTrip = buildTrip({ title: 'Active Trip', start_date: '2026-08-01', end_date: '2026-08-10' });
+      const archivedTrip = buildTrip({ title: 'Old Archived Trip', start_date: '2024-03-01', end_date: '2024-03-07', is_archived: true });
+
+      server.use(
+        http.get('/api/trips', ({ request }) => {
+          const url = new URL(request.url);
+          if (url.searchParams.get('archived')) {
+            return HttpResponse.json({ trips: [archivedTrip] });
+          }
+          return HttpResponse.json({ trips: [activeTrip] });
+        }),
+      );
+
+      const user = userEvent.setup();
+      render(<DashboardPage />);
+
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: /archived/i })).toBeInTheDocument();
+      });
+
+      // Expand
+      await user.click(screen.getByRole('button', { name: /archived/i }));
+      await waitFor(() => {
+        expect(screen.getByText('Old Archived Trip')).toBeInTheDocument();
+      });
+
+      // Collapse
+      await user.click(screen.getByRole('button', { name: /archived/i }));
+      await waitFor(() => {
+        expect(screen.queryByText('Old Archived Trip')).not.toBeInTheDocument();
+      });
+    });
+  });
+
+  describe('FE-PAGE-DASH-028: Unarchive action restores trip to active list', () => {
+    it('clicking restore on an archived trip removes it from archived section', async () => {
+      const activeTrip = buildTrip({ title: 'My Active Trip', start_date: '2026-08-01', end_date: '2026-08-10' });
+      const archivedTrip = buildTrip({ title: 'Restored Trip', start_date: '2024-06-01', end_date: '2024-06-07', is_archived: true });
+      const restoredTrip = { ...archivedTrip, is_archived: false };
+
+      server.use(
+        http.get('/api/trips', ({ request }) => {
+          const url = new URL(request.url);
+          if (url.searchParams.get('archived')) {
+            return HttpResponse.json({ trips: [archivedTrip] });
+          }
+          return HttpResponse.json({ trips: [activeTrip] });
+        }),
+        http.put('/api/trips/:id', async ({ request }) => {
+          const body = await request.json() as Record<string, unknown>;
+          if (body.is_archived === false) {
+            return HttpResponse.json({ trip: restoredTrip });
+          }
+          return HttpResponse.json({ trip: archivedTrip });
+        }),
+      );
+
+      const user = userEvent.setup();
+      render(<DashboardPage />);
+
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: /archived/i })).toBeInTheDocument();
+      });
+
+      await user.click(screen.getByRole('button', { name: /archived/i }));
+
+      await waitFor(() => {
+        expect(screen.getByText('Restored Trip')).toBeInTheDocument();
+      });
+
+      const restoreBtn = screen.getByRole('button', { name: /restore/i });
+      await user.click(restoreBtn);
+
+      // After restore, the archived section should disappear (no archived trips left)
+      await waitFor(() => {
+        expect(screen.queryByRole('button', { name: /archived/i })).not.toBeInTheDocument();
+      });
+    });
+  });
+
+  describe('FE-PAGE-DASH-029: Copy trip action creates a duplicate', () => {
+    it('clicking copy on a spotlight card duplicates the trip', async () => {
+      server.use(
+        http.post('/api/trips/:id/copy', async () => {
+          const trip = buildTrip({ title: 'Paris Adventure (Copy)', start_date: '2026-07-01', end_date: '2026-07-10' });
+          return HttpResponse.json({ trip });
+        }),
+      );
+
+      const user = userEvent.setup();
+      render(<DashboardPage />);
+
+      await waitFor(() => {
+        expect(screen.getAllByText('Paris Adventure')[0]).toBeInTheDocument();
+      });
+
+      // Find copy buttons (may appear in mobile + desktop)
+      const copyButtons = screen.getAllByRole('button', { name: /copy/i });
+      expect(copyButtons.length).toBeGreaterThan(0);
+      await user.click(copyButtons[0]);
+
+      await waitFor(() => {
+        expect(screen.getAllByText('Paris Adventure (Copy)').length).toBeGreaterThan(0);
+      });
+    });
+  });
+
+  describe('FE-PAGE-DASH-030: Empty state renders create button', () => {
+    it('shows empty state with create button when no trips exist', async () => {
+      server.use(
+        http.get('/api/trips', () => {
+          return HttpResponse.json({ trips: [] });
+        }),
+      );
+
+      render(<DashboardPage />);
+
+      await waitFor(() => {
+        expect(screen.getByText(/no trips yet/i)).toBeInTheDocument();
+      });
+
+      // Empty state should show a descriptive text and a create button
+      const createButtons = screen.getAllByRole('button');
+      const createBtn = createButtons.find(btn => btn.textContent?.toLowerCase().includes('trip'));
+      expect(createBtn).toBeDefined();
+    });
+  });
+
+  describe('FE-PAGE-DASH-031: SpotlightCard shows stats for ongoing trip', () => {
+    it('renders duration stat and places/buddies stats for a live trip', async () => {
+      const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
+      const inFiveDays = new Date(Date.now() + 5 * 86400000).toISOString().split('T')[0];
+
+      const ongoingTrip = buildTrip({
+        title: 'Live Adventure',
+        start_date: yesterday,
+        end_date: inFiveDays,
+        place_count: 5,
+        shared_count: 2,
+      });
+
+      server.use(
+        http.get('/api/trips', ({ request }) => {
+          const url = new URL(request.url);
+          if (url.searchParams.get('archived')) return HttpResponse.json({ trips: [] });
+          return HttpResponse.json({ trips: [ongoingTrip] });
+        }),
+      );
+
+      render(<DashboardPage />);
+
+      await waitFor(() => {
+        expect(screen.getAllByText('Live Adventure').length).toBeGreaterThan(0);
+      });
+
+      // Stats section: places count "5" and buddies count "2" appear
+      await waitFor(() => {
+        expect(screen.getAllByText('5').length).toBeGreaterThan(0);
+        expect(screen.getAllByText('2').length).toBeGreaterThan(0);
+      });
+
+      // Duration stat label
+      expect(screen.getAllByText(/duration/i).length).toBeGreaterThan(0);
+      // Places stat label
+      expect(screen.getAllByText(/places/i).length).toBeGreaterThan(0);
+    });
+  });
+
+  describe('FE-PAGE-DASH-032: Dark mode detection uses window.matchMedia', () => {
+    it('renders without error when dark_mode is set to auto', async () => {
+      // Seed settings with dark_mode = 'auto' to exercise the matchMedia branch
+      const { useSettingsStore } = await import('../store/settingsStore');
+      seedStore(useSettingsStore, {
+        settings: {
+          map_tile_url: '',
+          default_lat: 48.8566,
+          default_lng: 2.3522,
+          default_zoom: 10,
+          dark_mode: 'auto',
+          default_currency: 'USD',
+          language: 'en',
+          temperature_unit: 'fahrenheit',
+          time_format: '12h',
+          show_place_description: false,
+          route_calculation: false,
+          blur_booking_codes: false,
+          dashboard_currency: 'on',
+          dashboard_timezone: 'on',
+        },
+        updateSetting: vi.fn(),
+      } as any);
+
+      render(<DashboardPage />);
+
+      await waitFor(() => {
+        expect(screen.getAllByText('Paris Adventure').length).toBeGreaterThan(0);
+      });
+
+      // Page renders successfully with dark_mode = 'auto'
+      expect(screen.getByText(/my trips/i)).toBeInTheDocument();
     });
   });
 });

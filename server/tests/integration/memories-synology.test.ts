@@ -39,7 +39,7 @@ vi.mock('../../src/config', () => ({
   ENCRYPTION_KEY: 'a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6a7b8c9d0e1f2a3b4c5d6a7b8c9d0e1f2',
   updateJwtSecret: () => {},
 }));
-vi.mock('../../src/websocket', () => ({ broadcast: vi.fn() }));
+vi.mock('../../src/websocket', () => ({ broadcast: vi.fn(), broadcastToUser: vi.fn() }));
 
 // ── SSRF guard mock — routes all Synology API calls to fake responses ─────────
 vi.mock('../../src/utils/ssrfGuard', async () => {

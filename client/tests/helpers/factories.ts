@@ -283,6 +283,12 @@ export function buildAppConfig(overrides: Partial<AppConfig> = {}): AppConfig {
     allow_registration: true,
     demo_mode: false,
     oidc_configured: false,
+    oidc_only_mode: false,
+    password_login: true,
+    password_registration: true,
+    oidc_login: true,
+    oidc_registration: true,
+    env_override_oidc_only: false,
     ...overrides,
   };
 }

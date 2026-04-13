@@ -43,7 +43,7 @@ interface GooglePlaceDetails extends GooglePlaceResult {
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
-const UA = 'TREK Travel Planner (https://github.com/mauriceboe/NOMAD)';
+const UA = 'TREK Travel Planner (https://github.com/mauriceboe/TREK)';
 
 // ── Photo cache ──────────────────────────────────────────────────────────────
 
@@ -89,7 +89,10 @@ export async function searchNominatim(query: string, lang?: string) {
   const response = await fetch(`https://nominatim.openstreetmap.org/search?${params}`, {
     headers: { 'User-Agent': UA },
   });
-  if (!response.ok) throw new Error('Nominatim API error');
+  if (!response.ok) {
+    const text = await response.text().catch(() => '');
+    throw new Error(`Nominatim API error: ${response.status} ${response.statusText}${text ? ' - ' + text.substring(0, 200) : ''}`);
+  }
   const data = await response.json() as NominatimResult[];
   return data.map(item => ({
     google_place_id: null,

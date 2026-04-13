@@ -77,6 +77,7 @@ import {
   getAppSettings,
   validateKeys,
   isOidcOnlyMode,
+  resolveAuthToggles,
   setupMfa,
   enableMfa,
   disableMfa,
@@ -323,6 +324,80 @@ describe('isOidcOnlyMode', () => {
 });
 
 // ---------------------------------------------------------------------------
+// resolveAuthToggles
+// ---------------------------------------------------------------------------
+
+describe('resolveAuthToggles', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    testDb.prepare("DELETE FROM app_settings WHERE key IN ('password_login','password_registration','oidc_login','oidc_registration','oidc_only','allow_registration')").run();
+  });
+
+  it('AUTH-DB-022a: returns all true by default (no DB keys, no env override)', () => {
+    vi.stubEnv('OIDC_ONLY', '');
+    const t = resolveAuthToggles();
+    expect(t.password_login).toBe(true);
+    expect(t.password_registration).toBe(true);
+    expect(t.oidc_login).toBe(true);
+    expect(t.oidc_registration).toBe(true);
+  });
+
+  it('AUTH-DB-022b: legacy — OIDC_ONLY=true with OIDC configured disables password_login and password_registration', () => {
+    vi.stubEnv('OIDC_ONLY', 'true');
+    vi.stubEnv('OIDC_ISSUER', 'https://sso.example.com');
+    vi.stubEnv('OIDC_CLIENT_ID', 'trek-client');
+    const t = resolveAuthToggles();
+    expect(t.password_login).toBe(false);
+    expect(t.password_registration).toBe(false);
+    expect(t.oidc_login).toBe(true);
+    expect(t.oidc_registration).toBe(true);
+  });
+
+  it('AUTH-DB-022c: legacy — allow_registration=false disables both password and oidc registration', () => {
+    vi.stubEnv('OIDC_ONLY', '');
+    testDb.prepare("INSERT OR REPLACE INTO app_settings (key, value) VALUES ('allow_registration', 'false')").run();
+    const t = resolveAuthToggles();
+    expect(t.password_login).toBe(true);
+    expect(t.password_registration).toBe(false);
+    expect(t.oidc_login).toBe(true);
+    expect(t.oidc_registration).toBe(false);
+  });
+
+  it('AUTH-DB-022d: new granular keys take precedence over legacy keys', () => {
+    vi.stubEnv('OIDC_ONLY', '');
+    testDb.prepare("INSERT OR REPLACE INTO app_settings (key, value) VALUES ('allow_registration', 'false')").run();
+    testDb.prepare("INSERT OR REPLACE INTO app_settings (key, value) VALUES ('password_registration', 'true')").run();
+    const t = resolveAuthToggles();
+    // New key present → use new keys, allow_registration ignored
+    expect(t.password_registration).toBe(true);
+    expect(t.oidc_registration).toBe(true); // defaults to true when key not set
+  });
+
+  it('AUTH-DB-022e: OIDC_ONLY env var overrides new granular keys for password toggles', () => {
+    vi.stubEnv('OIDC_ONLY', 'true');
+    testDb.prepare("INSERT OR REPLACE INTO app_settings (key, value) VALUES ('password_login', 'true')").run();
+    testDb.prepare("INSERT OR REPLACE INTO app_settings (key, value) VALUES ('password_registration', 'true')").run();
+    const t = resolveAuthToggles();
+    // OIDC_ONLY forces password toggles off even when DB says true
+    expect(t.password_login).toBe(false);
+    expect(t.password_registration).toBe(false);
+  });
+
+  it('AUTH-DB-022f: individual granular keys can be set independently', () => {
+    vi.stubEnv('OIDC_ONLY', '');
+    testDb.prepare("INSERT OR REPLACE INTO app_settings (key, value) VALUES ('password_login', 'true')").run();
+    testDb.prepare("INSERT OR REPLACE INTO app_settings (key, value) VALUES ('password_registration', 'false')").run();
+    testDb.prepare("INSERT OR REPLACE INTO app_settings (key, value) VALUES ('oidc_login', 'true')").run();
+    testDb.prepare("INSERT OR REPLACE INTO app_settings (key, value) VALUES ('oidc_registration', 'false')").run();
+    const t = resolveAuthToggles();
+    expect(t.password_login).toBe(true);
+    expect(t.password_registration).toBe(false);
+    expect(t.oidc_login).toBe(true);
+    expect(t.oidc_registration).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // setupMfa
 // ---------------------------------------------------------------------------
 
@@ -454,7 +529,7 @@ describe('registerUser — OIDC-only / registration-disabled', () => {
 
     const result = registerUser({ username: 'u', email: 'new@x.com', password: 'Secure123!' });
     expect(result.status).toBe(403);
-    expect(result.error).toMatch(/SSO/i);
+    expect(result.error).toMatch(/password registration is disabled/i);
   });
 
   it('AUTH-DB-034: returns 403 when registration is disabled and no invite', () => {

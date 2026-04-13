@@ -35,14 +35,14 @@ describe('NotificationsTab', () => {
       http.get('/api/notifications/preferences', () => new Promise(() => {})),
     );
     render(<NotificationsTab />);
-    expect(screen.getByText('Loading…')).toBeInTheDocument();
+    expect(screen.getByText('Loading...')).toBeInTheDocument();
   });
 
   it('FE-COMP-NOTIFICATIONS-002: renders the matrix after preferences load', async () => {
     render(<NotificationsTab />);
     // The event label is translated; fallback is the key itself
     await waitFor(() => {
-      expect(screen.queryByText('Loading…')).not.toBeInTheDocument();
+      expect(screen.queryByText('Loading...')).not.toBeInTheDocument();
     });
     // Should render a toggle (ToggleSwitch renders a button)
     const toggles = await screen.findAllByRole('button');
@@ -52,7 +52,7 @@ describe('NotificationsTab', () => {
   it('FE-COMP-NOTIFICATIONS-003: renders channel header labels', async () => {
     render(<NotificationsTab />);
     await waitFor(() => {
-      expect(screen.queryByText('Loading…')).not.toBeInTheDocument();
+      expect(screen.queryByText('Loading...')).not.toBeInTheDocument();
     });
     // inapp channel header should appear (either translated or raw key)
     const headers = screen.getAllByText(/inapp|in.?app/i);
@@ -72,7 +72,7 @@ describe('NotificationsTab', () => {
     );
     render(<NotificationsTab />);
     await waitFor(() => {
-      expect(screen.queryByText('Loading…')).not.toBeInTheDocument();
+      expect(screen.queryByText('Loading...')).not.toBeInTheDocument();
     });
     // Should show noChannels message (translated or key)
     const noChannelEl = await screen.findByText(/no.*channel|noChannels/i);
@@ -97,7 +97,7 @@ describe('NotificationsTab', () => {
     );
     render(<NotificationsTab />);
     await waitFor(() => {
-      expect(screen.queryByText('Loading…')).not.toBeInTheDocument();
+      expect(screen.queryByText('Loading...')).not.toBeInTheDocument();
     });
     // A dash should appear for non-implemented combos
     const dashes = await screen.findAllByText('—');
@@ -116,7 +116,7 @@ describe('NotificationsTab', () => {
 
     render(<NotificationsTab />);
     await waitFor(() => {
-      expect(screen.queryByText('Loading…')).not.toBeInTheDocument();
+      expect(screen.queryByText('Loading...')).not.toBeInTheDocument();
     });
 
     // minimalMatrix has inapp:true and email:false for trip_invite
@@ -144,7 +144,7 @@ describe('NotificationsTab', () => {
 
     render(<NotificationsTab />);
     await waitFor(() => {
-      expect(screen.queryByText('Loading…')).not.toBeInTheDocument();
+      expect(screen.queryByText('Loading...')).not.toBeInTheDocument();
     });
 
     // Find the inapp toggle for trip_invite — it starts as "on"
@@ -156,8 +156,8 @@ describe('NotificationsTab', () => {
 
     // After the error, the toggle should revert back (still rendered in the DOM)
     await waitFor(() => {
-      expect(screen.queryByText('Loading…')).not.toBeInTheDocument();
-      expect(screen.queryByText('Saving…')).not.toBeInTheDocument();
+      expect(screen.queryByText('Loading...')).not.toBeInTheDocument();
+      expect(screen.queryByText('Saving...')).not.toBeInTheDocument();
     });
 
     // The toggle should still be present (not removed on error)
@@ -178,20 +178,20 @@ describe('NotificationsTab', () => {
 
     render(<NotificationsTab />);
     await waitFor(() => {
-      expect(screen.queryByText('Loading…')).not.toBeInTheDocument();
+      expect(screen.queryByText('Loading...')).not.toBeInTheDocument();
     });
 
     const toggleButtons = await screen.findAllByRole('button');
     await user.click(toggleButtons[0]);
 
     await waitFor(() => {
-      expect(screen.getByText('Saving…')).toBeInTheDocument();
+      expect(screen.getByText('Saving...')).toBeInTheDocument();
     });
 
     resolveRequest();
 
     await waitFor(() => {
-      expect(screen.queryByText('Saving…')).not.toBeInTheDocument();
+      expect(screen.queryByText('Saving...')).not.toBeInTheDocument();
     });
   });
 
@@ -209,7 +209,7 @@ describe('NotificationsTab', () => {
 
     render(<NotificationsTab />);
     await waitFor(() => {
-      expect(screen.queryByText('Loading…')).not.toBeInTheDocument();
+      expect(screen.queryByText('Loading...')).not.toBeInTheDocument();
     });
 
     // Webhook URL input should be present
@@ -238,7 +238,7 @@ describe('NotificationsTab', () => {
 
     render(<NotificationsTab />);
     await waitFor(() => {
-      expect(screen.queryByText('Loading…')).not.toBeInTheDocument();
+      expect(screen.queryByText('Loading...')).not.toBeInTheDocument();
     });
 
     const input = await screen.findByRole('textbox');
@@ -265,7 +265,7 @@ describe('NotificationsTab', () => {
 
     render(<NotificationsTab />);
     await waitFor(() => {
-      expect(screen.queryByText('Loading…')).not.toBeInTheDocument();
+      expect(screen.queryByText('Loading...')).not.toBeInTheDocument();
     });
 
     const input = await screen.findByRole('textbox');
@@ -297,7 +297,7 @@ describe('NotificationsTab', () => {
 
     render(<NotificationsTab />);
     await waitFor(() => {
-      expect(screen.queryByText('Loading…')).not.toBeInTheDocument();
+      expect(screen.queryByText('Loading...')).not.toBeInTheDocument();
     });
 
     await screen.findByRole('textbox');
@@ -330,7 +330,7 @@ describe('NotificationsTab', () => {
     );
 
     await waitFor(() => {
-      expect(screen.queryByText('Loading…')).not.toBeInTheDocument();
+      expect(screen.queryByText('Loading...')).not.toBeInTheDocument();
     });
 
     const input = await screen.findByRole('textbox');
@@ -371,7 +371,7 @@ describe('NotificationsTab', () => {
     );
 
     await waitFor(() => {
-      expect(screen.queryByText('Loading…')).not.toBeInTheDocument();
+      expect(screen.queryByText('Loading...')).not.toBeInTheDocument();
     });
 
     const input = await screen.findByRole('textbox');

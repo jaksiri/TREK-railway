@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { http, HttpResponse } from 'msw';
 import { server } from '../../helpers/msw/server';
 import { useAuthStore } from '../../../src/store/authStore';
+import { authApi } from '../../../src/api/client';
 import { resetAllStores } from '../../helpers/store';
 import { buildUser } from '../../helpers/factories';
 
@@ -425,11 +426,8 @@ describe('authStore', () => {
 
   describe('FE-STORE-AUTH-UPLOAD: uploadAvatar', () => {
     it('updates avatar_url from response', async () => {
-      server.use(
-        http.post('/api/auth/avatar', () =>
-          HttpResponse.json({ avatar_url: '/uploads/avatar-new.png' })
-        )
-      );
+      // FormData POST hangs on CI — mock at the API boundary instead of MSW.
+      const uploadSpy = vi.spyOn(authApi, 'uploadAvatar').mockResolvedValueOnce({ avatar_url: '/uploads/avatar-new.png' });
 
       useAuthStore.setState({ user: buildUser() });
 
@@ -438,6 +436,7 @@ describe('authStore', () => {
 
       expect(result.avatar_url).toBe('/uploads/avatar-new.png');
       expect(useAuthStore.getState().user?.avatar_url).toBe('/uploads/avatar-new.png');
+      uploadSpy.mockRestore();
     });
   });
 });

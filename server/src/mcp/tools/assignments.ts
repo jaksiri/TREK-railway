@@ -15,11 +15,15 @@ import {
   TOOL_ANNOTATIONS_NON_IDEMPOTENT,
   demoDenied, noAccess, ok,
 } from './_shared';
+import { canRead, canWrite } from '../scopes';
 
-export function registerAssignmentTools(server: McpServer, userId: number): void {
+export function registerAssignmentTools(server: McpServer, userId: number, scopes: string[] | null): void {
+  const R = canRead(scopes, 'places');
+  const W = canWrite(scopes, 'places');
+
   // --- ASSIGNMENTS ---
 
-  server.registerTool(
+  if (W) server.registerTool(
     'assign_place_to_day',
     {
       description: 'Assign a place to a specific day in a trip.',
@@ -42,7 +46,7 @@ export function registerAssignmentTools(server: McpServer, userId: number): void
     }
   );
 
-  server.registerTool(
+  if (W) server.registerTool(
     'unassign_place',
     {
       description: 'Remove a place assignment from a day.',
@@ -64,7 +68,7 @@ export function registerAssignmentTools(server: McpServer, userId: number): void
     }
   );
 
-  server.registerTool(
+  if (W) server.registerTool(
     'update_assignment_time',
     {
       description: 'Set the start and/or end time for a place assignment on a day (e.g. "09:00", "11:30"). Pass null to clear a time.',
@@ -91,7 +95,7 @@ export function registerAssignmentTools(server: McpServer, userId: number): void
     }
   );
 
-  server.registerTool(
+  if (W) server.registerTool(
     'move_assignment',
     {
       description: 'Move a place assignment to a different day.',
@@ -107,13 +111,15 @@ export function registerAssignmentTools(server: McpServer, userId: number): void
     async ({ tripId, assignmentId, newDayId, oldDayId, orderIndex }) => {
       if (isDemoUser(userId)) return demoDenied();
       if (!canAccessTrip(tripId, userId)) return noAccess();
+      if (!getAssignmentForTrip(assignmentId, tripId)) return { content: [{ type: 'text' as const, text: 'Assignment not found.' }], isError: true };
+      if (!getDay(newDayId, tripId)) return { content: [{ type: 'text' as const, text: 'Day not found.' }], isError: true };
       const result = moveAssignment(assignmentId, newDayId, orderIndex ?? 0, oldDayId);
       safeBroadcast(tripId, 'assignment:moved', { assignment: result.assignment, oldDayId: result.oldDayId });
       return ok({ assignment: result.assignment });
     }
   );
 
-  server.registerTool(
+  if (R) server.registerTool(
     'get_assignment_participants',
     {
       description: 'Get the list of users participating in a specific place assignment.',
@@ -125,12 +131,13 @@ export function registerAssignmentTools(server: McpServer, userId: number): void
     },
     async ({ tripId, assignmentId }) => {
       if (!canAccessTrip(tripId, userId)) return noAccess();
+      if (!getAssignmentForTrip(assignmentId, tripId)) return { content: [{ type: 'text' as const, text: 'Assignment not found.' }], isError: true };
       const participants = getAssignmentParticipants(assignmentId);
       return ok({ participants });
     }
   );
 
-  server.registerTool(
+  if (W) server.registerTool(
     'set_assignment_participants',
     {
       description: 'Set the participants for a place assignment (replaces current list).',
@@ -144,6 +151,7 @@ export function registerAssignmentTools(server: McpServer, userId: number): void
     async ({ tripId, assignmentId, userIds }) => {
       if (isDemoUser(userId)) return demoDenied();
       if (!canAccessTrip(tripId, userId)) return noAccess();
+      if (!getAssignmentForTrip(assignmentId, tripId)) return { content: [{ type: 'text' as const, text: 'Assignment not found.' }], isError: true };
       const participants = setAssignmentParticipants(assignmentId, userIds);
       safeBroadcast(tripId, 'assignment:participants', { assignmentId, participants });
       return ok({ participants });
@@ -152,7 +160,7 @@ export function registerAssignmentTools(server: McpServer, userId: number): void
 
   // --- REORDER ---
 
-  server.registerTool(
+  if (W) server.registerTool(
     'reorder_day_assignments',
     {
       description: 'Reorder places within a day by providing the assignment IDs in the desired order.',

@@ -46,7 +46,6 @@ interface OidcConfig {
   client_secret: string
   client_secret_set: boolean
   display_name: string
-  oidc_only: boolean
   discovery_url: string
 }
 
@@ -56,6 +55,7 @@ interface UpdateInfo {
   current: string
   release_url?: string
   is_docker?: boolean
+  is_prerelease?: boolean
 }
 
 const ADMIN_EVENT_LABEL_KEYS: Record<string, string> = {
@@ -192,11 +192,16 @@ export default function AdminPage(): React.ReactElement {
   useEffect(() => { adminApi.getBagTracking().then(d => setBagTrackingEnabled(d.enabled)).catch(() => {}) }, [])
 
   // OIDC config
-  const [oidcConfig, setOidcConfig] = useState<OidcConfig>({ issuer: '', client_id: '', client_secret: '', client_secret_set: false, display_name: '', oidc_only: false, discovery_url: '' })
+  const [oidcConfig, setOidcConfig] = useState<OidcConfig>({ issuer: '', client_id: '', client_secret: '', client_secret_set: false, display_name: '', discovery_url: '' })
   const [savingOidc, setSavingOidc] = useState<boolean>(false)
 
-  // Registration toggle
-  const [allowRegistration, setAllowRegistration] = useState<boolean>(true)
+  // Auth toggles
+  const [passwordLogin, setPasswordLogin] = useState<boolean>(true)
+  const [passwordRegistration, setPasswordRegistration] = useState<boolean>(true)
+  const [oidcLogin, setOidcLogin] = useState<boolean>(true)
+  const [oidcRegistration, setOidcRegistration] = useState<boolean>(true)
+  const [envOverrideOidcOnly, setEnvOverrideOidcOnly] = useState<boolean>(false)
+  const [oidcConfigured, setOidcConfigured] = useState<boolean>(false)
   const [requireMfa, setRequireMfa] = useState<boolean>(false)
 
   // Invite links
@@ -268,7 +273,12 @@ export default function AdminPage(): React.ReactElement {
   const loadAppConfig = async () => {
     try {
       const config = await authApi.getAppConfig()
-      setAllowRegistration(config.allow_registration)
+      setPasswordLogin(config.password_login ?? true)
+      setPasswordRegistration(config.password_registration ?? config.allow_registration ?? true)
+      setOidcLogin(config.oidc_login ?? true)
+      setOidcRegistration(config.oidc_registration ?? config.allow_registration ?? true)
+      setEnvOverrideOidcOnly(config.env_override_oidc_only ?? false)
+      setOidcConfigured(config.oidc_configured ?? false)
       if (config.require_mfa !== undefined) setRequireMfa(!!config.require_mfa)
       if (config.allowed_file_types) setAllowedFileTypes(config.allowed_file_types)
     } catch (err: unknown) {
@@ -286,12 +296,12 @@ export default function AdminPage(): React.ReactElement {
     }
   }
 
-  const handleToggleRegistration = async (value) => {
-    setAllowRegistration(value)
+  const handleToggleAuthSetting = async (key: string, value: boolean, setter: (v: boolean) => void) => {
+    setter(value)
     try {
-      await authApi.updateAppSettings({ allow_registration: value })
+      await authApi.updateAppSettings({ [key]: value })
     } catch (err: unknown) {
-      setAllowRegistration(!value)
+      setter(!value)
       toast.error(getApiErrorMessage(err, t('common.error')))
     }
   }
@@ -792,28 +802,94 @@ export default function AdminPage(): React.ReactElement {
 
           {activeTab === 'settings' && (
             <div className="space-y-6">
-              {/* Registration Toggle */}
+              {/* Authentication Methods */}
               <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
                 <div className="px-6 py-4 border-b border-slate-100">
-                  <h2 className="font-semibold text-slate-900">{t('admin.allowRegistration')}</h2>
+                  <h2 className="font-semibold text-slate-900">{t('admin.authMethods')}</h2>
                 </div>
-                <div className="p-6">
+                <div className="p-6 space-y-5">
+                  {envOverrideOidcOnly && (
+                    <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                      {t('admin.envOverrideHint')}
+                    </p>
+                  )}
+                  {/* Password Login */}
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-sm font-medium text-slate-700">{t('admin.allowRegistration')}</p>
-                      <p className="text-xs text-slate-400 mt-0.5">{t('admin.allowRegistrationHint')}</p>
+                      <p className="text-sm font-medium text-slate-700">{t('admin.passwordLogin')}</p>
+                      <p className="text-xs text-slate-400 mt-0.5">{t('admin.passwordLoginHint')}</p>
                     </div>
                     <button
-                      onClick={() => handleToggleRegistration(!allowRegistration)}
-                      className="relative inline-flex h-6 w-11 items-center rounded-full transition-colors"
-                      style={{ background: allowRegistration ? 'var(--text-primary)' : 'var(--border-primary)' }}
+                      disabled={envOverrideOidcOnly || (!passwordLogin && !oidcLogin)}
+                      onClick={() => handleToggleAuthSetting('password_login', !passwordLogin, setPasswordLogin)}
+                      title={!passwordLogin && !oidcLogin ? t('admin.lockoutWarning') : undefined}
+                      className="relative inline-flex h-6 w-11 items-center rounded-full transition-colors disabled:opacity-50"
+                      style={{ background: passwordLogin ? 'var(--text-primary)' : 'var(--border-primary)' }}
                     >
                       <span
                         className="absolute left-0.5 h-5 w-5 rounded-full bg-white transition-transform duration-200"
-                        style={{ transform: allowRegistration ? 'translateX(20px)' : 'translateX(0)' }}
+                        style={{ transform: passwordLogin ? 'translateX(20px)' : 'translateX(0)' }}
                       />
                     </button>
                   </div>
+                  {/* Password Registration */}
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-slate-700">{t('admin.passwordRegistration')}</p>
+                      <p className="text-xs text-slate-400 mt-0.5">{t('admin.passwordRegistrationHint')}</p>
+                    </div>
+                    <button
+                      disabled={envOverrideOidcOnly}
+                      onClick={() => handleToggleAuthSetting('password_registration', !passwordRegistration, setPasswordRegistration)}
+                      className="relative inline-flex h-6 w-11 items-center rounded-full transition-colors disabled:opacity-50"
+                      style={{ background: passwordRegistration ? 'var(--text-primary)' : 'var(--border-primary)' }}
+                    >
+                      <span
+                        className="absolute left-0.5 h-5 w-5 rounded-full bg-white transition-transform duration-200"
+                        style={{ transform: passwordRegistration ? 'translateX(20px)' : 'translateX(0)' }}
+                      />
+                    </button>
+                  </div>
+                  {/* SSO Login (only when OIDC configured) */}
+                  {oidcConfigured && (
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-medium text-slate-700">{t('admin.oidcLogin')}</p>
+                        <p className="text-xs text-slate-400 mt-0.5">{t('admin.oidcLoginHint')}</p>
+                      </div>
+                      <button
+                        disabled={!passwordLogin && oidcLogin}
+                        onClick={() => handleToggleAuthSetting('oidc_login', !oidcLogin, setOidcLogin)}
+                        title={!passwordLogin && oidcLogin ? t('admin.lockoutWarning') : undefined}
+                        className="relative inline-flex h-6 w-11 items-center rounded-full transition-colors disabled:opacity-50"
+                        style={{ background: oidcLogin ? 'var(--text-primary)' : 'var(--border-primary)' }}
+                      >
+                        <span
+                          className="absolute left-0.5 h-5 w-5 rounded-full bg-white transition-transform duration-200"
+                          style={{ transform: oidcLogin ? 'translateX(20px)' : 'translateX(0)' }}
+                        />
+                      </button>
+                    </div>
+                  )}
+                  {/* SSO Registration (only when OIDC configured) */}
+                  {oidcConfigured && (
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-medium text-slate-700">{t('admin.oidcRegistration')}</p>
+                        <p className="text-xs text-slate-400 mt-0.5">{t('admin.oidcRegistrationHint')}</p>
+                      </div>
+                      <button
+                        onClick={() => handleToggleAuthSetting('oidc_registration', !oidcRegistration, setOidcRegistration)}
+                        className="relative inline-flex h-6 w-11 items-center rounded-full transition-colors"
+                        style={{ background: oidcRegistration ? 'var(--text-primary)' : 'var(--border-primary)' }}
+                      >
+                        <span
+                          className="absolute left-0.5 h-5 w-5 rounded-full bg-white transition-transform duration-200"
+                          style={{ transform: oidcRegistration ? 'translateX(20px)' : 'translateX(0)' }}
+                        />
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -1036,29 +1112,11 @@ export default function AdminPage(): React.ReactElement {
                       className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-slate-400 focus:border-transparent"
                     />
                   </div>
-                  {/* OIDC-only mode toggle */}
-                  <div className="flex items-center justify-between pt-2 border-t border-slate-100">
-                    <div>
-                      <p className="text-sm font-medium text-slate-700">{t('admin.oidcOnlyMode')}</p>
-                      <p className="text-xs text-slate-400 mt-0.5">{t('admin.oidcOnlyModeHint')}</p>
-                    </div>
-                    <button
-                      onClick={() => setOidcConfig(c => ({ ...c, oidc_only: !c.oidc_only }))}
-                      className="relative inline-flex h-6 w-11 items-center rounded-full transition-colors flex-shrink-0 ml-4"
-                      style={{ background: oidcConfig.oidc_only ? 'var(--text-primary)' : 'var(--border-primary)' }}
-                    >
-                      <span
-                        className="absolute left-0.5 h-5 w-5 rounded-full bg-white transition-transform duration-200"
-                        style={{ transform: oidcConfig.oidc_only ? 'translateX(20px)' : 'translateX(0)' }}
-                      />
-                    </button>
-                  </div>
-
                   <button
                     onClick={async () => {
                       setSavingOidc(true)
                       try {
-                        const payload: Record<string, unknown> = { issuer: oidcConfig.issuer, client_id: oidcConfig.client_id, display_name: oidcConfig.display_name, oidc_only: oidcConfig.oidc_only, discovery_url: oidcConfig.discovery_url }
+                        const payload: Record<string, unknown> = { issuer: oidcConfig.issuer, client_id: oidcConfig.client_id, display_name: oidcConfig.display_name, discovery_url: oidcConfig.discovery_url }
                         if (oidcConfig.client_secret) payload.client_secret = oidcConfig.client_secret
                         await adminApi.updateOidc(payload)
                         toast.success(t('admin.oidcSaved'))
@@ -1313,7 +1371,7 @@ export default function AdminPage(): React.ReactElement {
 
           {activeTab === 'mcp-tokens' && <AdminMcpTokensPanel />}
 
-          {activeTab === 'github' && <GitHubPanel />}
+          {activeTab === 'github' && <GitHubPanel isPrerelease={updateInfo?.is_prerelease ?? false} />}
 
           {activeTab === 'dev-notifications' && <DevNotificationsPanel />}
         </div>

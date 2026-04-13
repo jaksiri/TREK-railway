@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { http, HttpResponse } from 'msw';
 import { useTripStore } from '../../../src/store/tripStore';
+import { filesApi } from '../../../src/api/client';
 import { resetAllStores, seedStore } from '../../helpers/store';
 import { buildTripFile } from '../../helpers/factories';
 import { server } from '../../helpers/msw/server';
@@ -56,14 +57,14 @@ describe('filesSlice', () => {
       seedStore(useTripStore, { files: [existing] });
 
       const uploaded = buildTripFile({ trip_id: 1, filename: 'new-upload.pdf' });
-      server.use(
-        http.post('/api/trips/1/files', () => HttpResponse.json({ file: uploaded })),
-      );
+      // FormData POST hangs on CI — mock at the API boundary instead of MSW.
+      const uploadSpy = vi.spyOn(filesApi, 'upload').mockResolvedValueOnce({ file: uploaded });
 
       const formData = new FormData();
       formData.append('file', new Blob(['content'], { type: 'application/pdf' }), 'new-upload.pdf');
 
       const result = await useTripStore.getState().addFile(1, formData);
+      uploadSpy.mockRestore();
 
       expect(result.filename).toBe('new-upload.pdf');
       const files = useTripStore.getState().files;

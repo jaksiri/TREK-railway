@@ -155,6 +155,9 @@ describe('LoginPage', () => {
             oidc_configured: true,
             oidc_display_name: 'Okta',
             oidc_only_mode: false,
+            oidc_login: true,
+            password_login: true,
+            password_registration: true,
             setup_complete: true,
           });
         }),
@@ -438,6 +441,8 @@ describe('LoginPage', () => {
             demo_mode: false,
             oidc_configured: true,
             oidc_only_mode: true,
+            password_login: false,
+            oidc_login: true,
             setup_complete: true,
           });
         }),

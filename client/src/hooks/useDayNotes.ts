@@ -1,6 +1,7 @@
 import { useState, useRef } from 'react'
 import { useTripStore } from '../store/tripStore'
 import { useToast } from '../components/shared/Toast'
+import { useTranslation } from '../i18n'
 import type { MergedItem, DayNotesMap, DayNote } from '../types'
 
 interface NoteUiState {
@@ -21,6 +22,7 @@ export function useDayNotes(tripId: number | string) {
   const noteInputRef = useRef<HTMLInputElement | null>(null)
   const tripStore = useTripStore()
   const toast = useToast()
+  const { t } = useTranslation()
   const dayNotes: DayNotesMap = tripStore.dayNotes || {}
 
   const openAddNote = (dayId: number, getMergedItems: (dayId: number) => MergedItem[], expandDay?: (dayId: number) => void) => {
@@ -50,12 +52,12 @@ export function useDayNotes(tripId: number | string) {
         await tripStore.updateDayNote(tripId, dayId, ui.noteId!, { text: ui.text.trim(), time: ui.time || null, icon: ui.icon || 'FileText' })
       }
       cancelNote(dayId)
-    } catch (err: unknown) { toast.error(err instanceof Error ? err.message : 'Unknown error') }
+    } catch (err: unknown) { toast.error(err instanceof Error ? err.message : t('common.unknownError')) }
   }
 
   const deleteNote = async (dayId: number, noteId: number) => {
     try { await tripStore.deleteDayNote(tripId, dayId, noteId) }
-    catch (err: unknown) { toast.error(err instanceof Error ? err.message : 'Unknown error') }
+    catch (err: unknown) { toast.error(err instanceof Error ? err.message : t('common.unknownError')) }
   }
 
   const moveNote = async (dayId: number, noteId: number, direction: 'up' | 'down', getMergedItems: (dayId: number) => MergedItem[]) => {
@@ -71,7 +73,7 @@ export function useDayNotes(tripId: number | string) {
       newSortOrder = idx < merged.length - 2 ? (merged[idx + 1].sortKey + merged[idx + 2].sortKey) / 2 : merged[idx + 1].sortKey + 1
     }
     try { await tripStore.updateDayNote(tripId, dayId, noteId, { sort_order: newSortOrder }) }
-    catch (err: unknown) { toast.error(err instanceof Error ? err.message : 'Unknown error') }
+    catch (err: unknown) { toast.error(err instanceof Error ? err.message : t('common.unknownError')) }
   }
 
   return { noteUi, setNoteUi, noteInputRef, dayNotes, openAddNote, openEditNote, cancelNote, saveNote, deleteNote, moveNote }

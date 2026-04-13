@@ -149,7 +149,7 @@ export function PhotoLightbox({ photos, initialIndex, onClose, onUpdate, onDelet
                   value={caption}
                   onChange={e => setCaption(e.target.value)}
                   onKeyDown={e => e.key === 'Enter' && handleSaveCaption()}
-                  placeholder="Beschriftung hinzufügen..."
+                  placeholder={t('photos.addCaption')}
                   className="flex-1 bg-white/10 text-white border border-white/20 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-white/40"
                   autoFocus
                 />
@@ -173,7 +173,7 @@ export function PhotoLightbox({ photos, initialIndex, onClose, onUpdate, onDelet
                   className="text-white text-sm flex-1 cursor-pointer hover:text-white/80"
                   onClick={() => setEditCaption(true)}
                 >
-                  {photo.caption || <span className="text-white/40 italic">Beschriftung hinzufügen...</span>}
+                  {photo.caption || <span className="text-white/40 italic">{t('photos.addCaption')}</span>}
                 </p>
                 <button
                   onClick={() => setEditCaption(true)}

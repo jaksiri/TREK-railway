@@ -471,14 +471,11 @@ describe('OIDC Settings', () => {
     expect(result.client_id).toBe('my-client');
   });
 
-  it('ADMIN-SVC-049 — updateOidcSettings sets oidc_only flag correctly', () => {
-    updateOidcSettings({ oidc_only: true });
-    const enabled = getOidcSettings() as any;
-    expect(enabled.oidc_only).toBe(true);
-
-    updateOidcSettings({ oidc_only: false });
-    const disabled = getOidcSettings() as any;
-    expect(disabled.oidc_only).toBe(false);
+  it('ADMIN-SVC-049 — updateOidcSettings does not write oidc_only (replaced by granular toggles)', () => {
+    updateOidcSettings({ issuer: 'https://auth.example.com', client_id: 'my-client' });
+    const result = getOidcSettings() as any;
+    // oidc_only is no longer managed by updateOidcSettings; use password_login/oidc_login toggles
+    expect(result.oidc_only).toBe(false);
   });
 });
 

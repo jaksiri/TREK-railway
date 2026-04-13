@@ -10,9 +10,14 @@ import AdminPage from './pages/AdminPage'
 import SettingsPage from './pages/SettingsPage'
 import VacayPage from './pages/VacayPage'
 import AtlasPage from './pages/AtlasPage'
+import JourneyPage from './pages/JourneyPage'
+import JourneyDetailPage from './pages/JourneyDetailPage'
+import JourneyPublicPage from './pages/JourneyPublicPage'
 import SharedTripPage from './pages/SharedTripPage'
 import InAppNotificationsPage from './pages/InAppNotificationsPage.tsx'
+import OAuthAuthorizePage from './pages/OAuthAuthorizePage'
 import { ToastContainer } from './components/shared/Toast'
+import BottomNav from './components/Layout/BottomNav'
 import { TranslationProvider, useTranslation } from './i18n'
 import { authApi } from './api/client'
 import { usePermissionsStore, PermissionLevel } from './store/permissionsStore'
@@ -60,7 +65,12 @@ function ProtectedRoute({ children, adminRequired = false }: ProtectedRouteProps
     return <Navigate to="/dashboard" replace />
   }
 
-  return <>{children}</>
+  return (
+    <div className="flex flex-col h-screen md:block md:h-auto">
+      <div className="flex-1 overflow-y-auto md:overflow-visible">{children}</div>
+      <BottomNav />
+    </div>
+  )
 }
 
 function RootRedirect() {
@@ -78,16 +88,18 @@ function RootRedirect() {
 }
 
 export default function App() {
-  const { loadUser, isAuthenticated, demoMode, setDemoMode, setDevMode, setHasMapsKey, setServerTimezone, setAppRequireMfa, setTripRemindersEnabled } = useAuthStore()
+  const { loadUser, isAuthenticated, demoMode, setDemoMode, setDevMode, setIsPrerelease, setAppVersion, setHasMapsKey, setServerTimezone, setAppRequireMfa, setTripRemindersEnabled } = useAuthStore()
   const { loadSettings } = useSettingsStore()
 
   useEffect(() => {
-    if (!location.pathname.startsWith('/shared/') && !location.pathname.startsWith('/login')) {
+    if (!location.pathname.startsWith('/shared/') && !location.pathname.startsWith('/public/') && !location.pathname.startsWith('/login')) {
       loadUser()
     }
-    authApi.getAppConfig().then(async (config: { demo_mode?: boolean; dev_mode?: boolean; has_maps_key?: boolean; version?: string; timezone?: string; require_mfa?: boolean; trip_reminders_enabled?: boolean; permissions?: Record<string, PermissionLevel> }) => {
+    authApi.getAppConfig().then(async (config: { demo_mode?: boolean; dev_mode?: boolean; is_prerelease?: boolean; has_maps_key?: boolean; version?: string; timezone?: string; require_mfa?: boolean; trip_reminders_enabled?: boolean; permissions?: Record<string, PermissionLevel> }) => {
       if (config?.demo_mode) setDemoMode(true)
       if (config?.dev_mode) setDevMode(true)
+      if (config?.is_prerelease !== undefined) setIsPrerelease(config.is_prerelease)
+      if (config?.version) setAppVersion(config.version)
       if (config?.has_maps_key !== undefined) setHasMapsKey(config.has_maps_key)
       if (config?.timezone) setServerTimezone(config.timezone)
       if (config?.require_mfa !== undefined) setAppRequireMfa(!!config.require_mfa)
@@ -162,7 +174,10 @@ export default function App() {
         <Route path="/" element={<RootRedirect />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/shared/:token" element={<SharedTripPage />} />
+        <Route path="/public/journey/:token" element={<JourneyPublicPage />} />
         <Route path="/register" element={<LoginPage />} />
+        {/* OAuth 2.1 consent page — intentionally outside ProtectedRoute */}
+        <Route path="/oauth/authorize" element={<OAuthAuthorizePage />} />
         <Route
           path="/dashboard"
           element={
@@ -216,6 +231,22 @@ export default function App() {
           element={
             <ProtectedRoute>
               <AtlasPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/journey"
+          element={
+            <ProtectedRoute>
+              <JourneyPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/journey/:id"
+          element={
+            <ProtectedRoute>
+              <JourneyDetailPage />
             </ProtectedRoute>
           }
         />

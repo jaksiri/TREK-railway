@@ -1,4 +1,4 @@
-// FE-ADMIN-MCP-001 to FE-ADMIN-MCP-010
+// FE-ADMIN-MCP-001 to FE-ADMIN-MCP-016
 import { render, screen, waitFor } from '../../../tests/helpers/render';
 import userEvent from '@testing-library/user-event';
 import { http, HttpResponse } from 'msw';
@@ -196,5 +196,128 @@ describe('AdminMcpTokensPanel', () => {
     );
     render(<><ToastContainer /><AdminMcpTokensPanel /></>);
     await screen.findByText('Failed to load tokens');
+  });
+
+  it('FE-ADMIN-MCP-011: OAuth sessions loading spinner shown on mount', async () => {
+    server.use(
+      http.get('/api/admin/oauth-sessions', async () => {
+        await new Promise(resolve => setTimeout(resolve, 200));
+        return HttpResponse.json({ sessions: [] });
+      })
+    );
+    render(<AdminMcpTokensPanel />);
+    expect(document.querySelector('.animate-spin')).toBeInTheDocument();
+  });
+
+  it('FE-ADMIN-MCP-012: OAuth sessions empty state rendered when no sessions', async () => {
+    server.use(
+      http.get('/api/admin/oauth-sessions', () =>
+        HttpResponse.json({ sessions: [] })
+      )
+    );
+    render(<AdminMcpTokensPanel />);
+    await screen.findByText('No active OAuth sessions');
+  });
+
+  it('FE-ADMIN-MCP-013: OAuth sessions list renders with scopes', async () => {
+    server.use(
+      http.get('/api/admin/oauth-sessions', () =>
+        HttpResponse.json({
+          sessions: [
+            {
+              id: 1,
+              client_name: 'Claude Desktop',
+              username: 'alice',
+              scopes: ['trips:read', 'budget:read'],
+              created_at: '2025-01-01T00:00:00Z',
+            },
+          ],
+        })
+      )
+    );
+    render(<AdminMcpTokensPanel />);
+    await screen.findByText('Claude Desktop');
+    expect(screen.getByText('alice')).toBeInTheDocument();
+    expect(screen.getByText('trips:read')).toBeInTheDocument();
+  });
+
+  it('FE-ADMIN-MCP-014: scope expand/collapse toggle shows hidden scopes', async () => {
+    const user = userEvent.setup();
+    // 7 scopes — more than SCOPES_PREVIEW=6, so "+1 more" button appears
+    const scopes = ['trips:read', 'trips:write', 'places:read', 'places:write', 'budget:read', 'budget:write', 'packing:read'];
+    server.use(
+      http.get('/api/admin/oauth-sessions', () =>
+        HttpResponse.json({
+          sessions: [
+            { id: 1, client_name: 'App', username: 'bob', scopes, created_at: '2025-01-01T00:00:00Z' },
+          ],
+        })
+      )
+    );
+    render(<AdminMcpTokensPanel />);
+    await screen.findByText('App');
+    // "+1 more" button should appear
+    const moreBtn = await screen.findByText(/\+1 more/);
+    expect(moreBtn).toBeInTheDocument();
+    await user.click(moreBtn);
+    // After expand, "show less" appears
+    expect(await screen.findByText('show less')).toBeInTheDocument();
+  });
+
+  it('FE-ADMIN-MCP-015: revoke session confirmation and successful revoke', async () => {
+    const user = userEvent.setup();
+    server.use(
+      http.get('/api/admin/oauth-sessions', () =>
+        HttpResponse.json({
+          sessions: [
+            { id: 5, client_name: 'Revoke Me', username: 'carol', scopes: ['trips:read'], created_at: '2025-01-01T00:00:00Z' },
+          ],
+        })
+      ),
+      http.delete('/api/admin/oauth-sessions/5', () =>
+        HttpResponse.json({ success: true })
+      )
+    );
+    render(<><ToastContainer /><AdminMcpTokensPanel /></>);
+    await screen.findByText('Revoke Me');
+
+    // Click the revoke (trash) button next to the session
+    const deleteBtn = screen.getAllByTitle('Delete')[0];
+    await user.click(deleteBtn);
+
+    // Confirmation modal opens
+    expect(screen.getByText('Revoke Session')).toBeInTheDocument();
+    // Confirm — find the modal's Delete button (has no title, unlike the trash icon)
+    const deleteBtns = screen.getAllByRole('button', { name: 'Delete' });
+    const confirmBtn = deleteBtns.find(b => !b.title);
+    await user.click(confirmBtn ?? deleteBtns[deleteBtns.length - 1]);
+    await waitFor(() => {
+      expect(screen.queryByText('Revoke Me')).not.toBeInTheDocument();
+    });
+  });
+
+  it('FE-ADMIN-MCP-016: revoke session error shows toast', async () => {
+    const user = userEvent.setup();
+    server.use(
+      http.get('/api/admin/oauth-sessions', () =>
+        HttpResponse.json({
+          sessions: [
+            { id: 6, client_name: 'Error Session', username: 'dave', scopes: ['trips:read'], created_at: '2025-01-01T00:00:00Z' },
+          ],
+        })
+      ),
+      http.delete('/api/admin/oauth-sessions/6', () =>
+        HttpResponse.json({ error: 'forbidden' }, { status: 403 })
+      )
+    );
+    render(<><ToastContainer /><AdminMcpTokensPanel /></>);
+    await screen.findByText('Error Session');
+
+    const deleteBtn = screen.getAllByTitle('Delete')[0];
+    await user.click(deleteBtn);
+    const deleteBtns = screen.getAllByRole('button', { name: 'Delete' });
+    const confirmBtn = deleteBtns.find(b => !b.title);
+    await user.click(confirmBtn ?? deleteBtns[deleteBtns.length - 1]);
+    await screen.findByText('Failed to revoke session');
   });
 });

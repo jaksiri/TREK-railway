@@ -5,11 +5,11 @@ import { useAuthStore } from '../../store/authStore'
 import { useSettingsStore } from '../../store/settingsStore'
 import { useAddonStore } from '../../store/addonStore'
 import { useTranslation } from '../../i18n'
-import { Plane, LogOut, Settings, ChevronDown, Shield, ArrowLeft, Users, Moon, Sun, Monitor, CalendarDays, Briefcase, Globe } from 'lucide-react'
+import { Plane, LogOut, Settings, ChevronDown, Shield, ArrowLeft, Users, Moon, Sun, Monitor, CalendarDays, Briefcase, Globe, Compass } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import InAppNotificationBell from './InAppNotificationBell.tsx'
 
-const ADDON_ICONS: Record<string, LucideIcon> = { CalendarDays, Briefcase, Globe }
+const ADDON_ICONS: Record<string, LucideIcon> = { CalendarDays, Briefcase, Globe, Compass }
 
 interface NavbarProps {
   tripTitle?: string
@@ -27,14 +27,13 @@ interface Addon {
 }
 
 export default function Navbar({ tripTitle, tripId, onBack, showBack, onShare }: NavbarProps): React.ReactElement {
-  const { user, logout } = useAuthStore()
+  const { user, logout, isPrerelease, appVersion } = useAuthStore()
   const { settings, updateSetting } = useSettingsStore()
   const { addons: allAddons, loadAddons } = useAddonStore()
   const { t, locale } = useTranslation()
   const navigate = useNavigate()
   const location = useLocation()
   const [userMenuOpen, setUserMenuOpen] = useState<boolean>(false)
-  const [appVersion, setAppVersion] = useState<string | null>(null)
   const darkMode = settings.dark_mode
   const dark = darkMode === true || darkMode === 'dark' || (darkMode === 'auto' && window.matchMedia('(prefers-color-scheme: dark)').matches)
 
@@ -44,12 +43,6 @@ export default function Navbar({ tripTitle, tripId, onBack, showBack, onShare }:
   useEffect(() => {
     if (user) loadAddons()
   }, [user, location.pathname])
-
-  useEffect(() => {
-    import('../../api/client').then(({ authApi }) => {
-      authApi.getAppConfig?.().then(c => setAppVersion(c?.version)).catch(() => {})
-    })
-  }, [])
 
   const handleLogout = () => {
     logout()
@@ -75,7 +68,7 @@ export default function Navbar({ tripTitle, tripId, onBack, showBack, onShare }:
       touchAction: 'manipulation',
       paddingTop: 'env(safe-area-inset-top, 0px)',
       height: 'var(--nav-h)',
-    }} className="flex items-center px-4 gap-4 fixed top-0 left-0 right-0 z-[200]">
+    }} className="hidden md:flex items-center px-4 gap-4 fixed top-0 left-0 right-0 z-[200]">
       {/* Left side */}
       <div className="flex items-center gap-3 min-w-0">
         {showBack && (
@@ -153,6 +146,17 @@ export default function Navbar({ tripTitle, tripId, onBack, showBack, onShare }:
           <Users className="w-4 h-4" />
           <span className="hidden sm:inline">{t('nav.share')}</span>
         </button>
+      )}
+
+      {/* Prerelease badge */}
+      {isPrerelease && appVersion && (
+        <span
+          className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold flex-shrink-0"
+          style={{ background: 'rgba(245,158,11,0.15)', color: '#d97706', border: '1px solid rgba(245,158,11,0.3)' }}
+        >
+          <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: '#f59e0b' }} />
+          {appVersion}
+        </span>
       )}
 
       {/* Dark mode toggle (light ↔ dark, overrides auto) — hidden on mobile */}

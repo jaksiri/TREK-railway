@@ -34,7 +34,7 @@ import { createTables } from '../../../src/db/schema';
 import { runMigrations } from '../../../src/db/migrations';
 import { resetTestDb } from '../../helpers/test-db';
 import { createAdmin } from '../../helpers/factories';
-import { checkAndNotifyVersion } from '../../../src/services/adminService';
+import { checkAndNotifyVersion, __clearVersionCacheForTests } from '../../../src/services/adminService';
 
 // Helper: mock the GitHub releases/latest endpoint
 function mockGitHubLatest(tagName: string, ok = true): void {
@@ -63,6 +63,7 @@ beforeAll(() => {
 
 beforeEach(() => {
   resetTestDb(testDb);
+  __clearVersionCacheForTests();
   vi.unstubAllGlobals();
 });
 

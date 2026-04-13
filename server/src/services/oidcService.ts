@@ -4,6 +4,7 @@ import { db } from '../db/database';
 import { JWT_SECRET } from '../config';
 import { User } from '../types';
 import { decrypt_api_key } from './apiKeyCrypto';
+import { resolveAuthToggles } from './authService';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -269,10 +270,8 @@ export function findOrCreateUser(
   }
 
   if (!isFirstUser && !validInvite) {
-    const setting = db.prepare("SELECT value FROM app_settings WHERE key = 'allow_registration'").get() as
-      | { value: string }
-      | undefined;
-    if (setting?.value === 'false') {
+    const { oidc_registration } = resolveAuthToggles();
+    if (!oidc_registration) {
       return { error: 'registration_disabled' };
     }
   }

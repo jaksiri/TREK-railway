@@ -5,6 +5,7 @@ import { http, HttpResponse } from 'msw';
 import { useAuthStore } from '../../store/authStore';
 import { useTripStore } from '../../store/tripStore';
 import { usePermissionsStore } from '../../store/permissionsStore';
+import { placesApi } from '../../api/client';
 import { resetAllStores, seedStore } from '../../../tests/helpers/store';
 import { buildUser, buildTrip, buildPlace, buildCategory, buildDay, buildAssignment } from '../../../tests/helpers/factories';
 import { server } from '../../../tests/helpers/msw/server';
@@ -443,11 +444,8 @@ describe('GPX import', () => {
   });
 
   it('FE-PLANNER-SIDEBAR-039: successful GPX import shows success toast', async () => {
-    server.use(
-      http.post('/api/trips/1/places/import/gpx', () =>
-        HttpResponse.json({ count: 2, places: [{ id: 10 }, { id: 11 }] })
-      ),
-    );
+    // FormData POST hangs on CI — mock at the API boundary instead of MSW.
+    const importSpy = vi.spyOn(placesApi, 'importGpx').mockResolvedValueOnce({ count: 2, places: [{ id: 10 }, { id: 11 }] });
     const loadTrip = vi.fn().mockResolvedValue(undefined);
     seedStore(useTripStore, { loadTrip });
     const addToast = vi.fn();
@@ -465,6 +463,7 @@ describe('GPX import', () => {
         undefined,
       );
     });
+    importSpy.mockRestore();
   });
 });
 

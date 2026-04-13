@@ -167,7 +167,7 @@ export default function DayDetailPanel({ day, days, places, categories = [], tri
   const font = { fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui, sans-serif" }
 
   return (
-    <div style={{ position: 'fixed', bottom: 20, left: `calc(${leftWidth}px + (100vw - ${leftWidth}px - ${rightWidth}px) / 2)`, transform: 'translateX(-50%)', width: `min(800px, calc(100vw - ${leftWidth}px - ${rightWidth}px - 32px))`, zIndex: 50, ...font }}>
+    <div className="fixed z-50 bottom-[96px] md:bottom-5" style={{ left: `calc(${leftWidth}px + (100vw - ${leftWidth}px - ${rightWidth}px) / 2)`, transform: 'translateX(-50%)', width: `min(800px, calc(100vw - ${leftWidth}px - ${rightWidth}px - 32px))`, ...font }}>
       <div style={{
         background: 'var(--bg-elevated)',
         backdropFilter: 'blur(40px) saturate(180%)',
@@ -189,7 +189,7 @@ export default function DayDetailPanel({ day, days, places, categories = [], tri
             </div>
             {!collapsed && formattedDate && <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 1 }}>{formattedDate}</div>}
           </div>
-          <button onClick={(e) => { e.stopPropagation(); toggleCollapse() }} title={collapsed ? 'Expand' : 'Collapse'}
+          <button onClick={(e) => { e.stopPropagation(); toggleCollapse() }} title={collapsed ? t('common.expand') : t('common.collapse')}
             style={{ background: 'var(--bg-secondary)', border: 'none', borderRadius: 10, width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0, transition: 'all 0.15s ease' }}
             onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-hover)'}
             onMouseLeave={e => e.currentTarget.style.background = 'var(--bg-secondary)'}>

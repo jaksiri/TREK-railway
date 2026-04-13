@@ -100,7 +100,7 @@ describe('FilesPage', () => {
         expect(screen.getByTestId('file-manager')).toBeInTheDocument();
       });
 
-      expect(screen.getByText(/2 Dateien/)).toBeInTheDocument();
+      expect(screen.getByText(/2 files for/i)).toBeInTheDocument();
     });
   });
 
@@ -205,7 +205,7 @@ describe('FilesPage', () => {
         expect(screen.getByTestId('file-manager')).toBeInTheDocument();
       });
 
-      expect(screen.getByRole('heading', { name: /Dateien & Dokumente/i })).toBeInTheDocument();
+      expect(screen.getByRole('heading', { name: /Files & Documents/i })).toBeInTheDocument();
     });
   });
 });

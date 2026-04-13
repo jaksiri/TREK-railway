@@ -13,15 +13,20 @@ import {
   getCountries as getHolidayCountries, getHolidays,
 } from '../../services/vacayService';
 import { isAddonEnabled } from '../../services/adminService';
+import { ADDON_IDS } from '../../addons';
 import {
   TOOL_ANNOTATIONS_READONLY, TOOL_ANNOTATIONS_WRITE,
   TOOL_ANNOTATIONS_DELETE, TOOL_ANNOTATIONS_NON_IDEMPOTENT,
   demoDenied, ok,
 } from './_shared';
+import { canRead, canWrite } from '../scopes';
 
-export function registerVacayTools(server: McpServer, userId: number): void {
-  if (isAddonEnabled('vacay')) {
-    server.registerTool(
+export function registerVacayTools(server: McpServer, userId: number, scopes: string[] | null): void {
+  const R = canRead(scopes, 'vacay');
+  const W = canWrite(scopes, 'vacay');
+
+  if (isAddonEnabled(ADDON_IDS.VACAY)) {
+    if (R) server.registerTool(
       'get_vacay_plan',
       {
         description: "Get the current user's active vacation plan (own or joined).",
@@ -34,7 +39,7 @@ export function registerVacayTools(server: McpServer, userId: number): void {
       }
     );
 
-    server.registerTool(
+    if (W) server.registerTool(
       'update_vacay_plan',
       {
         description: 'Update vacation plan settings (weekends blocking, holidays, carry-over).',
@@ -55,7 +60,7 @@ export function registerVacayTools(server: McpServer, userId: number): void {
       }
     );
 
-    server.registerTool(
+    if (W) server.registerTool(
       'set_vacay_color',
       {
         description: "Set the current user's color in the vacation plan calendar.",
@@ -72,7 +77,7 @@ export function registerVacayTools(server: McpServer, userId: number): void {
       }
     );
 
-    server.registerTool(
+    if (R) server.registerTool(
       'get_available_vacay_users',
       {
         description: 'List users who can be invited to the current vacation plan.',
@@ -86,7 +91,7 @@ export function registerVacayTools(server: McpServer, userId: number): void {
       }
     );
 
-    server.registerTool(
+    if (W) server.registerTool(
       'send_vacay_invite',
       {
         description: 'Invite a user to join the vacation plan by their user ID.',
@@ -106,7 +111,7 @@ export function registerVacayTools(server: McpServer, userId: number): void {
       }
     );
 
-    server.registerTool(
+    if (W) server.registerTool(
       'accept_vacay_invite',
       {
         description: 'Accept a pending invitation to join another user\'s vacation plan.',
@@ -123,7 +128,7 @@ export function registerVacayTools(server: McpServer, userId: number): void {
       }
     );
 
-    server.registerTool(
+    if (W) server.registerTool(
       'decline_vacay_invite',
       {
         description: 'Decline a pending vacation plan invitation.',
@@ -138,7 +143,7 @@ export function registerVacayTools(server: McpServer, userId: number): void {
       }
     );
 
-    server.registerTool(
+    if (W) server.registerTool(
       'cancel_vacay_invite',
       {
         description: 'Cancel an outgoing invitation (owner cancels invite they sent).',
@@ -155,7 +160,7 @@ export function registerVacayTools(server: McpServer, userId: number): void {
       }
     );
 
-    server.registerTool(
+    if (W) server.registerTool(
       'dissolve_vacay_plan',
       {
         description: 'Dissolve the shared plan — all members are removed and everyone returns to their own individual plan.',
@@ -169,7 +174,7 @@ export function registerVacayTools(server: McpServer, userId: number): void {
       }
     );
 
-    server.registerTool(
+    if (R) server.registerTool(
       'list_vacay_years',
       {
         description: 'List calendar years tracked in the current vacation plan.',
@@ -183,7 +188,7 @@ export function registerVacayTools(server: McpServer, userId: number): void {
       }
     );
 
-    server.registerTool(
+    if (W) server.registerTool(
       'add_vacay_year',
       {
         description: 'Add a calendar year to the vacation plan.',
@@ -200,7 +205,7 @@ export function registerVacayTools(server: McpServer, userId: number): void {
       }
     );
 
-    server.registerTool(
+    if (W) server.registerTool(
       'delete_vacay_year',
       {
         description: 'Remove a calendar year from the vacation plan.',
@@ -217,7 +222,7 @@ export function registerVacayTools(server: McpServer, userId: number): void {
       }
     );
 
-    server.registerTool(
+    if (R) server.registerTool(
       'get_vacay_entries',
       {
         description: 'Get all vacation day entries for a plan and year.',
@@ -233,7 +238,7 @@ export function registerVacayTools(server: McpServer, userId: number): void {
       }
     );
 
-    server.registerTool(
+    if (W) server.registerTool(
       'toggle_vacay_entry',
       {
         description: 'Toggle a day on or off as a vacation day for the current user.',
@@ -250,7 +255,7 @@ export function registerVacayTools(server: McpServer, userId: number): void {
       }
     );
 
-    server.registerTool(
+    if (W) server.registerTool(
       'toggle_company_holiday',
       {
         description: 'Toggle a date as a company holiday for the whole plan.',
@@ -268,7 +273,7 @@ export function registerVacayTools(server: McpServer, userId: number): void {
       }
     );
 
-    server.registerTool(
+    if (R) server.registerTool(
       'get_vacay_stats',
       {
         description: 'Get vacation statistics for a specific year (days used, remaining, carried over).',
@@ -284,7 +289,7 @@ export function registerVacayTools(server: McpServer, userId: number): void {
       }
     );
 
-    server.registerTool(
+    if (W) server.registerTool(
       'update_vacay_stats',
       {
         description: 'Update the vacation day allowance for a specific user and year.',
@@ -302,7 +307,7 @@ export function registerVacayTools(server: McpServer, userId: number): void {
       }
     );
 
-    server.registerTool(
+    if (W) server.registerTool(
       'add_holiday_calendar',
       {
         description: 'Add a public holiday calendar (by region code) to the vacation plan.',
@@ -322,7 +327,7 @@ export function registerVacayTools(server: McpServer, userId: number): void {
       }
     );
 
-    server.registerTool(
+    if (W) server.registerTool(
       'update_holiday_calendar',
       {
         description: 'Update label or color for a holiday calendar.',
@@ -342,7 +347,7 @@ export function registerVacayTools(server: McpServer, userId: number): void {
       }
     );
 
-    server.registerTool(
+    if (W) server.registerTool(
       'delete_holiday_calendar',
       {
         description: 'Remove a holiday calendar from the vacation plan.',
@@ -359,7 +364,7 @@ export function registerVacayTools(server: McpServer, userId: number): void {
       }
     );
 
-    server.registerTool(
+    if (R) server.registerTool(
       'list_holiday_countries',
       {
         description: 'List countries available for public holiday calendars.',
@@ -373,7 +378,7 @@ export function registerVacayTools(server: McpServer, userId: number): void {
       }
     );
 
-    server.registerTool(
+    if (R) server.registerTool(
       'list_holidays',
       {
         description: 'List public holidays for a country and year.',

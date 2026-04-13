@@ -90,6 +90,7 @@ export default defineConfig({
   ],
   build: {
     sourcemap: false,
+    modulePreload: { polyfill: false },
   },
   server: {
     port: 5173,

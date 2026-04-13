@@ -41,7 +41,7 @@ import { createApp } from '../../src/app';
 import { createTables } from '../../src/db/schema';
 import { runMigrations } from '../../src/db/migrations';
 import { resetTestDb } from '../helpers/test-db';
-import { createUser, createTrip, createBudgetItem, addTripMember } from '../helpers/factories';
+import { createUser, createTrip, createBudgetItem, addTripMember, createReservation } from '../helpers/factories';
 import { authCookie } from '../helpers/auth';
 import { loginAttempts, mfaAttempts } from '../../src/routes/auth';
 
@@ -357,5 +357,171 @@ describe('Budget summary and settlement', () => {
     expect(res.status).toBe(200);
     expect(res.body.balances).toEqual([]);
     expect(res.body.flows).toEqual([]);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Reorder items
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('Reorder budget items', () => {
+  it('BUDGET-011 — non-member gets 404 on PUT /reorder/items', async () => {
+    const { user: owner } = createUser(testDb);
+    const { user: other } = createUser(testDb);
+    const trip = createTrip(testDb, owner.id);
+    const item = createBudgetItem(testDb, trip.id);
+
+    const res = await request(app)
+      .put(`/api/trips/${trip.id}/budget/reorder/items`)
+      .set('Cookie', authCookie(other.id))
+      .send({ orderedIds: [item.id] });
+    expect(res.status).toBe(404);
+  });
+
+  it('BUDGET-012 — member without permission gets 403 on PUT /reorder/items', async () => {
+    const { user: owner } = createUser(testDb);
+    const { user: member } = createUser(testDb);
+    const trip = createTrip(testDb, owner.id);
+    addTripMember(testDb, trip.id, member.id);
+    const item = createBudgetItem(testDb, trip.id);
+
+    // Restrict budget_edit to trip_owner only
+    testDb.prepare("INSERT OR REPLACE INTO app_settings (key, value) VALUES ('perm_budget_edit', 'trip_owner')").run();
+    const { invalidatePermissionsCache } = await import('../../src/services/permissions');
+    invalidatePermissionsCache();
+
+    const res = await request(app)
+      .put(`/api/trips/${trip.id}/budget/reorder/items`)
+      .set('Cookie', authCookie(member.id))
+      .send({ orderedIds: [item.id] });
+    expect(res.status).toBe(403);
+
+    // Restore default
+    testDb.prepare("DELETE FROM app_settings WHERE key = 'perm_budget_edit'").run();
+    invalidatePermissionsCache();
+  });
+
+  it('BUDGET-013 — owner can reorder budget items — returns 200', async () => {
+    const { user } = createUser(testDb);
+    const trip = createTrip(testDb, user.id);
+    const item1 = createBudgetItem(testDb, trip.id, { name: 'First' });
+    const item2 = createBudgetItem(testDb, trip.id, { name: 'Second' });
+
+    const res = await request(app)
+      .put(`/api/trips/${trip.id}/budget/reorder/items`)
+      .set('Cookie', authCookie(user.id))
+      .send({ orderedIds: [item2.id, item1.id] });
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Reorder categories
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('Reorder budget categories', () => {
+  it('BUDGET-014 — non-member gets 404 on PUT /reorder/categories', async () => {
+    const { user: owner } = createUser(testDb);
+    const { user: other } = createUser(testDb);
+    const trip = createTrip(testDb, owner.id);
+
+    const res = await request(app)
+      .put(`/api/trips/${trip.id}/budget/reorder/categories`)
+      .set('Cookie', authCookie(other.id))
+      .send({ orderedCategories: ['Transport'] });
+    expect(res.status).toBe(404);
+  });
+
+  it('BUDGET-015 — owner can reorder categories — returns 200', async () => {
+    const { user } = createUser(testDb);
+    const trip = createTrip(testDb, user.id);
+    createBudgetItem(testDb, trip.id, { name: 'Flight', category: 'Transport' });
+    createBudgetItem(testDb, trip.id, { name: 'Hotel', category: 'Accommodation' });
+
+    const res = await request(app)
+      .put(`/api/trips/${trip.id}/budget/reorder/categories`)
+      .set('Cookie', authCookie(user.id))
+      .send({ orderedCategories: ['Accommodation', 'Transport'] });
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Reservation price sync
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('Reservation price sync on budget item update', () => {
+  it('BUDGET-016 — updating total_price syncs to linked reservation metadata', async () => {
+    const { user } = createUser(testDb);
+    const trip = createTrip(testDb, user.id);
+    const reservation = createReservation(testDb, trip.id, { title: 'Hotel Booking', type: 'hotel' });
+
+    // Create a budget item linked to the reservation
+    const result = testDb.prepare(
+      'INSERT INTO budget_items (trip_id, name, category, total_price, reservation_id) VALUES (?, ?, ?, ?, ?)'
+    ).run(trip.id, 'Hotel Cost', 'Accommodation', 200, reservation.id);
+    const itemId = result.lastInsertRowid as number;
+
+    const res = await request(app)
+      .put(`/api/trips/${trip.id}/budget/${itemId}`)
+      .set('Cookie', authCookie(user.id))
+      .send({ total_price: 350 });
+    expect(res.status).toBe(200);
+    expect(res.body.item.total_price).toBe(350);
+
+    // Verify reservation metadata was synced
+    const updatedReservation = testDb.prepare('SELECT metadata FROM reservations WHERE id = ?').get(reservation.id) as { metadata: string | null } | undefined;
+    expect(updatedReservation).toBeDefined();
+    const meta = JSON.parse(updatedReservation!.metadata || '{}');
+    expect(meta.price).toBe('350');
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Permission check — non-owner member trying to edit (when locked to trip_owner)
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('Budget edit permission enforcement', () => {
+  it('BUDGET-017 — member cannot create item when budget_edit is restricted to trip_owner', async () => {
+    const { user: owner } = createUser(testDb);
+    const { user: member } = createUser(testDb);
+    const trip = createTrip(testDb, owner.id);
+    addTripMember(testDb, trip.id, member.id);
+
+    const { invalidatePermissionsCache } = await import('../../src/services/permissions');
+    testDb.prepare("INSERT OR REPLACE INTO app_settings (key, value) VALUES ('perm_budget_edit', 'trip_owner')").run();
+    invalidatePermissionsCache();
+
+    const res = await request(app)
+      .post(`/api/trips/${trip.id}/budget`)
+      .set('Cookie', authCookie(member.id))
+      .send({ name: 'Sneaky Expense', total_price: 100 });
+    expect(res.status).toBe(403);
+
+    testDb.prepare("DELETE FROM app_settings WHERE key = 'perm_budget_edit'").run();
+    invalidatePermissionsCache();
+  });
+
+  it('BUDGET-018 — member cannot reorder categories when budget_edit is restricted to trip_owner', async () => {
+    const { user: owner } = createUser(testDb);
+    const { user: member } = createUser(testDb);
+    const trip = createTrip(testDb, owner.id);
+    addTripMember(testDb, trip.id, member.id);
+    createBudgetItem(testDb, trip.id, { name: 'Item', category: 'Transport' });
+
+    const { invalidatePermissionsCache } = await import('../../src/services/permissions');
+    testDb.prepare("INSERT OR REPLACE INTO app_settings (key, value) VALUES ('perm_budget_edit', 'trip_owner')").run();
+    invalidatePermissionsCache();
+
+    const res = await request(app)
+      .put(`/api/trips/${trip.id}/budget/reorder/categories`)
+      .set('Cookie', authCookie(member.id))
+      .send({ orderedCategories: ['Transport'] });
+    expect(res.status).toBe(403);
+
+    testDb.prepare("DELETE FROM app_settings WHERE key = 'perm_budget_edit'").run();
+    invalidatePermissionsCache();
   });
 });

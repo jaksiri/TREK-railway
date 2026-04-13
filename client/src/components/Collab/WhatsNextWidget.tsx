@@ -16,12 +16,13 @@ function formatTime(timeStr, is12h) {
 }
 
 function formatDayLabel(date, t, locale) {
-  const d = new Date(date + 'T00:00:00')
   const now = new Date()
-  const tomorrow = new Date(); tomorrow.setDate(now.getDate() + 1)
+  const nowDate = now.toISOString().split('T')[0]
+  const tomorrowUtc = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1))
+  const tomorrowDate = tomorrowUtc.toISOString().split('T')[0]
 
-  if (d.toDateString() === now.toDateString()) return t('collab.whatsNext.today') || 'Today'
-  if (d.toDateString() === tomorrow.toDateString()) return t('collab.whatsNext.tomorrow') || 'Tomorrow'
+  if (date === nowDate) return t('collab.whatsNext.today') || 'Today'
+  if (date === tomorrowDate) return t('collab.whatsNext.tomorrow') || 'Tomorrow'
 
   return new Date(date + 'T00:00:00Z').toLocaleDateString(locale || undefined, { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' })
 }

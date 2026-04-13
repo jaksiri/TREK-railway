@@ -7,16 +7,23 @@ import {
   markRegionVisited, unmarkRegionVisited, getCountryPlaces, updateBucketItem,
 } from '../../services/atlasService';
 import { isAddonEnabled } from '../../services/adminService';
+import { ADDON_IDS } from '../../addons';
 import {
   TOOL_ANNOTATIONS_WRITE, TOOL_ANNOTATIONS_DELETE, TOOL_ANNOTATIONS_NON_IDEMPOTENT,
   TOOL_ANNOTATIONS_READONLY,
   demoDenied, ok,
 } from './_shared';
+import { canRead, canWrite } from '../scopes';
 
-export function registerAtlasTools(server: McpServer, userId: number): void {
+export function registerAtlasTools(server: McpServer, userId: number, scopes: string[] | null): void {
+  const R = canRead(scopes, 'atlas');
+  const W = canWrite(scopes, 'atlas');
+
+  if (!isAddonEnabled(ADDON_IDS.ATLAS)) return;
+
   // --- BUCKET LIST ---
 
-  server.registerTool(
+  if (W) server.registerTool(
     'create_bucket_list_item',
     {
       description: 'Add a destination to your personal travel bucket list.',
@@ -36,7 +43,7 @@ export function registerAtlasTools(server: McpServer, userId: number): void {
     }
   );
 
-  server.registerTool(
+  if (W) server.registerTool(
     'delete_bucket_list_item',
     {
       description: 'Remove an item from your travel bucket list.',
@@ -55,7 +62,7 @@ export function registerAtlasTools(server: McpServer, userId: number): void {
 
   // --- ATLAS ---
 
-  server.registerTool(
+  if (W) server.registerTool(
     'mark_country_visited',
     {
       description: 'Mark a country as visited in your Atlas.',
@@ -71,7 +78,7 @@ export function registerAtlasTools(server: McpServer, userId: number): void {
     }
   );
 
-  server.registerTool(
+  if (W) server.registerTool(
     'unmark_country_visited',
     {
       description: 'Remove a country from your visited countries in Atlas.',
@@ -89,8 +96,7 @@ export function registerAtlasTools(server: McpServer, userId: number): void {
 
   // --- ATLAS EXPANDED ---
 
-  if (isAddonEnabled('atlas')) {
-    server.registerTool(
+  if (R) server.registerTool(
       'get_atlas_stats',
       {
         description: 'Get atlas statistics — total visited countries, region counts, continent breakdown.',
@@ -103,7 +109,7 @@ export function registerAtlasTools(server: McpServer, userId: number): void {
       }
     );
 
-    server.registerTool(
+    if (R) server.registerTool(
       'list_visited_regions',
       {
         description: 'List all manually visited sub-country regions for the current user.',
@@ -116,7 +122,7 @@ export function registerAtlasTools(server: McpServer, userId: number): void {
       }
     );
 
-    server.registerTool(
+    if (W) server.registerTool(
       'mark_region_visited',
       {
         description: 'Mark a sub-country region as visited.',
@@ -135,7 +141,7 @@ export function registerAtlasTools(server: McpServer, userId: number): void {
       }
     );
 
-    server.registerTool(
+    if (W) server.registerTool(
       'unmark_region_visited',
       {
         description: 'Remove a region from the visited list.',
@@ -151,7 +157,7 @@ export function registerAtlasTools(server: McpServer, userId: number): void {
       }
     );
 
-    server.registerTool(
+    if (R) server.registerTool(
       'get_country_atlas_places',
       {
         description: 'Get places saved in the user\'s atlas for a specific country.',
@@ -166,7 +172,7 @@ export function registerAtlasTools(server: McpServer, userId: number): void {
       }
     );
 
-    server.registerTool(
+    if (W) server.registerTool(
       'update_bucket_list_item',
       {
         description: 'Update a bucket list item (notes, name, target date, location).',
@@ -188,5 +194,4 @@ export function registerAtlasTools(server: McpServer, userId: number): void {
         return ok({ item });
       }
     );
-  }
 }

@@ -32,11 +32,14 @@ import budgetRoutes from './routes/budget';
 import collabRoutes from './routes/collab';
 import backupRoutes from './routes/backup';
 import oidcRoutes from './routes/oidc';
+import { oauthPublicRouter, oauthApiRouter } from './routes/oauth';
 import vacayRoutes from './routes/vacay';
 import atlasRoutes from './routes/atlas';
 import memoriesRoutes from './routes/memories/unified';
 import notificationRoutes from './routes/notifications';
 import shareRoutes from './routes/share';
+import journeyRoutes from './routes/journey';
+import journeyPublicRoutes from './routes/journeyPublic';
 import { mcpHandler } from './mcp';
 import { Addon } from './types';
 import { getPhotoProviderConfig } from './services/memories/helpersService';
@@ -142,9 +145,10 @@ export function createApp(): express.Application {
     });
   }
 
-  // Static: avatars and covers are public
+  // Static: avatars, covers, and journey photos
   app.use('/uploads/avatars', express.static(path.join(__dirname, '../uploads/avatars')));
   app.use('/uploads/covers', express.static(path.join(__dirname, '../uploads/covers')));
+  app.use('/uploads/journey', express.static(path.join(__dirname, '../uploads/journey')));
 
   // Photos require auth or valid share token
   app.get('/uploads/photos/:filename', (req: Request, res: Response) => {
@@ -204,7 +208,7 @@ export function createApp(): express.Application {
       ORDER BY sort_order, id
     `).all() as Array<{ id: string; name: string; icon: string; enabled: number; sort_order: number }>;
     const fields = db.prepare(`
-      SELECT provider_id, field_key, label, input_type, placeholder, required, secret, settings_key, payload_key, sort_order
+      SELECT provider_id, field_key, label, input_type, placeholder, hint, required, secret, settings_key, payload_key, sort_order
       FROM photo_provider_fields
       ORDER BY sort_order, id
     `).all() as Array<{
@@ -213,6 +217,7 @@ export function createApp(): express.Application {
       label: string;
       input_type: string;
       placeholder?: string | null;
+      hint?: string | null;
       required: number;
       secret: number;
       settings_key?: string | null;
@@ -242,6 +247,7 @@ export function createApp(): express.Application {
             label: f.label,
             input_type: f.input_type,
             placeholder: f.placeholder || '',
+            hint: f.hint || null,
             required: !!f.required,
             secret: !!f.secret,
             settings_key: f.settings_key || null,
@@ -256,6 +262,8 @@ export function createApp(): express.Application {
   // Addon routes
   app.use('/api/addons/vacay', vacayRoutes);
   app.use('/api/addons/atlas', atlasRoutes);
+  app.use('/api/journeys', journeyRoutes);
+  app.use('/api/public/journey', journeyPublicRoutes);
   app.use('/api/integrations/memories', memoriesRoutes);
   app.use('/api/maps', mapsRoutes);
   app.use('/api/weather', weatherRoutes);
@@ -263,6 +271,11 @@ export function createApp(): express.Application {
   app.use('/api/backup', backupRoutes);
   app.use('/api/notifications', notificationRoutes);
   app.use('/api', shareRoutes);
+
+  // OAuth 2.1 — public endpoints (/.well-known, /oauth/token, /oauth/revoke)
+  app.use('/', oauthPublicRouter);
+  // OAuth 2.1 — SPA-facing authenticated endpoints (/api/oauth/*)
+  app.use('/api/oauth', oauthApiRouter);
 
   // MCP endpoint
   app.post('/mcp', mcpHandler);

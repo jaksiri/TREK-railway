@@ -528,4 +528,150 @@ describe('MCP token management', () => {
     expect(res.status).toBe(200);
     expect(Array.isArray(res.body.tokens)).toBe(true);
   });
+
+  it('ADMIN-024 — DELETE /admin/mcp-tokens/:id returns 404 for missing token', async () => {
+    const { user: admin } = createAdmin(testDb);
+
+    const res = await request(app)
+      .delete('/api/admin/mcp-tokens/99999')
+      .set('Cookie', authCookie(admin.id));
+    expect(res.status).toBe(404);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// OAuth sessions
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('OAuth sessions', () => {
+  it('ADMIN-025 — GET /admin/oauth-sessions returns list', async () => {
+    const { user: admin } = createAdmin(testDb);
+
+    const res = await request(app)
+      .get('/api/admin/oauth-sessions')
+      .set('Cookie', authCookie(admin.id));
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body.sessions)).toBe(true);
+  });
+
+  it('ADMIN-026 — DELETE /admin/oauth-sessions/:id returns 404 for missing session', async () => {
+    const { user: admin } = createAdmin(testDb);
+
+    const res = await request(app)
+      .delete('/api/admin/oauth-sessions/99999')
+      .set('Cookie', authCookie(admin.id));
+    expect(res.status).toBe(404);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// OIDC settings
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('OIDC settings', () => {
+  it('ADMIN-027 — GET /admin/oidc returns OIDC configuration', async () => {
+    const { user: admin } = createAdmin(testDb);
+
+    const res = await request(app)
+      .get('/api/admin/oidc')
+      .set('Cookie', authCookie(admin.id));
+    expect(res.status).toBe(200);
+  });
+
+  it('ADMIN-028 — PUT /admin/oidc updates OIDC settings', async () => {
+    const { user: admin } = createAdmin(testDb);
+
+    const res = await request(app)
+      .put('/api/admin/oidc')
+      .set('Cookie', authCookie(admin.id))
+      .send({ issuer: 'https://accounts.example.com', client_id: 'my-client', oidc_only: false });
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Demo baseline
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('Demo baseline', () => {
+  it('ADMIN-029 — POST /admin/save-demo-baseline returns 404 when DEMO_MODE is not set', async () => {
+    const { user: admin } = createAdmin(testDb);
+
+    const res = await request(app)
+      .post('/api/admin/save-demo-baseline')
+      .set('Cookie', authCookie(admin.id));
+    expect(res.status).toBe(404);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// GitHub releases / version check
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('GitHub releases and version check', () => {
+  it('ADMIN-030 — GET /admin/github-releases returns array (even if GitHub unreachable)', async () => {
+    const { user: admin } = createAdmin(testDb);
+
+    const res = await request(app)
+      .get('/api/admin/github-releases?per_page=5&page=1')
+      .set('Cookie', authCookie(admin.id));
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body)).toBe(true);
+  });
+
+  it('ADMIN-031 — GET /admin/version-check returns version info', async () => {
+    const { user: admin } = createAdmin(testDb);
+
+    const res = await request(app)
+      .get('/api/admin/version-check')
+      .set('Cookie', authCookie(admin.id));
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveProperty('current');
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Additional list routes
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('Admin list routes', () => {
+  it('ADMIN-032 — GET /admin/invites lists invites', async () => {
+    const { user: admin } = createAdmin(testDb);
+
+    const res = await request(app)
+      .get('/api/admin/invites')
+      .set('Cookie', authCookie(admin.id));
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body.invites)).toBe(true);
+  });
+
+  it('ADMIN-033 — GET /admin/bag-tracking returns bag tracking setting', async () => {
+    const { user: admin } = createAdmin(testDb);
+
+    const res = await request(app)
+      .get('/api/admin/bag-tracking')
+      .set('Cookie', authCookie(admin.id));
+    expect(res.status).toBe(200);
+  });
+
+  it('ADMIN-034 — GET /admin/packing-templates lists templates', async () => {
+    const { user: admin } = createAdmin(testDb);
+
+    const res = await request(app)
+      .get('/api/admin/packing-templates')
+      .set('Cookie', authCookie(admin.id));
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body.templates)).toBe(true);
+  });
+
+  it('ADMIN-035 — GET /admin/addons lists addons', async () => {
+    const { user: admin } = createAdmin(testDb);
+
+    const res = await request(app)
+      .get('/api/admin/addons')
+      .set('Cookie', authCookie(admin.id));
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body.addons)).toBe(true);
+  });
 });

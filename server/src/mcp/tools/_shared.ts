@@ -2,7 +2,7 @@ import { broadcast } from '../../websocket';
 
 export function safeBroadcast(tripId: number, event: string, payload: Record<string, unknown>): void {
   try {
-    broadcast(tripId, event, payload);
+    broadcast(tripId, event, { ...payload, _source: 'mcp' });
   } catch (err) {
     console.error(`[MCP] broadcast failed for ${event}:`, err?.message ?? err);
   }

@@ -85,12 +85,12 @@ export function PhotoUpload({ tripId, days, places, onUpload, onClose }: PhotoUp
         <input {...getInputProps()} />
         <Upload className={`w-10 h-10 mx-auto mb-3 ${isDragActive ? 'text-slate-900' : 'text-gray-400'}`} />
         {isDragActive ? (
-          <p className="text-slate-700 font-medium">Fotos hier ablegen...</p>
+          <p className="text-slate-700 font-medium">{t('photos.dropHere')}</p>
         ) : (
           <>
-            <p className="text-gray-600 font-medium">Fotos hier ablegen</p>
+            <p className="text-gray-600 font-medium">{t('photos.dropHereActive')}</p>
             <p className="text-gray-400 text-sm mt-1">{t('photos.clickToSelect')}</p>
-            <p className="text-gray-400 text-xs mt-2">JPG, PNG, WebP · max. 10 MB · bis zu 30 Fotos</p>
+            <p className="text-gray-400 text-xs mt-2">{t('photos.fileTypeHint')}</p>
           </>
         )}
       </div>
@@ -98,7 +98,7 @@ export function PhotoUpload({ tripId, days, places, onUpload, onClose }: PhotoUp
       {/* Preview grid */}
       {files.length > 0 && (
         <div>
-          <p className="text-sm font-medium text-gray-700 mb-2">{files.length} Foto{files.length !== 1 ? 's' : ''} ausgewählt</p>
+          <p className="text-sm font-medium text-gray-700 mb-2">{files.length} {t(files.length !== 1 ? 'photos.photosSelected' : 'photos.photoSelected')}</p>
           <div className="grid grid-cols-4 sm:grid-cols-6 gap-2 max-h-48 overflow-y-auto">
             {files.map((file, idx) => (
               <div key={idx} className="relative aspect-square group">
@@ -126,15 +126,15 @@ export function PhotoUpload({ tripId, days, places, onUpload, onClose }: PhotoUp
       {files.length > 0 && (
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="block text-xs font-medium text-gray-700 mb-1">Tag verknüpfen</label>
+            <label className="block text-xs font-medium text-gray-700 mb-1">{t('photos.linkDay')}</label>
             <select
               value={dayId}
               onChange={e => setDayId(e.target.value)}
               className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900"
             >
-              <option value="">Kein Tag</option>
+              <option value="">{t('photos.noDay')}</option>
               {(days || []).map(day => (
-                <option key={day.id} value={day.id}>Tag {day.day_number}</option>
+                <option key={day.id} value={day.id}>{t('photos.dayLabel', { number: day.day_number })}</option>
               ))}
             </select>
           </div>
@@ -152,12 +152,12 @@ export function PhotoUpload({ tripId, days, places, onUpload, onClose }: PhotoUp
             </select>
           </div>
           <div className="col-span-2">
-            <label className="block text-xs font-medium text-gray-700 mb-1">Beschriftung (für alle)</label>
+            <label className="block text-xs font-medium text-gray-700 mb-1">{t('photos.captionForAll')}</label>
             <input
               type="text"
               value={caption}
               onChange={e => setCaption(e.target.value)}
-              placeholder="Optionale Beschriftung..."
+              placeholder={t('photos.captionPlaceholder')}
               className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900"
             />
           </div>
@@ -169,7 +169,7 @@ export function PhotoUpload({ tripId, days, places, onUpload, onClose }: PhotoUp
         <div className="bg-slate-50 rounded-lg p-3">
           <div className="flex items-center gap-2 mb-2">
             <div className="w-4 h-4 border-2 border-slate-900 border-t-transparent rounded-full animate-spin" />
-            <span className="text-sm text-slate-900">Wird hochgeladen...</span>
+            <span className="text-sm text-slate-900">{t('common.uploading')}</span>
           </div>
           <div className="w-full bg-slate-200 rounded-full h-1.5">
             <div

@@ -12,11 +12,17 @@ import {
   TOOL_ANNOTATIONS_NON_IDEMPOTENT,
   demoDenied, noAccess, ok,
 } from './_shared';
+import { canWrite } from '../scopes';
+import { isAddonEnabled } from '../../services/adminService';
+import { ADDON_IDS } from '../../addons';
 
-export function registerBudgetTools(server: McpServer, userId: number): void {
+export function registerBudgetTools(server: McpServer, userId: number, scopes: string[] | null): void {
+  const W = canWrite(scopes, 'budget');
+
+  if (isAddonEnabled(ADDON_IDS.BUDGET)) {
   // --- BUDGET ---
 
-  server.registerTool(
+  if (W) server.registerTool(
     'create_budget_item',
     {
       description: 'Add a budget/expense item to a trip.',
@@ -38,7 +44,7 @@ export function registerBudgetTools(server: McpServer, userId: number): void {
     }
   );
 
-  server.registerTool(
+  if (W) server.registerTool(
     'delete_budget_item',
     {
       description: 'Delete a budget item from a trip.',
@@ -60,7 +66,7 @@ export function registerBudgetTools(server: McpServer, userId: number): void {
 
   // --- BUDGET (update) ---
 
-  server.registerTool(
+  if (W) server.registerTool(
     'update_budget_item',
     {
       description: 'Update an existing budget/expense item in a trip.',
@@ -88,7 +94,7 @@ export function registerBudgetTools(server: McpServer, userId: number): void {
 
   // --- BUDGET ADVANCED ---
 
-  server.registerTool(
+  if (W) server.registerTool(
     'set_budget_item_members',
     {
       description: 'Set which trip members are splitting a budget item (replaces current member list).',
@@ -108,7 +114,7 @@ export function registerBudgetTools(server: McpServer, userId: number): void {
     }
   );
 
-  server.registerTool(
+  if (W) server.registerTool(
     'toggle_budget_member_paid',
     {
       description: 'Mark or unmark a member as having paid their share of a budget item.',
@@ -128,4 +134,5 @@ export function registerBudgetTools(server: McpServer, userId: number): void {
       return ok({ member });
     }
   );
+  } // isAddonEnabled(BUDGET)
 }

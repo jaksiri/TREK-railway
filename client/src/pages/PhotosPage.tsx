@@ -89,8 +89,8 @@ export default function PhotosPage(): React.ReactElement {
 
           <div className="flex items-center justify-between mb-6">
             <div>
-              <h1 className="text-2xl font-bold text-gray-900">Fotos</h1>
-              <p className="text-gray-500 text-sm">{photos.length} Fotos für {trip?.name}</p>
+              <h1 className="text-2xl font-bold text-gray-900">{t('photos.title')}</h1>
+              <p className="text-gray-500 text-sm">{t('photos.subtitle', { count: photos.length, trip: trip?.name })}</p>
             </div>
           </div>
 

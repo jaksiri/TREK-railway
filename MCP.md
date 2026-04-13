@@ -9,6 +9,10 @@ structured API.
 ## Table of Contents
 
 - [Setup](#setup)
+  - [Option A: OAuth 2.1 (recommended)](#option-a-oauth-21-recommended)
+  - [Option B: Static API Token (deprecated)](#option-b-static-api-token-deprecated)
+- [Authentication](#authentication)
+- [OAuth Scopes](#oauth-scopes)
 - [Limitations & Important Notes](#limitations--important-notes)
 - [Resources (read-only)](#resources-read-only)
 - [Tools (read-write)](#tools-read-write)
@@ -22,22 +26,51 @@ structured API.
 ### 1. Enable the MCP addon (admin)
 
 An administrator must first enable the MCP addon from the **Admin Panel > Addons** page. Until enabled, the `/mcp`
-endpoint returns `403 Forbidden` and the MCP section does not appear in user settings.
+endpoint returns `404` and the MCP section does not appear in user settings.
 
-### 2. Create an API token
+### 2. Connect your MCP client
 
-Once MCP is enabled, go to **Settings > MCP Configuration** and create an API token:
+#### Option A: OAuth 2.1 (recommended)
 
-1. Click **Create New Token**
-2. Give it a descriptive name (e.g. "Claude Desktop", "Work laptop")
-3. **Copy the token immediately** — it is shown only once and cannot be recovered
+MCP clients that support OAuth 2.1 (such as Claude Desktop via `mcp-remote`) authenticate automatically. No token
+management required — just provide the server URL:
 
-Each user can create up to **10 tokens**.
+```json
+{
+  "mcpServers": {
+    "trek": {
+      "command": "npx",
+      "args": [
+        "mcp-remote",
+        "https://your-trek-instance.com/mcp"
+      ]
+    }
+  }
+}
+```
 
-### 3. Configure your MCP client
+> The path to `npx` may need to be adjusted for your system (e.g. `C:\PROGRA~1\nodejs\npx.cmd` on Windows).
 
-The Settings page shows a ready-to-copy client configuration snippet. For **Claude Desktop**, add the following to your
-`claude_desktop_config.json`:
+**What happens automatically:**
+1. The client fetches `/.well-known/oauth-authorization-server` to discover the TREK authorization server.
+2. The client registers itself via [Dynamic Client Registration (RFC 7591)](https://www.rfc-editor.org/rfc/rfc7591).
+3. Your browser opens TREK's consent screen, where you choose which scopes (permissions) to grant.
+4. The client receives a short-lived access token and a rotating refresh token — no re-authorization needed.
+
+> **Requirement:** The `APP_URL` environment variable must be set to your TREK instance's public URL for OAuth
+> discovery to work correctly.
+
+**For more control over scopes or to use confidential client mode**, pre-create an OAuth client in
+**Settings > Integrations > MCP > OAuth Clients** before connecting. Clients created there have a client secret
+(`trekcs_` prefix) and fixed scopes that you define up front.
+
+#### Option B: Static API Token (deprecated)
+
+> **Deprecated:** Static API tokens will stop working in a future version. Migrate to OAuth 2.1 above.
+
+1. Go to **Settings > Integrations > MCP** and create an API token.
+2. Click **Create New Token**, give it a name, and **copy the token immediately** — it is shown only once.
+3. Add it to your `claude_desktop_config.json`:
 
 ```json
 {
@@ -55,7 +88,65 @@ The Settings page shows a ready-to-copy client configuration snippet. For **Clau
 }
 ```
 
-> The path to `npx` may need to be adjusted for your system (e.g. `C:\PROGRA~1\nodejs\npx.cmd` on Windows).
+Static tokens grant full access to all tools and resources (no scope restrictions). Sessions authenticated with a
+static token will receive deprecation warnings in the AI client via server instructions and tool results.
+
+Each user can create up to **10 static tokens**.
+
+---
+
+## Authentication
+
+TREK's MCP server supports three authentication methods. OAuth 2.1 is the recommended path for all external clients.
+
+| Method | Token prefix | Access level | TTL | Notes |
+|--------|-------------|-------------|-----|-------|
+| **OAuth 2.1** | `trekoa_` | Scoped (per-consent) | 1 hour | Recommended. Automatically refreshed via 30-day rolling refresh tokens (`trekrf_` prefix). Replay-detected rotation — replayed tokens cascade-revoke the entire chain. |
+| **Static API token** | `trek_` | Full access | No expiry | **Deprecated.** Triggers deprecation warnings in AI clients. Will be removed in a future release. |
+| **Web session JWT** | — | Full access | Session-based | Used internally by the TREK web UI. Not intended for external clients. |
+
+All methods require the `Authorization: Bearer <token>` header (strict scheme enforcement — `Bearer` required).
+
+---
+
+## OAuth Scopes
+
+When connecting via OAuth 2.1, you grant specific scopes during the consent step. TREK registers only the MCP tools
+that match your granted scopes for that session.
+
+| Scope | Permission | Group |
+|-------|-----------|-------|
+| `trips:read` | View trips & itineraries | Trips |
+| `trips:write` | Edit trips & itineraries | Trips |
+| `trips:delete` | Delete trips (irreversible) | Trips |
+| `trips:share` | Manage share links | Trips |
+| `places:read` | View places & map data | Places |
+| `places:write` | Manage places | Places |
+| `atlas:read` | View Atlas | Atlas |
+| `atlas:write` | Manage Atlas | Atlas |
+| `packing:read` | View packing lists | Packing |
+| `packing:write` | Manage packing lists | Packing |
+| `todos:read` | View to-do lists | To-dos |
+| `todos:write` | Manage to-do lists | To-dos |
+| `budget:read` | View budget | Budget |
+| `budget:write` | Manage budget | Budget |
+| `reservations:read` | View reservations | Reservations |
+| `reservations:write` | Manage reservations | Reservations |
+| `collab:read` | View collaboration | Collaboration |
+| `collab:write` | Manage collaboration | Collaboration |
+| `notifications:read` | View notifications | Notifications |
+| `notifications:write` | Manage notifications | Notifications |
+| `vacay:read` | View vacation plans | Vacation |
+| `vacay:write` | Manage vacation plans | Vacation |
+| `geo:read` | Maps & geocoding | Geo |
+| `weather:read` | Weather forecasts | Weather |
+
+**Scope rules:**
+- A `:write` scope implies `:read` access for the same group (e.g. `budget:write` also grants budget read access).
+- Any `trips:*` scope (`trips:read`, `trips:write`, `trips:delete`, or `trips:share`) grants trip read access.
+- `list_trips` and `get_trip_summary` are **always available** regardless of scopes — they are navigation tools.
+- Static tokens and web session JWTs have full access to all tools (equivalent to all scopes).
+- Addon-gated tools (Atlas Extended, Collab, Vacay) require both the relevant scope **and** the addon to be enabled.
 
 ---
 
@@ -68,10 +159,13 @@ The Settings page shows a ready-to-copy client configuration snippet. For **Clau
 | **No image uploads**                    | Cover images cannot be set through MCP. Use the web UI to upload trip covers.                                                                    |
 | **Reservations are created as pending** | When the AI creates a reservation, it starts with `pending` status. You must confirm it manually or ask the AI to set the status to `confirmed`. |
 | **Demo mode restrictions**              | If TREK is running in demo mode, all write operations through MCP are blocked.                                                                   |
-| **Rate limiting**                       | 60 requests per minute per user. Exceeding this returns a `429` error.                                                                           |
-| **Session limits**                      | Maximum 5 concurrent MCP sessions per user. Sessions expire after 1 hour of inactivity.                                                          |
-| **Token limits**                        | Maximum 10 API tokens per user.                                                                                                                  |
-| **Token revocation**                    | Deleting a token immediately terminates all active MCP sessions for that user.                                                                   |
+| **Rate limiting**                       | 300 requests per minute per user (configurable via `MCP_RATE_LIMIT`). Exceeding this returns a `429` error.                                     |
+| **Per-client rate limiting**            | Rate limits are tracked per user-client pair, so each OAuth client has its own independent rate limit window.                                    |
+| **Session limits**                      | Maximum 20 concurrent MCP sessions per user (configurable via `MCP_MAX_SESSION_PER_USER`). Sessions expire after 1 hour of inactivity.          |
+| **Token limits**                        | Maximum 10 static API tokens per user. Maximum 10 OAuth clients per user.                                                                        |
+| **Token revocation**                    | Deleting a static token or revoking an OAuth session immediately terminates all active MCP sessions for that token/client.                       |
+| **OAuth scope enforcement**             | Only tools matching your granted OAuth scopes are registered in the session. Calling an out-of-scope tool returns an error.                      |
+| **Addon toggle invalidation**           | When an admin enables or disables an addon, all active MCP sessions are invalidated and must be re-established.                                  |
 | **Real-time sync**                      | Changes made through MCP are broadcast to all connected clients in real-time via WebSocket, just like changes made through the web UI.           |
 | **Addon-gated features**                | Some resources and tools are only available when the corresponding addon (Atlas, Collab, Vacay) is enabled by an admin.                          |
 
@@ -356,11 +450,12 @@ trip in a single call.
 
 MCP prompts are pre-built context loaders your AI client can invoke to get a structured starting point for common tasks.
 
-| Prompt            | Description                                                                     |
-|-------------------|---------------------------------------------------------------------------------|
-| `trip-summary`    | Load a formatted summary of a trip (dates, members, days, budget, packing, reservations) before planning or modifying it. |
-| `packing-list`    | Get a formatted packing checklist for a trip, grouped by category.              |
-| `budget-overview` | Get a formatted budget summary with totals by category and per-person cost.     |
+| Prompt               | Description                                                                     |
+|----------------------|---------------------------------------------------------------------------------|
+| `trip-summary`       | Load a formatted summary of a trip (dates, members, days, budget, packing, reservations) before planning or modifying it. |
+| `packing-list`       | Get a formatted packing checklist for a trip, grouped by category.              |
+| `budget-overview`    | Get a formatted budget summary with totals by category and per-person cost.     |
+| `token_auth_notice`  | Static token deprecation notice and migration guide. Only available in sessions authenticated with a legacy `trek_` token. |
 
 ---
 

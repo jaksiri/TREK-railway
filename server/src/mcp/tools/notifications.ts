@@ -11,11 +11,15 @@ import {
   TOOL_ANNOTATIONS_DELETE, TOOL_ANNOTATIONS_NON_IDEMPOTENT,
   demoDenied, ok,
 } from './_shared';
+import { canRead, canWrite } from '../scopes';
 
-export function registerNotificationTools(server: McpServer, userId: number): void {
+export function registerNotificationTools(server: McpServer, userId: number, scopes: string[] | null): void {
+  const R = canRead(scopes, 'notifications');
+  const W = canWrite(scopes, 'notifications');
+
   // --- NOTIFICATIONS ---
 
-  server.registerTool(
+  if (R) server.registerTool(
     'list_notifications',
     {
       description: 'List in-app notifications for the current user.',
@@ -32,7 +36,7 @@ export function registerNotificationTools(server: McpServer, userId: number): vo
     }
   );
 
-  server.registerTool(
+  if (R) server.registerTool(
     'get_unread_notification_count',
     {
       description: 'Get the number of unread in-app notifications.',
@@ -45,7 +49,7 @@ export function registerNotificationTools(server: McpServer, userId: number): vo
     }
   );
 
-  server.registerTool(
+  if (W) server.registerTool(
     'mark_notification_read',
     {
       description: 'Mark a single notification as read.',
@@ -62,7 +66,7 @@ export function registerNotificationTools(server: McpServer, userId: number): vo
     }
   );
 
-  server.registerTool(
+  if (W) server.registerTool(
     'mark_notification_unread',
     {
       description: 'Mark a single notification as unread.',
@@ -79,7 +83,7 @@ export function registerNotificationTools(server: McpServer, userId: number): vo
     }
   );
 
-  server.registerTool(
+  if (W) server.registerTool(
     'mark_all_notifications_read',
     {
       description: "Mark all of the current user's notifications as read.",

@@ -105,7 +105,7 @@ export default function TodoListPanel({ tripId, items }: { tripId: number; items
     if (!name || categories.includes(name)) { setAddingCategory(false); setNewCategoryName(''); return }
     addTodoItem(tripId, { name: t('todo.newItem'), category: name } as any)
       .then(() => { setAddingCategory(false); setNewCategoryName(''); setFilter(name) })
-      .catch(err => toast.error(err instanceof Error ? err.message : 'Error'))
+      .catch(err => toast.error(err instanceof Error ? err.message : t('common.error')))
   }
 
   // Get category count (non-done items)
@@ -479,7 +479,7 @@ function DetailPane({ item, tripId, categories, members, onClose }: {
         due_date: dueDate || null, category: category || null,
         assigned_user_id: assignedUserId, priority,
       } as any)
-    } catch (err: unknown) { toast.error(err instanceof Error ? err.message : 'Error') }
+    } catch (err: unknown) { toast.error(err instanceof Error ? err.message : t('common.error')) }
     setSaving(false)
   }
 
@@ -487,7 +487,7 @@ function DetailPane({ item, tripId, categories, members, onClose }: {
     try {
       await deleteTodoItem(tripId, item.id)
       onClose()
-    } catch (err: unknown) { toast.error(err instanceof Error ? err.message : 'Error') }
+    } catch (err: unknown) { toast.error(err instanceof Error ? err.message : t('common.error')) }
   }
 
   const labelStyle: React.CSSProperties = { fontSize: 12, fontWeight: 500, color: 'var(--text-secondary)', marginBottom: 4, display: 'block' }
@@ -663,7 +663,7 @@ function NewTaskPane({ tripId, categories, members, defaultCategory, onCreated, 
         assigned_user_id: assignedUserId,
       } as any)
       if (item?.id) onCreated(item.id)
-    } catch (err: unknown) { toast.error(err instanceof Error ? err.message : 'Error') }
+    } catch (err: unknown) { toast.error(err instanceof Error ? err.message : t('common.error')) }
     setSaving(false)
   }
 

@@ -16,11 +16,19 @@ import {
   TOOL_ANNOTATIONS_NON_IDEMPOTENT,
   demoDenied, noAccess, ok,
 } from './_shared';
+import { canRead, canWrite } from '../scopes';
+import { isAddonEnabled } from '../../services/adminService';
+import { ADDON_IDS } from '../../addons';
 
-export function registerPackingTools(server: McpServer, userId: number): void {
+export function registerPackingTools(server: McpServer, userId: number, scopes: string[] | null): void {
+  const R = canRead(scopes, 'packing');
+  const W = canWrite(scopes, 'packing');
+
+  if (!isAddonEnabled(ADDON_IDS.PACKING)) return;
+
   // --- PACKING ---
 
-  server.registerTool(
+  if (W) server.registerTool(
     'create_packing_item',
     {
       description: 'Add an item to the packing checklist for a trip.',
@@ -40,7 +48,7 @@ export function registerPackingTools(server: McpServer, userId: number): void {
     }
   );
 
-  server.registerTool(
+  if (W) server.registerTool(
     'toggle_packing_item',
     {
       description: 'Check or uncheck a packing item.',
@@ -61,7 +69,7 @@ export function registerPackingTools(server: McpServer, userId: number): void {
     }
   );
 
-  server.registerTool(
+  if (W) server.registerTool(
     'delete_packing_item',
     {
       description: 'Remove an item from the packing checklist.',
@@ -83,7 +91,7 @@ export function registerPackingTools(server: McpServer, userId: number): void {
 
   // --- PACKING (update) ---
 
-  server.registerTool(
+  if (W) server.registerTool(
     'update_packing_item',
     {
       description: 'Rename a packing item or change its category.',
@@ -108,7 +116,7 @@ export function registerPackingTools(server: McpServer, userId: number): void {
 
   // --- PACKING ADVANCED ---
 
-  server.registerTool(
+  if (W) server.registerTool(
     'reorder_packing_items',
     {
       description: 'Set the display order of packing items within a trip.',
@@ -127,7 +135,7 @@ export function registerPackingTools(server: McpServer, userId: number): void {
     }
   );
 
-  server.registerTool(
+  if (R) server.registerTool(
     'list_packing_bags',
     {
       description: 'List all packing bags for a trip.',
@@ -143,7 +151,7 @@ export function registerPackingTools(server: McpServer, userId: number): void {
     }
   );
 
-  server.registerTool(
+  if (W) server.registerTool(
     'create_packing_bag',
     {
       description: 'Create a new packing bag (e.g. "Carry-on", "Checked bag").',
@@ -163,7 +171,7 @@ export function registerPackingTools(server: McpServer, userId: number): void {
     }
   );
 
-  server.registerTool(
+  if (W) server.registerTool(
     'update_packing_bag',
     {
       description: 'Rename or recolor a packing bag.',
@@ -188,7 +196,7 @@ export function registerPackingTools(server: McpServer, userId: number): void {
     }
   );
 
-  server.registerTool(
+  if (W) server.registerTool(
     'delete_packing_bag',
     {
       description: 'Delete a packing bag (items in the bag are unassigned, not deleted).',
@@ -207,7 +215,7 @@ export function registerPackingTools(server: McpServer, userId: number): void {
     }
   );
 
-  server.registerTool(
+  if (W) server.registerTool(
     'set_bag_members',
     {
       description: 'Assign trip members to a packing bag (determines who packs what bag).',
@@ -227,7 +235,7 @@ export function registerPackingTools(server: McpServer, userId: number): void {
     }
   );
 
-  server.registerTool(
+  if (R) server.registerTool(
     'get_packing_category_assignees',
     {
       description: 'Get which trip members are assigned to each packing category.',
@@ -243,7 +251,7 @@ export function registerPackingTools(server: McpServer, userId: number): void {
     }
   );
 
-  server.registerTool(
+  if (W) server.registerTool(
     'set_packing_category_assignees',
     {
       description: 'Assign trip members to a packing category.',
@@ -263,7 +271,7 @@ export function registerPackingTools(server: McpServer, userId: number): void {
     }
   );
 
-  server.registerTool(
+  if (W) server.registerTool(
     'apply_packing_template',
     {
       description: 'Apply a packing template to a trip (adds items from the template).',
@@ -283,7 +291,7 @@ export function registerPackingTools(server: McpServer, userId: number): void {
     }
   );
 
-  server.registerTool(
+  if (W) server.registerTool(
     'save_packing_template',
     {
       description: 'Save the current packing list as a reusable template.',
@@ -301,7 +309,7 @@ export function registerPackingTools(server: McpServer, userId: number): void {
     }
   );
 
-  server.registerTool(
+  if (W) server.registerTool(
     'bulk_import_packing',
     {
       description: 'Import multiple packing items at once from a list.',

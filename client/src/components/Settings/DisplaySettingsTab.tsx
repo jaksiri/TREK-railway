@@ -34,7 +34,7 @@ export default function DisplaySettingsTab(): React.ReactElement {
                 onClick={async () => {
                   try {
                     await updateSetting('dark_mode', opt.value)
-                  } catch (e: unknown) { toast.error(e instanceof Error ? e.message : 'Error') }
+                  } catch (e: unknown) { toast.error(e instanceof Error ? e.message : t('common.error')) }
                 }}
                 style={{
                   display: 'flex', alignItems: 'center', gap: 6,
@@ -63,7 +63,7 @@ export default function DisplaySettingsTab(): React.ReactElement {
               key={opt.value}
               onClick={async () => {
                 try { await updateSetting('language', opt.value) }
-                catch (e: unknown) { toast.error(e instanceof Error ? e.message : 'Error') }
+                catch (e: unknown) { toast.error(e instanceof Error ? e.message : t('common.error')) }
               }}
               style={{
                 display: 'flex', alignItems: 'center', gap: 8,
@@ -94,7 +94,7 @@ export default function DisplaySettingsTab(): React.ReactElement {
               onClick={async () => {
                 setTempUnit(opt.value)
                 try { await updateSetting('temperature_unit', opt.value) }
-                catch (e: unknown) { toast.error(e instanceof Error ? e.message : 'Error') }
+                catch (e: unknown) { toast.error(e instanceof Error ? e.message : t('common.error')) }
               }}
               style={{
                 display: 'flex', alignItems: 'center', gap: 8,
@@ -124,7 +124,7 @@ export default function DisplaySettingsTab(): React.ReactElement {
               key={opt.value}
               onClick={async () => {
                 try { await updateSetting('time_format', opt.value) }
-                catch (e: unknown) { toast.error(e instanceof Error ? e.message : 'Error') }
+                catch (e: unknown) { toast.error(e instanceof Error ? e.message : t('common.error')) }
               }}
               style={{
                 display: 'flex', alignItems: 'center', gap: 8,
@@ -154,7 +154,7 @@ export default function DisplaySettingsTab(): React.ReactElement {
               key={String(opt.value)}
               onClick={async () => {
                 try { await updateSetting('route_calculation', opt.value) }
-                catch (e: unknown) { toast.error(e instanceof Error ? e.message : 'Error') }
+                catch (e: unknown) { toast.error(e instanceof Error ? e.message : t('common.error')) }
               }}
               style={{
                 display: 'flex', alignItems: 'center', gap: 8,
@@ -184,7 +184,7 @@ export default function DisplaySettingsTab(): React.ReactElement {
               key={String(opt.value)}
               onClick={async () => {
                 try { await updateSetting('blur_booking_codes', opt.value) }
-                catch (e: unknown) { toast.error(e instanceof Error ? e.message : 'Error') }
+                catch (e: unknown) { toast.error(e instanceof Error ? e.message : t('common.error')) }
               }}
               style={{
                 display: 'flex', alignItems: 'center', gap: 8,

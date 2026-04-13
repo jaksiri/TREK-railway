@@ -10,11 +10,15 @@ import {
   TOOL_ANNOTATIONS_DELETE, TOOL_ANNOTATIONS_NON_IDEMPOTENT,
   demoDenied, noAccess, ok,
 } from './_shared';
+import { canRead, canWrite } from '../scopes';
 
-export function registerPlaceTools(server: McpServer, userId: number): void {
+export function registerPlaceTools(server: McpServer, userId: number, scopes: string[] | null): void {
+  const R = canRead(scopes, 'places');
+  const W = canWrite(scopes, 'places');
+
   // --- PLACES ---
 
-  server.registerTool(
+  if (W) server.registerTool(
     'create_place',
     {
       description: 'Add a new place/POI to a trip. Set google_place_id or osm_id (from search_place) so the app can show opening hours and ratings.',
@@ -43,7 +47,7 @@ export function registerPlaceTools(server: McpServer, userId: number): void {
     }
   );
 
-  server.registerTool(
+  if (W) server.registerTool(
     'update_place',
     {
       description: 'Update an existing place in a trip.',
@@ -80,7 +84,7 @@ export function registerPlaceTools(server: McpServer, userId: number): void {
     }
   );
 
-  server.registerTool(
+  if (W) server.registerTool(
     'delete_place',
     {
       description: 'Delete a place from a trip.',
@@ -100,7 +104,7 @@ export function registerPlaceTools(server: McpServer, userId: number): void {
     }
   );
 
-  server.registerTool(
+  if (R) server.registerTool(
     'list_places',
     {
       description: 'List all places/POIs in a trip, optionally filtered by assignment status. Use assignment=unassigned to find orphan activities not yet scheduled on any day.',
@@ -122,7 +126,7 @@ export function registerPlaceTools(server: McpServer, userId: number): void {
 
   // --- CATEGORIES ---
 
-  server.registerTool(
+  if (R) server.registerTool(
     'list_categories',
     {
       description: 'List all available place categories with their id, name, icon and color. Use category_id when creating or updating places.',
@@ -137,7 +141,7 @@ export function registerPlaceTools(server: McpServer, userId: number): void {
 
   // --- SEARCH ---
 
-  server.registerTool(
+  if (R) server.registerTool(
     'search_place',
     {
       description: 'Search for a real-world place by name or address. Returns results with osm_id (and google_place_id if configured). Use these IDs when calling create_place so the app can display opening hours and ratings.',

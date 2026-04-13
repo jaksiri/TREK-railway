@@ -778,7 +778,7 @@ export default function FileManager({ files = [], onUpload, onDelete, onUpdate, 
               title={previewFile.original_name}
             >
               <p style={{ padding: 24, textAlign: 'center', color: 'var(--text-muted)' }}>
-                <button onClick={async () => { const u = await getAuthUrl(previewFile.url, 'download'); window.open(u, '_blank', 'noopener noreferrer') }} style={{ color: 'var(--text-primary)', textDecoration: 'underline', background: 'none', border: 'none', cursor: 'pointer', font: 'inherit' }}>PDF herunterladen</button>
+                <button onClick={async () => { const u = await getAuthUrl(previewFile.url, 'download'); window.open(u, '_blank', 'noopener noreferrer') }} style={{ color: 'var(--text-primary)', textDecoration: 'underline', background: 'none', border: 'none', cursor: 'pointer', font: 'inherit' }}>{t('files.downloadPdf')}</button>
               </p>
             </object>
           </div>

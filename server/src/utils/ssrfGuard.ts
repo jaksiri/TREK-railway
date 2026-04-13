@@ -114,17 +114,25 @@ export class SsrfBlockedError extends Error {
   }
 }
 
+export interface SafeFetchOptions {
+  rejectUnauthorized?: boolean;
+}
+
 /**
  * SSRF-safe fetch wrapper. Validates the URL with checkSsrf(), then makes
  * the request using a DNS-pinned dispatcher so the resolved IP cannot change
  * between the check and the actual connection (DNS rebinding prevention).
+ *
+ * Pass `{ rejectUnauthorized: false }` for targets that use self-signed TLS
+ * certificates (e.g. a Synology NAS on a local network). The SSRF guard still
+ * applies — only the TLS certificate check is relaxed.
  */
-export async function safeFetch(url: string, init?: RequestInit): Promise<Response> {
+export async function safeFetch(url: string, init?: RequestInit, options?: SafeFetchOptions): Promise<Response> {
   const ssrf = await checkSsrf(url);
   if (!ssrf.allowed) {
     throw new SsrfBlockedError(ssrf.error ?? 'Request blocked by SSRF guard');
   }
-  const dispatcher = createPinnedDispatcher(ssrf.resolvedIp!);
+  const dispatcher = createPinnedDispatcher(ssrf.resolvedIp!, options?.rejectUnauthorized ?? true);
   return fetch(url, { ...init, dispatcher } as any);
 }
 
@@ -133,9 +141,10 @@ export async function safeFetch(url: string, init?: RequestInit): Promise<Respon
  * IP. This prevents DNS rebinding (TOCTOU) by ensuring the outbound connection
  * goes to the IP we checked, not a re-resolved one.
  */
-export function createPinnedDispatcher(resolvedIp: string): Agent {
+export function createPinnedDispatcher(resolvedIp: string, rejectUnauthorized = true): Agent {
   return new Agent({
     connect: {
+      rejectUnauthorized,
       lookup: (_hostname: string, opts: Record<string, unknown>, callback: Function) => {
         const family = resolvedIp.includes(':') ? 6 : 4;
         // Node.js 18+ may call lookup with `all: true`, expecting an array of address objects
