@@ -910,7 +910,7 @@ export default function TripPlannerPage(): React.ReactElement | null {
         )}
 
         {activeTab === 'buchungen' && (
-          <div style={{ height: '100%', maxWidth: 1200, margin: '0 auto', width: '100%', display: 'flex', flexDirection: 'column', overflowY: 'auto', overscrollBehavior: 'contain', paddingBottom: 'var(--bottom-nav-h)' }}>
+          <div style={{ height: '100%', maxWidth: 1800, margin: '0 auto', width: '100%', display: 'flex', flexDirection: 'column', overflowY: 'auto', overscrollBehavior: 'contain', paddingBottom: 'var(--bottom-nav-h)' }}>
             <ReservationsPanel
               tripId={tripId}
               reservations={reservations}
