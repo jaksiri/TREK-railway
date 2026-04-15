@@ -161,6 +161,7 @@ services:
       - ENCRYPTION_KEY=${ENCRYPTION_KEY:-} # Recommended. Generate with: openssl rand -hex 32. If unset, falls back to data/.jwt_secret (existing installs) or auto-generates a key (fresh installs).
       - TZ=${TZ:-UTC} # Timezone for logs, reminders and scheduled tasks (e.g. Europe/Berlin)
       - LOG_LEVEL=${LOG_LEVEL:-info} # info = concise user actions; debug = verbose admin-level details
+      # - DEFAULT_LANGUAGE=en # Default language on the login page for users with no saved preference. Browser/OS language is auto-detected first; this is the fallback. Supported: de, en, es, fr, hu, nl, br, cs, pl, ru, zh, zh-TW, it, ar
       - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-} # Comma-separated origins for CORS and email notification links
       # - FORCE_HTTPS=true # Optional. Enables HTTPS redirect, HSTS, CSP upgrade-insecure-requests, and secure cookies behind a TLS proxy
       # - COOKIE_SECURE=false # Escape hatch: force session cookies over plain HTTP even in production. Not recommended.
@@ -309,6 +310,7 @@ trek.yourdomain.com {
 | `ENCRYPTION_KEY` | At-rest encryption key for stored secrets (API keys, MFA, SMTP, OIDC). Recommended: generate with `openssl rand -hex 32`. If unset, falls back to `data/.jwt_secret` (existing installs) or auto-generates a key (fresh installs). | Auto |
 | `TZ` | Timezone for logs, reminders and cron jobs (e.g. `Europe/Berlin`) | `UTC` |
 | `LOG_LEVEL` | `info` = concise user actions, `debug` = verbose details | `info` |
+| `DEFAULT_LANGUAGE` | Default language shown on the login page for users with no saved preference. Browser/OS language is auto-detected first; this is the fallback when no match is found. Supported values: `de`, `en`, `es`, `fr`, `hu`, `nl`, `br`, `cs`, `pl`, `ru`, `zh`, `zh-TW`, `it`, `ar` | `en` |
 | `ALLOWED_ORIGINS` | Comma-separated origins for CORS and email links | same-origin |
 | `FORCE_HTTPS` | Optional. When `true`: 301-redirects HTTP to HTTPS, sends HSTS (`max-age=31536000`), adds CSP `upgrade-insecure-requests`, and forces the session cookie `secure` flag. Only useful behind a TLS-terminating reverse proxy. Requires `TRUST_PROXY` to be set so Express can detect the forwarded protocol. | `false` |
 | `COOKIE_SECURE` | Controls the `secure` flag on the `trek_session` cookie. Auto-derived: secure is on when `NODE_ENV=production` **or** `FORCE_HTTPS=true`. Set to `false` as an escape hatch to allow session cookies over plain HTTP (e.g. LAN testing without TLS). **Not recommended to disable in production.** | auto (`true` in production) |

@@ -19,6 +19,10 @@ env:
   # Timezone for logs, reminders, and cron jobs (e.g. Europe/Berlin).
   # LOG_LEVEL: "info"
   # "info" = concise user actions, "debug" = verbose details.
+  # DEFAULT_LANGUAGE: "en"
+  # Default language on the login page for users with no saved preference.
+  # Browser/OS language is auto-detected first; this is the fallback when no match is found.
+  # Supported: de, en, es, fr, hu, nl, br, cs, pl, ru, zh, zh-TW, it, ar
   # ALLOWED_ORIGINS: ""
   # NOTE: If using ingress, ensure env.ALLOWED_ORIGINS matches the domains in ingress.hosts for proper CORS configuration.
   # APP_URL: "https://trek.example.com"
