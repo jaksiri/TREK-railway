@@ -2240,6 +2240,14 @@ const en: Record<string, string | { name: string; category: string }[]> = {
   'system_notice.v3_features.highlight_search': 'Real-time place search autocomplete',
   'system_notice.v3_features.highlight_import': 'Import places from KMZ/KML files',
 
+  // System notices — MCP OAuth 2.1 upgrade
+  'system_notice.v3_mcp.title': 'MCP: OAuth 2.1 upgrade',
+  'system_notice.v3_mcp.body': 'The MCP integration has been fully overhauled. OAuth 2.1 is now the recommended auth method. Legacy static tokens (trek_\u2026) are deprecated and will be removed in a future release.',
+  'system_notice.v3_mcp.highlight_oauth':      'OAuth 2.1 recommended (mcp-remote)',
+  'system_notice.v3_mcp.highlight_scopes':     '24 fine-grained permission scopes',
+  'system_notice.v3_mcp.highlight_deprecated': 'Static trek_ tokens deprecated',
+  'system_notice.v3_mcp.highlight_tools':      'Expanded toolset & prompts',
+
   // System notices — onboarding
   'system_notice.welcome_v1.title': 'Welcome to TREK',
   'system_notice.welcome_v1.body': 'Your all-in-one travel planner. Build itineraries, share trips with friends, and stay organized — online or offline.',

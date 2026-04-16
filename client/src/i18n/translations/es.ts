@@ -2220,6 +2220,14 @@ const es: Record<string, string> = {
   'system_notice.v3_features.highlight_offline': 'Modo sin conexión completo como PWA',
   'system_notice.v3_features.highlight_search': 'Autocompletado de lugares en tiempo real',
   'system_notice.v3_features.highlight_import': 'Importar lugares desde archivos KMZ/KML',
+
+  // System notices — MCP OAuth 2.1 upgrade
+  'system_notice.v3_mcp.title': 'MCP: actualización OAuth 2.1',
+  'system_notice.v3_mcp.body': 'La integración MCP ha sido completamente renovada. OAuth 2.1 es ahora el método de autenticación recomendado. Los tokens estáticos (trek_…) están obsoletos y se eliminarán en una versión futura.',
+  'system_notice.v3_mcp.highlight_oauth':      'OAuth 2.1 recomendado (mcp-remote)',
+  'system_notice.v3_mcp.highlight_scopes':     '24 ámbitos de permisos granulares',
+  'system_notice.v3_mcp.highlight_deprecated': 'Tokens estáticos trek_ obsoletos',
+  'system_notice.v3_mcp.highlight_tools':      'Herramientas y prompts ampliados',
 }
 
 export default es

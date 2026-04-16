@@ -58,7 +58,30 @@ export const SYSTEM_NOTICES: SystemNotice[] = [
   },
 
   {
-    // Page 3 — other highlights
+    // Page 3 — MCP OAuth 2.1 upgrade (only when MCP addon is enabled)
+    id: 'v3-mcp',
+    display: 'modal',
+    severity: 'warn',
+    icon: 'Bot',
+    titleKey: 'system_notice.v3_mcp.title',
+    bodyKey:  'system_notice.v3_mcp.body',
+    highlights: [
+      { labelKey: 'system_notice.v3_mcp.highlight_oauth',      iconName: 'KeyRound' },
+      { labelKey: 'system_notice.v3_mcp.highlight_scopes',     iconName: 'ShieldCheck' },
+      { labelKey: 'system_notice.v3_mcp.highlight_deprecated', iconName: 'AlertTriangle' },
+      { labelKey: 'system_notice.v3_mcp.highlight_tools',      iconName: 'Wrench' },
+    ],
+    dismissible: true,
+    conditions: [
+      { kind: 'existingUserBeforeVersion', version: '3.0.0' },
+      { kind: 'addonEnabled', addonId: 'mcp' },
+    ],
+    publishedAt: '2026-04-16T00:00:00Z',
+    priority: 75,
+  },
+
+  {
+    // Page 4 — other highlights
     id: 'v3-features',
     display: 'modal',
     severity: 'info',

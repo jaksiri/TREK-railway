@@ -2256,6 +2256,14 @@ const id: Record<string, string | { name: string; category: string }[]> = {
   'system_notice.v3_features.highlight_offline': 'Mode offline penuh sebagai PWA',
   'system_notice.v3_features.highlight_search': 'Pelengkapan otomatis tempat secara real-time',
   'system_notice.v3_features.highlight_import': 'Impor tempat dari file KMZ/KML',
+
+  // System notices — MCP OAuth 2.1 upgrade
+  'system_notice.v3_mcp.title': 'MCP: pembaruan OAuth 2.1',
+  'system_notice.v3_mcp.body': 'Integrasi MCP telah sepenuhnya diperbarui. OAuth 2.1 kini menjadi metode autentikasi yang direkomendasikan. Token statis (trek_…) sudah usang dan akan dihapus pada versi mendatang.',
+  'system_notice.v3_mcp.highlight_oauth':      'OAuth 2.1 direkomendasikan (mcp-remote)',
+  'system_notice.v3_mcp.highlight_scopes':     '24 cakupan izin yang terperinci',
+  'system_notice.v3_mcp.highlight_deprecated': 'Token statis trek_ sudah usang',
+  'system_notice.v3_mcp.highlight_tools':      'Perangkat dan prompt yang diperluas',
 };
 
 export default id;

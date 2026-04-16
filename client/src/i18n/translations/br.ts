@@ -2214,6 +2214,14 @@ const br: Record<string, string | { name: string; category: string }[]> = {
   'system_notice.v3_features.highlight_offline': 'Modo offline completo como PWA',
   'system_notice.v3_features.highlight_search': 'Autocompleção de lugares em tempo real',
   'system_notice.v3_features.highlight_import': 'Importar lugares de arquivos KMZ/KML',
+
+  // System notices — MCP OAuth 2.1 upgrade
+  'system_notice.v3_mcp.title': 'MCP: atualização OAuth 2.1',
+  'system_notice.v3_mcp.body': 'A integração MCP foi completamente reformulada. OAuth 2.1 agora é o método de autenticação recomendado. Tokens estáticos (trek_…) foram descontinuados e serão removidos em uma versão futura.',
+  'system_notice.v3_mcp.highlight_oauth':      'OAuth 2.1 recomendado (mcp-remote)',
+  'system_notice.v3_mcp.highlight_scopes':     '24 escopos de permissão granulares',
+  'system_notice.v3_mcp.highlight_deprecated': 'Tokens estáticos trek_ descontinuados',
+  'system_notice.v3_mcp.highlight_tools':      'Conjunto de ferramentas e prompts expandido',
 }
 
 export default br

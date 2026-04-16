@@ -2214,6 +2214,14 @@ const ru: Record<string, string> = {
   'system_notice.v3_features.highlight_offline': 'Полный офлайн-режим как PWA',
   'system_notice.v3_features.highlight_search': 'Автодополнение поиска мест в реальном времени',
   'system_notice.v3_features.highlight_import': 'Импорт мест из KMZ/KML-файлов',
+
+  // System notices — MCP OAuth 2.1 upgrade
+  'system_notice.v3_mcp.title': 'MCP: обновление OAuth 2.1',
+  'system_notice.v3_mcp.body': 'Интеграция MCP была полностью переработана. OAuth 2.1 теперь является рекомендуемым методом аутентификации. Статические токены (trek_…) устарели и будут удалены в будущей версии.',
+  'system_notice.v3_mcp.highlight_oauth':      'OAuth 2.1 рекомендуется (mcp-remote)',
+  'system_notice.v3_mcp.highlight_scopes':     '24 детальных области разрешений',
+  'system_notice.v3_mcp.highlight_deprecated': 'Статические токены trek_ устарели',
+  'system_notice.v3_mcp.highlight_tools':      'Расширенный набор инструментов',
 }
 
 export default ru

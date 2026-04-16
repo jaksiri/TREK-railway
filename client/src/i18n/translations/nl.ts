@@ -2214,6 +2214,14 @@ const nl: Record<string, string> = {
   'system_notice.v3_features.highlight_offline': 'Volledige offline modus als PWA',
   'system_notice.v3_features.highlight_search': 'Realtime plaatsautocomplete',
   'system_notice.v3_features.highlight_import': 'Importeer plaatsen uit KMZ/KML-bestanden',
+
+  // System notices — MCP OAuth 2.1 upgrade
+  'system_notice.v3_mcp.title': 'MCP: OAuth 2.1-upgrade',
+  'system_notice.v3_mcp.body': 'De MCP-integratie is volledig vernieuwd. OAuth 2.1 is nu de aanbevolen authenticatiemethode. Statische tokens (trek_…) zijn verouderd en worden verwijderd in een toekomstige versie.',
+  'system_notice.v3_mcp.highlight_oauth':      'OAuth 2.1 aanbevolen (mcp-remote)',
+  'system_notice.v3_mcp.highlight_scopes':     '24 gedetailleerde toestemmingsscopes',
+  'system_notice.v3_mcp.highlight_deprecated': 'Statische trek_-tokens verouderd',
+  'system_notice.v3_mcp.highlight_tools':      'Uitgebreide tools & prompts',
 }
 
 export default nl

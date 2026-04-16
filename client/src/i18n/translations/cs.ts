@@ -2218,6 +2218,14 @@ const cs: Record<string, string | { name: string; category: string }[]> = {
   'system_notice.v3_features.highlight_offline': 'Plný offline režim jako PWA',
   'system_notice.v3_features.highlight_search': 'Autodoplňování vyhledávání míst',
   'system_notice.v3_features.highlight_import': 'Import míst ze souborů KMZ/KML',
+
+  // System notices — MCP OAuth 2.1 upgrade
+  'system_notice.v3_mcp.title': 'MCP: aktualizace OAuth 2.1',
+  'system_notice.v3_mcp.body': 'Integrace MCP byla kompletně přepracována. OAuth 2.1 je nyní doporučenou metodou ověřování. Statické tokeny (trek_…) jsou zastaralé a budou v budoucí verzi odstraněny.',
+  'system_notice.v3_mcp.highlight_oauth':      'OAuth 2.1 doporučeno (mcp-remote)',
+  'system_notice.v3_mcp.highlight_scopes':     '24 jemnozrnných oprávnění',
+  'system_notice.v3_mcp.highlight_deprecated': 'Statické tokeny trek_ zastaralé',
+  'system_notice.v3_mcp.highlight_tools':      'Rozšířená sada nástrojů a promptů',
 }
 
 export default cs

@@ -2215,6 +2215,14 @@ const zhTw: Record<string, string> = {
   'system_notice.v3_features.highlight_offline': '作為 PWA 的完整離線模式',
   'system_notice.v3_features.highlight_search': '地點搜尋即時自動補全',
   'system_notice.v3_features.highlight_import': '從 KMZ/KML 檔案匯入地點',
+
+  // System notices — MCP OAuth 2.1 upgrade
+  'system_notice.v3_mcp.title': 'MCP：OAuth 2.1 升級',
+  'system_notice.v3_mcp.body': 'MCP 整合已全面重構。OAuth 2.1 現為建議的身份驗證方式。靜態令牌（trek_…）已棄用，將於未來版本移除。',
+  'system_notice.v3_mcp.highlight_oauth':      'OAuth 2.1 建議（mcp-remote）',
+  'system_notice.v3_mcp.highlight_scopes':     '24 個細粒度權限範圍',
+  'system_notice.v3_mcp.highlight_deprecated': '靜態 trek_ 令牌已棄用',
+  'system_notice.v3_mcp.highlight_tools':      '擴展工具集與提示詞',
 }
 
 export default zhTw
