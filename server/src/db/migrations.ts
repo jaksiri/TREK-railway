@@ -1673,6 +1673,15 @@ function runMigrations(db: Database.Database): void {
           )
       `);
     }},
+    // Migration 108: Disk cache metadata for remote-provider photo thumbnails (Immich / Synology)
+    () => db.exec(`
+      CREATE TABLE IF NOT EXISTS trek_photo_cache_meta (
+        cache_key  TEXT    PRIMARY KEY,
+        content_type TEXT  NOT NULL DEFAULT 'image/jpeg',
+        fetched_at INTEGER NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_trek_photo_cache_meta_fetched_at ON trek_photo_cache_meta (fetched_at);
+    `),
   ];
 
   if (currentVersion < migrations.length) {

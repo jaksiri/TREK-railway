@@ -230,6 +230,30 @@ export async function getAssetInfo(
   }
 }
 
+export async function fetchImmichThumbnailBytes(
+  userId: number,
+  assetId: string,
+  ownerUserId?: number
+): Promise<{ bytes: Buffer; contentType: string } | { error: string; status: number }> {
+  const effectiveUserId = ownerUserId ?? userId;
+  const creds = getImmichCredentials(effectiveUserId);
+  if (!creds) return { error: 'Not found', status: 404 };
+
+  const url = `${creds.immich_url}/api/assets/${assetId}/thumbnail?size=thumbnail`;
+  try {
+    const resp = await safeFetch(url, {
+      headers: { 'x-api-key': creds.immich_api_key },
+      signal: AbortSignal.timeout(10000) as any,
+    });
+    if (!resp.ok) return { error: 'Upstream error', status: resp.status };
+    const contentType = resp.headers.get('content-type') || 'image/jpeg';
+    const bytes = Buffer.from(await resp.arrayBuffer());
+    return { bytes, contentType };
+  } catch {
+    return { error: 'Proxy error', status: 502 };
+  }
+}
+
 export async function streamImmichAsset(
   response: Response,
   userId: number,

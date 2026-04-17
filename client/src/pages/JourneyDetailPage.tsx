@@ -164,6 +164,12 @@ export default function JourneyDetailPage() {
     setActiveLocationId(id)
   }, [])
 
+  useEffect(() => {
+    if (view === 'map') {
+      requestAnimationFrame(() => fullMapRef.current?.invalidateSize())
+    }
+  }, [view])
+
   const mapEntries = useMemo(
     () => (current?.entries || []).filter(e => e.location_lat && e.location_lng),
     [current?.entries]
@@ -413,8 +419,8 @@ export default function JourneyDetailPage() {
               </div>
 
               {/* Timeline (desktop only — mobile uses fullscreen combined view above) */}
-              {!isMobile && view === 'timeline' && (
-                <div className="flex flex-col gap-6 pb-24 md:pb-6">
+              {!isMobile && (
+                <div className={`flex flex-col gap-6 pb-24 md:pb-6${view === 'timeline' ? '' : ' hidden'}`}>
                   {sortedDates.length === 0 && (
                     <div className="text-center py-16">
                       <div className="w-16 h-16 rounded-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center mx-auto mb-4">
@@ -469,7 +475,7 @@ export default function JourneyDetailPage() {
               )}
 
               {/* Gallery View */}
-              {view === 'gallery' && (
+              <div className={view === 'gallery' ? '' : 'hidden'}>
                 <GalleryView
                   entries={current.entries}
                   journeyId={current.id}
@@ -478,17 +484,21 @@ export default function JourneyDetailPage() {
                   onPhotoClick={(photos, idx) => setLightbox({ photos: photos.map(p => ({ id: p.id, src: photoUrl(p, 'original'), caption: p.caption, provider: p.provider, asset_id: p.asset_id, owner_id: p.owner_id })), index: idx })}
                   onRefresh={() => loadJourney(Number(id))}
                 />
-              )}
+              </div>
 
               {/* Full Map View (desktop only — mobile uses combined view) */}
-              {!isMobile && view === 'map' && <div className="pb-24 md:pb-6"><MapView
-                entries={current.entries}
-                mapEntries={mapEntries}
-                sortedDates={sortedDates}
-                activeLocationId={activeLocationId}
-                fullMapRef={fullMapRef}
-                onLocationClick={handleLocationClick}
-              /></div>}
+              {!isMobile && (
+                <div className={`pb-24 md:pb-6${view === 'map' ? '' : ' hidden'}`}>
+                  <MapView
+                    entries={current.entries}
+                    mapEntries={mapEntries}
+                    sortedDates={sortedDates}
+                    activeLocationId={activeLocationId}
+                    fullMapRef={fullMapRef}
+                    onLocationClick={handleLocationClick}
+                  />
+                </div>
+              )}
             </div>
 
             {/* Right sidebar — hidden on mobile */}

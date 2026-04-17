@@ -14,6 +14,7 @@ export interface MapMarkerItem {
 export interface JourneyMapHandle {
   highlightMarker: (id: string | null) => void
   focusMarker: (id: string) => void
+  invalidateSize: () => void
 }
 
 interface MapEntry {
@@ -151,7 +152,11 @@ const JourneyMap = forwardRef<JourneyMapHandle, Props>(function JourneyMap(
     }
   }, [])
 
-  useImperativeHandle(ref, () => ({ highlightMarker, focusMarker }), [])
+  const invalidateSize = useCallback(() => {
+    try { mapRef.current?.invalidateSize() } catch { /* map not yet initialized */ }
+  }, [])
+
+  useImperativeHandle(ref, () => ({ highlightMarker, focusMarker, invalidateSize }), [])
 
   useEffect(() => {
     if (!containerRef.current) return

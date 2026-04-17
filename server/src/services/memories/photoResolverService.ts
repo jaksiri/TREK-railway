@@ -3,11 +3,12 @@ import path from 'path';
 import fs from 'fs';
 import { db } from '../../db/database';
 import type { TrekPhoto } from '../../types';
-import { streamImmichAsset, getAssetInfo as getImmichAssetInfo } from './immichService';
-import { streamSynologyAsset, getSynologyAssetInfo } from './synologyService';
+import { streamImmichAsset, fetchImmichThumbnailBytes, getAssetInfo as getImmichAssetInfo } from './immichService';
+import { streamSynologyAsset, fetchSynologyThumbnailBytes, getSynologyAssetInfo } from './synologyService';
 import type { ServiceResult, AssetInfo } from './helpersService';
 import { fail, success } from './helpersService';
 import { encrypt_api_key, decrypt_api_key } from '../apiKeyCrypto';
+import * as photoCache from './trekPhotoCache';
 
 // ── Lookup / Register ────────────────────────────────────────────────────
 
@@ -57,6 +58,36 @@ export function resolveTrekPhoto(photoId: number): TrekPhoto | null {
 
 // ── Streaming ────────────────────────────────────────────────────────────
 
+async function streamCachedThumbnail(
+  res: Response,
+  photo: TrekPhoto,
+  fetchBytes: () => Promise<{ bytes: Buffer; contentType: string } | { error: string; status: number }>,
+  fallback: () => Promise<unknown>,
+): Promise<void> {
+  const key = photoCache.cacheKey(photo.provider!, photo.asset_id!, 'thumbnail', photo.owner_id!);
+
+  if (photoCache.serveFresh(res, key)) return;
+
+  const existing = photoCache.getInFlight(key);
+  if (existing) {
+    const bytes = await existing;
+    if (bytes && photoCache.serveFresh(res, key)) return;
+    await fallback();
+    return;
+  }
+
+  const promise = fetchBytes().then(async result => {
+    if ('error' in result) return null;
+    await photoCache.put(key, result.bytes, result.contentType);
+    return result.bytes;
+  });
+  photoCache.setInFlight(key, promise);
+
+  const bytes = await promise;
+  if (bytes && photoCache.serveFresh(res, key)) return;
+  await fallback();
+}
+
 export async function streamPhoto(
   res: Response,
   userId: number,
@@ -84,11 +115,27 @@ export async function streamPhoto(
       return;
     }
     case 'immich': {
+      if (kind === 'thumbnail') {
+        await streamCachedThumbnail(
+          res, photo,
+          () => fetchImmichThumbnailBytes(userId, photo.asset_id!, photo.owner_id!),
+          () => streamImmichAsset(res, userId, photo.asset_id!, kind, photo.owner_id!),
+        );
+        return;
+      }
       await streamImmichAsset(res, userId, photo.asset_id!, kind, photo.owner_id!);
       return;
     }
     case 'synologyphotos': {
       const passphrase = photo.passphrase ? (decrypt_api_key(photo.passphrase) || undefined) : undefined;
+      if (kind === 'thumbnail') {
+        await streamCachedThumbnail(
+          res, photo,
+          () => fetchSynologyThumbnailBytes(userId, photo.owner_id!, photo.asset_id!, passphrase),
+          () => streamSynologyAsset(res, userId, photo.owner_id!, photo.asset_id!, kind, undefined, passphrase),
+        );
+        return;
+      }
       await streamSynologyAsset(res, userId, photo.owner_id!, photo.asset_id!, kind, undefined, passphrase);
       return;
     }

@@ -248,12 +248,36 @@ function startIdempotencyCleanup(): void {
   }, { timezone: tz });
 }
 
+// Trek photo cache cleanup: every 2 hours — evict disk files and DB rows past their 1h TTL
+let trekPhotoCacheTask: ScheduledTask | null = null;
+
+function startTrekPhotoCacheCleanup(): void {
+  if (trekPhotoCacheTask) { trekPhotoCacheTask.stop(); trekPhotoCacheTask = null; }
+
+  // Run once immediately on startup to evict any entries left over from a previous run
+  try {
+    const { sweepExpired } = require('./services/memories/trekPhotoCache');
+    sweepExpired();
+  } catch { /* cache dir may not exist yet — harmless */ }
+
+  trekPhotoCacheTask = cron.schedule('0 */2 * * *', () => {
+    try {
+      const { sweepExpired } = require('./services/memories/trekPhotoCache');
+      sweepExpired();
+    } catch (err: unknown) {
+      const { logError: le } = require('./services/auditLog');
+      le(`Trek photo cache cleanup: ${err instanceof Error ? err.message : err}`);
+    }
+  });
+}
+
 function stop(): void {
   if (currentTask) { currentTask.stop(); currentTask = null; }
   if (demoTask) { demoTask.stop(); demoTask = null; }
   if (reminderTask) { reminderTask.stop(); reminderTask = null; }
   if (versionCheckTask) { versionCheckTask.stop(); versionCheckTask = null; }
   if (idempotencyCleanupTask) { idempotencyCleanupTask.stop(); idempotencyCleanupTask = null; }
+  if (trekPhotoCacheTask) { trekPhotoCacheTask.stop(); trekPhotoCacheTask = null; }
 }
 
-export { start, stop, startDemoReset, startTripReminders, startVersionCheck, startIdempotencyCleanup, loadSettings, saveSettings, VALID_INTERVALS };
+export { start, stop, startDemoReset, startTripReminders, startVersionCheck, startIdempotencyCleanup, startTrekPhotoCacheCleanup, loadSettings, saveSettings, VALID_INTERVALS };
