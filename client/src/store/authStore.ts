@@ -34,6 +34,8 @@ interface AuthState {
   appRequireMfa: boolean
   tripRemindersEnabled: boolean
   placesPhotosEnabled: boolean
+  placesAutocompleteEnabled: boolean
+  placesDetailsEnabled: boolean
 
   login: (email: string, password: string) => Promise<LoginResult>
   completeMfaLogin: (mfaToken: string, code: string) => Promise<AuthResponse>
@@ -55,6 +57,8 @@ interface AuthState {
   setAppRequireMfa: (val: boolean) => void
   setTripRemindersEnabled: (val: boolean) => void
   setPlacesPhotosEnabled: (val: boolean) => void
+  setPlacesAutocompleteEnabled: (val: boolean) => void
+  setPlacesDetailsEnabled: (val: boolean) => void
   demoLogin: () => Promise<AuthResponse>
 }
 
@@ -77,6 +81,8 @@ export const useAuthStore = create<AuthState>()(
   appRequireMfa: false,
   tripRemindersEnabled: false,
   placesPhotosEnabled: true,
+  placesAutocompleteEnabled: true,
+  placesDetailsEnabled: true,
 
   login: async (email: string, password: string) => {
     authSequence++
@@ -261,6 +267,8 @@ export const useAuthStore = create<AuthState>()(
   setAppRequireMfa: (val: boolean) => set({ appRequireMfa: val }),
   setTripRemindersEnabled: (val: boolean) => set({ tripRemindersEnabled: val }),
   setPlacesPhotosEnabled: (val: boolean) => set({ placesPhotosEnabled: val }),
+  setPlacesAutocompleteEnabled: (val: boolean) => set({ placesAutocompleteEnabled: val }),
+  setPlacesDetailsEnabled: (val: boolean) => set({ placesDetailsEnabled: val }),
 
   demoLogin: async () => {
     authSequence++

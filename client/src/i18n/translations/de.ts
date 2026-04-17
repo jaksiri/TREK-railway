@@ -551,6 +551,10 @@ const de: Record<string, string | { name: string; category: string }[]> = {
 
   'admin.placesPhotos.title': 'Ortsfotos',
   'admin.placesPhotos.subtitle': 'Fotos von der Google Places API laden. Deaktivieren, um API-Kontingent zu sparen. Wikimedia-Fotos sind davon nicht betroffen.',
+  'admin.placesAutocomplete.title': 'Orts-Autovervollständigung',
+  'admin.placesAutocomplete.subtitle': 'Google Places API für Suchvorschläge nutzen. Deaktivieren, um API-Kontingent zu sparen.',
+  'admin.placesDetails.title': 'Ortsdetails',
+  'admin.placesDetails.subtitle': 'Detaillierte Ortsinformationen (Öffnungszeiten, Bewertung, Website) von der Google Places API laden. Deaktivieren, um API-Kontingent zu sparen.',
   // Packing Templates & Bag Tracking
   'admin.bagTracking.title': 'Gepäck-Tracking',
   'admin.bagTracking.subtitle': 'Gewicht und Gepäckstück-Zuordnung für Packlisteneinträge aktivieren',

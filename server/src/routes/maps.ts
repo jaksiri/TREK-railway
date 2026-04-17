@@ -35,6 +35,9 @@ router.post('/search', authenticate, async (req: Request, res: Response) => {
 
 // POST /autocomplete
 router.post('/autocomplete', authenticate, async (req: Request, res: Response) => {
+  const autocompleteEnabledRow = db.prepare("SELECT value FROM app_settings WHERE key = 'places_autocomplete_enabled'").get() as { value: string } | undefined;
+  if (autocompleteEnabledRow?.value === 'false') return res.status(200).json({ suggestions: [], source: 'disabled' });
+
   const authReq = req as AuthRequest;
   const { input, lang, locationBias } = req.body;
 
@@ -73,6 +76,9 @@ router.post('/autocomplete', authenticate, async (req: Request, res: Response) =
 
 // GET /details/:placeId
 router.get('/details/:placeId', authenticate, async (req: Request, res: Response) => {
+  const detailsEnabledRow = db.prepare("SELECT value FROM app_settings WHERE key = 'places_details_enabled'").get() as { value: string } | undefined;
+  if (detailsEnabledRow?.value === 'false') return res.status(200).json({ place: null, disabled: true });
+
   const authReq = req as AuthRequest;
   const { placeId } = req.params;
   const expand = req.query.expand as string | undefined;
