@@ -121,9 +121,9 @@ export default function VacayPersons() {
 
       {/* Invite Modal — Portal to body to avoid z-index issues */}
       {showInvite && ReactDOM.createPortal(
-        <div className="fixed inset-0 flex items-center justify-center px-4" style={{ zIndex: 99990, backgroundColor: 'rgba(15,23,42,0.5)', paddingTop: 70 }}
+        <div className="fixed inset-0 flex items-center justify-center px-4 trek-backdrop-enter" style={{ zIndex: 99990, backgroundColor: 'rgba(15,23,42,0.5)', paddingTop: 70 }}
           onClick={() => setShowInvite(false)}>
-          <div className="rounded-2xl shadow-2xl w-full max-w-sm" style={{ background: 'var(--bg-card)', animation: 'modalIn 0.2s ease-out' }}
+          <div className="trek-modal-enter rounded-2xl shadow-2xl w-full max-w-sm" style={{ background: 'var(--bg-card)' }}
             onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between p-5" style={{ borderBottom: '1px solid var(--border-secondary)' }}>
               <h2 className="text-base font-semibold" style={{ color: 'var(--text-primary)' }}>{t('vacay.inviteUser')}</h2>
@@ -164,9 +164,9 @@ export default function VacayPersons() {
 
       {/* Color Picker Modal — Portal to body */}
       {showColorPicker && ReactDOM.createPortal(
-        <div className="fixed inset-0 flex items-center justify-center px-4" style={{ zIndex: 99990, backgroundColor: 'rgba(15,23,42,0.5)', paddingTop: 70 }}
+        <div className="fixed inset-0 flex items-center justify-center px-4 trek-backdrop-enter" style={{ zIndex: 99990, backgroundColor: 'rgba(15,23,42,0.5)', paddingTop: 70 }}
           onClick={() => { setShowColorPicker(false); setColorEditUserId(null) }}>
-          <div className="rounded-2xl shadow-2xl w-full max-w-xs" style={{ background: 'var(--bg-card)', animation: 'modalIn 0.2s ease-out' }}
+          <div className="trek-modal-enter rounded-2xl shadow-2xl w-full max-w-xs" style={{ background: 'var(--bg-card)' }}
             onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between p-5" style={{ borderBottom: '1px solid var(--border-secondary)' }}>
               <h2 className="text-base font-semibold" style={{ color: 'var(--text-primary)' }}>{t('vacay.changeColor')}</h2>
@@ -178,7 +178,7 @@ export default function VacayPersons() {
               <div className="flex flex-wrap gap-2 justify-center">
                 {PRESET_COLORS.map(c => (
                   <button key={c} onClick={() => handleColorChange(c)}
-                    className={`w-8 h-8 rounded-full transition-all ${editingUserColor === c ? 'ring-2 ring-offset-2 scale-110' : 'hover:scale-110'}`}
+                    className={`w-8 h-8 rounded-full transition-transform duration-150 ease-[cubic-bezier(0.23,1,0.32,1)] ${editingUserColor === c ? 'ring-2 ring-offset-2 scale-110' : 'hover:scale-110'}`}
                     style={{ backgroundColor: c }} />
                 ))}
               </div>

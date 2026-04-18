@@ -50,7 +50,7 @@ export default function Modal({
 
   return (
     <div
-      className="fixed inset-0 z-[200] flex items-start sm:items-center justify-center px-4 modal-backdrop"
+      className="fixed inset-0 z-[200] flex items-start sm:items-center justify-center px-4 modal-backdrop trek-backdrop-enter"
       style={{ backgroundColor: 'rgba(15, 23, 42, 0.5)', paddingTop: 70, paddingBottom: 'calc(20px + var(--bottom-nav-h))', overflow: 'hidden' }}
       onMouseDown={e => { mouseDownTarget.current = e.target }}
       onClick={e => {
@@ -60,14 +60,11 @@ export default function Modal({
     >
       <div
         className={`
+          trek-modal-enter
           rounded-2xl shadow-2xl w-full ${sizeClasses[size] || sizeClasses.md}
           flex flex-col max-h-[calc(100vh-180px)] md:max-h-[calc(100vh-90px)]
-          animate-in fade-in zoom-in-95 duration-200
         `}
-        style={{
-          animation: 'modalIn 0.2s ease-out forwards',
-          background: 'var(--bg-card)',
-        }}
+        style={{ background: 'var(--bg-card)' }}
         onClick={e => e.stopPropagation()}
       >
         {/* Header */}
@@ -96,12 +93,6 @@ export default function Modal({
         )}
       </div>
 
-      <style>{`
-        @keyframes modalIn {
-          from { opacity: 0; transform: scale(0.95) translateY(-10px); }
-          to { opacity: 1; transform: scale(1) translateY(0); }
-        }
-      `}</style>
     </div>
   )
 }

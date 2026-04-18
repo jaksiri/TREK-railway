@@ -437,7 +437,7 @@ export default function JourneyDetailPage() {
                     const locations = [...new Set(entries.map(e => e.location_name).filter(Boolean))]
 
                     return (
-                      <div key={date} className="flex flex-col gap-3">
+                      <div key={date} className="flex flex-col gap-3 trek-stagger">
                         <div className="sticky top-0 md:top-[68px] z-[5] bg-white/95 dark:bg-zinc-900/95 backdrop-blur border-y md:border border-zinc-200 dark:border-zinc-700 rounded-none md:rounded-xl -mx-4 md:mx-0 px-4 py-3.5 flex items-center justify-between">
                           <div className="flex items-center gap-3">
                             <div className="w-8 h-8 rounded-lg bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 flex items-center justify-center text-[13px] font-bold">
@@ -1251,7 +1251,7 @@ function EntryCard({ entry, onEdit, onDelete, onPhotoClick }: {
   const hasProscons = prosArr.length > 0 || consArr.length > 0
 
   return (
-    <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-2xl overflow-hidden transition-all hover:border-zinc-400 dark:hover:border-zinc-500 hover:shadow-sm">
+    <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-2xl overflow-hidden transition-[border-color,box-shadow] duration-200 ease-[cubic-bezier(0.23,1,0.32,1)] hover:border-zinc-400 dark:hover:border-zinc-500 hover:shadow-sm">
 
       {/* Hero area: photos with title overlay */}
       {photos.length > 0 ? (
@@ -1371,7 +1371,7 @@ function SkeletonCard({ entry, onClick }: { entry: JourneyEntry; onClick: () => 
   return (
     <div
       onClick={onClick}
-      className="bg-white dark:bg-zinc-900 border border-dashed border-zinc-200 dark:border-zinc-700 rounded-xl px-4 py-3.5 flex items-center gap-3 transition-all hover:border-solid hover:border-zinc-400 dark:hover:border-zinc-500 cursor-pointer"
+      className="bg-white dark:bg-zinc-900 border border-dashed border-zinc-200 dark:border-zinc-700 rounded-xl px-4 py-3.5 flex items-center gap-3 transition-[border-color,border-style] duration-150 ease-[cubic-bezier(0.23,1,0.32,1)] hover:border-solid hover:border-zinc-400 dark:hover:border-zinc-500 cursor-pointer"
     >
       <div className="w-9 h-9 rounded-lg bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-zinc-500 flex-shrink-0">
         <MapPin size={14} />
@@ -1395,7 +1395,7 @@ function CheckinCard({ entry, onClick }: { entry: JourneyEntry; onClick: () => v
   return (
     <div
       onClick={onClick}
-      className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-xl px-3.5 py-2.5 flex items-center gap-2.5 transition-all hover:border-zinc-400 dark:hover:border-zinc-500 cursor-pointer"
+      className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-xl px-3.5 py-2.5 flex items-center gap-2.5 transition-colors duration-150 ease-[cubic-bezier(0.23,1,0.32,1)] hover:border-zinc-400 dark:hover:border-zinc-500 cursor-pointer"
     >
       <div className="w-7 h-7 rounded-lg bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 flex items-center justify-center flex-shrink-0">
         <MapPin size={13} />

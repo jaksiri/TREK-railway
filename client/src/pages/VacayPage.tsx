@@ -92,7 +92,7 @@ export default function VacayPage(): React.ReactElement {
         <div className="grid grid-cols-4 gap-1">
           {years.map(y => (
             <div key={y} onClick={() => setSelectedYear(y)}
-              className="group relative py-1.5 rounded-lg text-xs font-medium transition-all text-center cursor-pointer"
+              className="group relative py-1.5 rounded-lg text-xs font-medium transition-[background-color,color] duration-150 ease-[cubic-bezier(0.23,1,0.32,1)] text-center cursor-pointer"
               style={{
                 background: y === selectedYear ? 'var(--text-primary)' : 'var(--bg-secondary)',
                 color: y === selectedYear ? 'var(--bg-card)' : 'var(--text-muted)',
@@ -262,8 +262,8 @@ export default function VacayPage(): React.ReactElement {
         <div className="fixed inset-0 flex items-center justify-center px-4"
           style={{ zIndex: 99995, backgroundColor: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(8px)' }}>
           {incomingInvites.map(inv => (
-            <div key={inv.id} className="w-full max-w-md rounded-2xl shadow-2xl overflow-hidden"
-              style={{ background: 'var(--bg-card)', animation: 'modalIn 0.25s ease-out' }}>
+            <div key={inv.id} className="trek-modal-enter w-full max-w-md rounded-2xl shadow-2xl overflow-hidden"
+              style={{ background: 'var(--bg-card)' }}>
               <div className="px-6 pt-6 pb-4 text-center">
                 <div className="w-14 h-14 rounded-full mx-auto mb-4 flex items-center justify-center text-lg font-bold"
                   style={{ background: 'var(--bg-secondary)', color: 'var(--text-primary)' }}>

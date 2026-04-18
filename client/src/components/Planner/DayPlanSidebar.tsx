@@ -1106,7 +1106,7 @@ const DayPlanSidebar = React.memo(function DayPlanSidebar({
       </div>
 
       {/* Tagesliste */}
-      <div className="scroll-container" style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
+      <div className="scroll-container trek-stagger" style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
         {days.map((day, index) => {
           const isSelected = selectedDayId === day.id
           const isExpanded = expandedDays.has(day.id)
@@ -1575,7 +1575,7 @@ const DayPlanSidebar = React.memo(function DayPlanSidebar({
                                           border: 'none',
                                           background: active ? '#3b82f6' : 'transparent',
                                           color: active ? '#fff' : 'var(--text-faint)',
-                                          transition: 'all 0.12s',
+                                          transition: 'color 120ms cubic-bezier(0.23,1,0.32,1), background 120ms cubic-bezier(0.23,1,0.32,1)',
                                         }}
                                         onMouseEnter={e => { if (!active) e.currentTarget.style.color = 'var(--text-primary)' }}
                                         onMouseLeave={e => { if (!active) e.currentTarget.style.color = 'var(--text-faint)' }}
@@ -1598,7 +1598,7 @@ const DayPlanSidebar = React.memo(function DayPlanSidebar({
                                             display: 'grid', placeItems: 'center', cursor: 'pointer',
                                             border: 'none', background: 'transparent',
                                             color: 'var(--text-faint)',
-                                            transition: 'all 0.12s',
+                                            transition: 'color 120ms cubic-bezier(0.23,1,0.32,1), background 120ms cubic-bezier(0.23,1,0.32,1)',
                                           }}
                                           onMouseEnter={e => { e.currentTarget.style.color = 'var(--text-primary)' }}
                                           onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-faint)' }}
@@ -1808,7 +1808,7 @@ const DayPlanSidebar = React.memo(function DayPlanSidebar({
                                     border: 'none',
                                     background: active ? color : 'transparent',
                                     color: active ? '#fff' : 'var(--text-faint)',
-                                    transition: 'all 0.12s',
+                                    transition: 'color 120ms cubic-bezier(0.23,1,0.32,1), background 120ms cubic-bezier(0.23,1,0.32,1)',
                                   }}
                                   onMouseEnter={e => { if (!active) e.currentTarget.style.color = 'var(--text-primary)' }}
                                   onMouseLeave={e => { if (!active) e.currentTarget.style.color = 'var(--text-faint)' }}

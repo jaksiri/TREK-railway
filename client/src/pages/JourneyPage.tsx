@@ -238,7 +238,7 @@ export default function JourneyPage() {
 
                 <div
                   onClick={() => navigate(`/journey/${activeJourney.id}`)}
-                  className="relative rounded-3xl overflow-hidden cursor-pointer transition-all duration-300 hover:-translate-y-1 hover:shadow-xl h-[340px] md:h-[400px]"
+                  className="relative rounded-3xl overflow-hidden cursor-pointer transition-[transform,box-shadow] duration-300 ease-[cubic-bezier(0.23,1,0.32,1)] hover:-translate-y-1 hover:shadow-xl h-[340px] md:h-[400px]"
                   style={{ background: pickGradient(activeJourney.id) }}
                 >
                   {/* Cover image */}
@@ -333,9 +333,9 @@ export default function JourneyPage() {
                 {/* Create card */}
                 <button
                   onClick={() => openCreateModal()}
-                  className="group min-h-[320px] rounded-2xl border-[1.5px] border-dashed border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 flex flex-col items-center justify-center gap-2.5 hover:border-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-all cursor-pointer hover:-translate-y-0.5"
+                  className="group min-h-[320px] rounded-2xl border-[1.5px] border-dashed border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 flex flex-col items-center justify-center gap-2.5 hover:border-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-[border-color,background-color,transform] duration-200 ease-[cubic-bezier(0.23,1,0.32,1)] cursor-pointer hover:-translate-y-0.5"
                 >
-                  <div className="w-14 h-14 rounded-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-zinc-400 group-hover:bg-white dark:group-hover:bg-zinc-700 transition-all group-hover:rotate-90 duration-300">
+                  <div className="w-14 h-14 rounded-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-zinc-400 group-hover:bg-white dark:group-hover:bg-zinc-700 transition-[background-color,transform] group-hover:rotate-90 duration-300 ease-[cubic-bezier(0.23,1,0.32,1)]">
                     <Plus size={22} />
                   </div>
                   <span className="text-[14px] font-semibold text-zinc-700 dark:text-zinc-300">{t("journey.frontpage.createNew")}</span>
@@ -394,7 +394,7 @@ export default function JourneyPage() {
                           return next
                         })
                       }}
-                      className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-all ${
+                      className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-[border-color,background-color] duration-150 ease-[cubic-bezier(0.23,1,0.32,1)] ${
                         selected
                           ? 'border-zinc-900 dark:border-zinc-400 bg-zinc-50 dark:bg-zinc-800'
                           : 'border-zinc-200 dark:border-zinc-700 hover:border-zinc-400 dark:hover:border-zinc-500'
@@ -468,7 +468,7 @@ function JourneyCard({ journey, onClick }: { journey: Journey & { entry_count?: 
   return (
     <div
       onClick={onClick}
-      className="rounded-2xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 overflow-hidden cursor-pointer transition-all duration-250 hover:border-zinc-400 hover:-translate-y-1 hover:shadow-[0_20px_40px_rgba(0,0,0,0.06)] flex flex-col"
+      className="rounded-2xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 overflow-hidden cursor-pointer transition-[transform,box-shadow,border-color] duration-250 ease-[cubic-bezier(0.23,1,0.32,1)] hover:border-zinc-400 hover:-translate-y-1 hover:shadow-[0_20px_40px_rgba(0,0,0,0.06)] flex flex-col"
     >
       {/* Cover */}
       <div className="h-[170px] relative overflow-hidden" style={{ background: pickGradient(j.id) }}>

@@ -65,7 +65,7 @@ export function ContextMenu({ menu, onClose }: ContextMenuProps) {
   if (!menu) return null
 
   return ReactDOM.createPortal(
-    <div ref={ref} style={{
+    <div ref={ref} className="trek-popover-enter" style={{
       position: 'fixed', left: menu.x, top: menu.y, zIndex: 999999,
       background: 'var(--bg-card)', borderRadius: 10, padding: '4px',
       border: '1px solid var(--border-primary)',
@@ -73,7 +73,7 @@ export function ContextMenu({ menu, onClose }: ContextMenuProps) {
       backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)',
       minWidth: 160,
       fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui, sans-serif",
-      animation: 'ctxIn 0.1s ease-out',
+      transformOrigin: 'top left',
     }}>
       {menu.items.filter(Boolean).map((item, i) => {
         if (item.divider) return <div key={i} style={{ height: 1, background: 'var(--border-faint)', margin: '3px 6px' }} />
@@ -95,7 +95,6 @@ export function ContextMenu({ menu, onClose }: ContextMenuProps) {
           </button>
         )
       })}
-      <style>{`@keyframes ctxIn { from { opacity: 0; transform: scale(0.95) } to { opacity: 1; transform: scale(1) } }`}</style>
     </div>,
     document.body
   )

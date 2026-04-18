@@ -40,16 +40,13 @@ export default function ConfirmDialog({
 
   return (
     <div
-      className="fixed inset-0 z-[10000] flex items-center justify-center px-4"
+      className="fixed inset-0 z-[10000] flex items-center justify-center px-4 trek-backdrop-enter"
       style={{ backgroundColor: 'rgba(15, 23, 42, 0.5)' }}
       onClick={onClose}
     >
       <div
-        className="rounded-2xl shadow-2xl w-full max-w-sm p-6"
-        style={{
-          animation: 'modalIn 0.2s ease-out forwards',
-          background: 'var(--bg-card)',
-        }}
+        className="trek-modal-enter rounded-2xl shadow-2xl w-full max-w-sm p-6"
+        style={{ background: 'var(--bg-card)' }}
         onClick={e => e.stopPropagation()}
       >
         <div className="flex items-start gap-4">
@@ -90,12 +87,6 @@ export default function ConfirmDialog({
         </div>
       </div>
 
-      <style>{`
-        @keyframes modalIn {
-          from { opacity: 0; transform: scale(0.95) translateY(-10px); }
-          to { opacity: 1; transform: scale(1) translateY(0); }
-        }
-      `}</style>
     </div>
   )
 }

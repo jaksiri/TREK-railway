@@ -13,6 +13,7 @@ import TimezoneWidget from '../components/Dashboard/TimezoneWidget'
 import TripFormModal from '../components/Trips/TripFormModal'
 import ConfirmDialog from '../components/shared/ConfirmDialog'
 import { useToast } from '../components/shared/Toast'
+import { useCountUp } from '../hooks/useCountUp'
 import {
   Plus, Calendar, Trash2, Edit2, Map, ChevronDown, ChevronUp,
   Archive, ArchiveRestore, Clock, MapPin, Settings, X, ArrowRightLeft, Users,
@@ -152,6 +153,28 @@ interface TripCardProps {
   dark?: boolean
 }
 
+function SpotlightStats({ trip, totalDays, t }: { trip: DashboardTrip; totalDays: number; t: TripCardProps['t'] }): React.ReactElement {
+  const days = useCountUp(trip.day_count || totalDays)
+  const places = useCountUp(trip.place_count || 0)
+  const buddies = useCountUp(trip.shared_count || 0)
+  return (
+    <div className="grid grid-cols-3 gap-2.5 p-3.5 bg-black/25 backdrop-blur-sm border border-white/10 rounded-2xl">
+      <div className="text-center">
+        <p className="text-[22px] font-extrabold tracking-[-0.02em] leading-none tabular-nums">{days}</p>
+        <p className="text-[9px] uppercase tracking-[0.1em] opacity-70 font-semibold mt-1">{t('dashboard.mobile.days')}</p>
+      </div>
+      <div className="text-center">
+        <p className="text-[22px] font-extrabold tracking-[-0.02em] leading-none tabular-nums">{places}</p>
+        <p className="text-[9px] uppercase tracking-[0.1em] opacity-70 font-semibold mt-1">{t('dashboard.mobile.places')}</p>
+      </div>
+      <div className="text-center">
+        <p className="text-[22px] font-extrabold tracking-[-0.02em] leading-none tabular-nums">{buddies}</p>
+        <p className="text-[9px] uppercase tracking-[0.1em] opacity-70 font-semibold mt-1">{t('dashboard.mobile.buddies')}</p>
+      </div>
+    </div>
+  )
+}
+
 function SpotlightCard({ trip, onEdit, onCopy, onDelete, onArchive, onClick, t, locale }: TripCardProps): React.ReactElement {
   const status = getTripStatus(trip)
   const isLive = status === 'ongoing'
@@ -173,16 +196,16 @@ function SpotlightCard({ trip, onEdit, onCopy, onDelete, onArchive, onClick, t, 
   return (
     <div
       onClick={() => onClick(trip)}
-      className="group relative rounded-3xl overflow-hidden cursor-pointer mb-8"
-      style={{ minHeight: 340, boxShadow: '0 8px 40px rgba(0,0,0,0.13)' }}
+      className="group relative rounded-3xl overflow-hidden cursor-pointer mb-8 transition-[transform,box-shadow] duration-300 ease-[cubic-bezier(0.23,1,0.32,1)] hover:-translate-y-1 hover:shadow-[0_16px_60px_rgba(0,0,0,0.22)] active:scale-[0.995]"
+      style={{ minHeight: 340, boxShadow: '0 8px 40px rgba(0,0,0,0.13)', isolation: 'isolate' }}
     >
       {/* Background */}
-      <div className="absolute inset-0" style={{
+      <div className="absolute inset-0 overflow-hidden rounded-3xl" style={{
         background: trip.cover_image ? undefined : tripGradient(trip.id),
       }}>
         {trip.cover_image && (
           <>
-            <img src={trip.cover_image} className="w-full h-full object-cover" alt="" />
+            <img src={trip.cover_image} className="w-full h-full object-cover transition-transform duration-[1200ms] ease-[cubic-bezier(0.23,1,0.32,1)] group-hover:scale-[1.06]" alt="" />
             <div className="absolute inset-0" style={{ background: 'linear-gradient(180deg, rgba(0,0,0,0.2) 0%, rgba(0,0,0,0.6) 100%)' }} />
           </>
         )}
@@ -233,7 +256,14 @@ function SpotlightCard({ trip, onEdit, onCopy, onDelete, onArchive, onClick, t, 
               <span className="opacity-70">{t('dashboard.mobile.daysLeft', { count: daysLeft })}</span>
             </div>
             <div className="h-1.5 bg-white/15 rounded-full overflow-hidden">
-              <div className="h-full bg-white rounded-full relative" style={{ width: `${progress}%` }}>
+              <div
+                className="h-full bg-white rounded-full relative"
+                style={{
+                  width: `${progress}%`,
+                  animation: 'trek-progress-fill 900ms cubic-bezier(0.23,1,0.32,1) both',
+                  ['--trek-progress-to' as string]: `${progress}%`,
+                }}
+              >
                 <span className="absolute right-0 top-1/2 -translate-y-1/2 w-3 h-3 bg-white rounded-full shadow-[0_0_12px_rgba(255,255,255,0.9)]" />
               </div>
             </div>
@@ -241,20 +271,7 @@ function SpotlightCard({ trip, onEdit, onCopy, onDelete, onArchive, onClick, t, 
         )}
 
         {/* Stats */}
-        <div className="grid grid-cols-3 gap-2.5 p-3.5 bg-black/25 backdrop-blur-sm border border-white/10 rounded-2xl">
-          <div className="text-center">
-            <p className="text-[22px] font-extrabold tracking-[-0.02em] leading-none">{trip.day_count || totalDays}</p>
-            <p className="text-[9px] uppercase tracking-[0.1em] opacity-70 font-semibold mt-1">{t('dashboard.mobile.days')}</p>
-          </div>
-          <div className="text-center">
-            <p className="text-[22px] font-extrabold tracking-[-0.02em] leading-none">{trip.place_count || 0}</p>
-            <p className="text-[9px] uppercase tracking-[0.1em] opacity-70 font-semibold mt-1">{t('dashboard.mobile.places')}</p>
-          </div>
-          <div className="text-center">
-            <p className="text-[22px] font-extrabold tracking-[-0.02em] leading-none">{trip.shared_count || 0}</p>
-            <p className="text-[9px] uppercase tracking-[0.1em] opacity-70 font-semibold mt-1">{t('dashboard.mobile.buddies')}</p>
-          </div>
-        </div>
+        <SpotlightStats trip={trip} totalDays={totalDays} t={t} />
       </div>
     </div>
   )
@@ -278,13 +295,13 @@ function MobileTripCard({ trip, onEdit, onCopy, onDelete, onArchive, onClick, t,
   return (
     <div
       onClick={() => onClick?.(trip)}
-      className="rounded-2xl border border-zinc-200 dark:border-zinc-700 overflow-hidden cursor-pointer transition-all hover:-translate-y-0.5 hover:shadow-md"
-      style={{ background: 'var(--bg-card)' }}
+      className="group rounded-2xl border border-zinc-200 dark:border-zinc-700 overflow-hidden cursor-pointer transition-[transform,box-shadow,border-color] duration-200 ease-[cubic-bezier(0.23,1,0.32,1)] hover:-translate-y-0.5 hover:shadow-md"
+      style={{ background: 'var(--bg-card)', isolation: 'isolate' }}
     >
       {/* Cover */}
       <div className="relative h-[120px] overflow-hidden" style={{ background: trip.cover_image ? undefined : tripGradient(trip.id) }}>
         {trip.cover_image && (
-          <img src={trip.cover_image} className="absolute inset-0 w-full h-full object-cover" alt="" />
+          <img src={trip.cover_image} className="absolute inset-0 w-full h-full object-cover transition-transform duration-[800ms] ease-[cubic-bezier(0.23,1,0.32,1)] group-hover:scale-[1.08]" alt="" />
         )}
         <div className="absolute inset-0" style={{ background: 'linear-gradient(180deg, transparent 30%, rgba(0,0,0,0.5) 100%)' }} />
 
@@ -370,13 +387,13 @@ function TripCard({ trip, onEdit, onCopy, onDelete, onArchive, onClick, t, local
   return (
     <div
       onClick={() => onClick(trip)}
-      className="group rounded-2xl border border-zinc-200 dark:border-zinc-700 overflow-hidden cursor-pointer transition-all hover:-translate-y-0.5 hover:shadow-lg hover:border-zinc-300 dark:hover:border-zinc-600"
-      style={{ background: 'var(--bg-card)' }}
+      className="group rounded-2xl border border-zinc-200 dark:border-zinc-700 overflow-hidden cursor-pointer transition-[transform,box-shadow,border-color] duration-200 ease-[cubic-bezier(0.23,1,0.32,1)] hover:-translate-y-0.5 hover:shadow-lg hover:border-zinc-300 dark:hover:border-zinc-600"
+      style={{ background: 'var(--bg-card)', isolation: 'isolate' }}
     >
       {/* Cover */}
       <div className="relative h-[140px] overflow-hidden" style={{ background: trip.cover_image ? undefined : tripGradient(trip.id) }}>
         {trip.cover_image && (
-          <img src={trip.cover_image} className="absolute inset-0 w-full h-full object-cover" alt="" />
+          <img src={trip.cover_image} className="absolute inset-0 w-full h-full object-cover transition-transform duration-[800ms] ease-[cubic-bezier(0.23,1,0.32,1)] group-hover:scale-[1.08]" alt="" />
         )}
         <div className="absolute inset-0" style={{ background: 'linear-gradient(180deg, transparent 30%, rgba(0,0,0,0.55) 100%)' }} />
 
@@ -658,11 +675,14 @@ function IconBtn({ onClick, title, danger, loading, children }: { onClick: () =>
 // ── Skeleton ─────────────────────────────────────────────────────────────────
 function SkeletonCard(): React.ReactElement {
   return (
-    <div style={{ background: 'white', borderRadius: 16, overflow: 'hidden', border: '1px solid #f3f4f6' }}>
-      <div style={{ height: 120, background: '#f3f4f6', animation: 'pulse 1.5s ease-in-out infinite' }} />
-      <div style={{ padding: '12px 14px 14px' }}>
-        <div style={{ height: 14, background: '#f3f4f6', borderRadius: 6, marginBottom: 8, width: '70%' }} />
-        <div style={{ height: 11, background: '#f3f4f6', borderRadius: 6, width: '50%' }} />
+    <div
+      className="rounded-2xl border border-zinc-200 dark:border-zinc-700 overflow-hidden"
+      style={{ background: 'var(--bg-card)' }}
+    >
+      <div className="trek-skeleton" style={{ height: 120, borderRadius: 0 }} />
+      <div style={{ padding: '12px 14px 14px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+        <div className="trek-skeleton" style={{ height: 14, width: '70%' }} />
+        <div className="trek-skeleton" style={{ height: 11, width: '50%' }} />
       </div>
     </div>
   )
@@ -958,10 +978,8 @@ export default function DashboardPage(): React.ReactElement {
                       padding: '9px 14px', borderRadius: 10, fontSize: 13, fontWeight: 500,
                       background: 'var(--accent)', color: 'var(--accent-text)', flexShrink: 0,
                       marginLeft: 2,
-                      transition: 'opacity 0.15s ease',
                     }}
-                    onMouseEnter={e => e.currentTarget.style.opacity = '0.88'}
-                    onMouseLeave={e => e.currentTarget.style.opacity = '1'}
+                    className="hover:opacity-[0.88]"
                   >
                     <Plus size={14} strokeWidth={2.5} /> {t('dashboard.newTrip')}
                   </button>
@@ -1004,7 +1022,7 @@ export default function DashboardPage(): React.ReactElement {
           {/* Loading skeletons */}
           {isLoading && (
             <>
-              <div style={{ height: 260, background: '#e5e7eb', borderRadius: 20, marginBottom: 32, animation: 'pulse 1.5s ease-in-out infinite' }} />
+              <div className="trek-skeleton" style={{ height: 260, borderRadius: 24, marginBottom: 32 }} />
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 16 }}>
                 {[1, 2, 3].map(i => <SkeletonCard key={i} />)}
               </div>
@@ -1070,7 +1088,7 @@ export default function DashboardPage(): React.ReactElement {
           {/* Trips — desktop grid or list */}
           {!isLoading && (viewMode === 'grid' ? rest : trips).length > 0 && (
             viewMode === 'grid' ? (
-              <div className="trip-grid hidden md:grid" style={{ gap: 16, marginBottom: 40 }}>
+              <div className="trip-grid hidden md:grid trek-stagger" style={{ gap: 16, marginBottom: 40 }}>
                 {rest.map(trip => (
                   <TripCard
                     key={trip.id}
@@ -1085,7 +1103,7 @@ export default function DashboardPage(): React.ReactElement {
                 ))}
               </div>
             ) : (
-              <div className="hidden md:flex" style={{ flexDirection: 'column', gap: 8, marginBottom: 40 }}>
+              <div className="hidden md:flex trek-stagger" style={{ flexDirection: 'column', gap: 8, marginBottom: 40 }}>
                 {trips.map(trip => (
                   <TripListItem
                     key={trip.id}

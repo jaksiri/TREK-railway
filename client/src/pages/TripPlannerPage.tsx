@@ -12,12 +12,14 @@ import PlaceInspector from '../components/Planner/PlaceInspector'
 import DayDetailPanel from '../components/Planner/DayDetailPanel'
 import PlaceFormModal from '../components/Planner/PlaceFormModal'
 import TripFormModal from '../components/Trips/TripFormModal'
+import SlidingTabs from '../components/shared/SlidingTabs'
 import TripMembersModal from '../components/Trips/TripMembersModal'
 import { ReservationModal } from '../components/Planner/ReservationModal'
 import { TransportModal } from '../components/Planner/TransportModal'
 // MemoriesPanel moved to Journey addon
 import ReservationsPanel from '../components/Planner/ReservationsPanel'
 import PackingListPanel from '../components/Packing/PackingListPanel'
+import ApplyTemplateButton from '../components/Packing/ApplyTemplateButton'
 import TodoListPanel from '../components/Todo/TodoListPanel'
 import FileManager from '../components/Files/FileManager'
 import BudgetPanel from '../components/Budget/BudgetPanel'
@@ -37,7 +39,7 @@ import { useRouteCalculation } from '../hooks/useRouteCalculation'
 import { usePlaceSelection } from '../hooks/usePlaceSelection'
 import { usePlannerHistory } from '../hooks/usePlannerHistory'
 import type { Accommodation, TripMember, Day, Place, Reservation, PackingItem, TodoItem } from '../types'
-import { ListTodo, Upload, Plus } from 'lucide-react'
+import { ListTodo, Upload, Plus, Trash2, FolderPlus } from 'lucide-react'
 
 function ListsContainer({ tripId, packingItems, todoItems }: { tripId: number; packingItems: PackingItem[]; todoItems: TodoItem[] }) {
   const [subTab, setSubTab] = useState<'packing' | 'todo'>(() => {
@@ -45,6 +47,8 @@ function ListsContainer({ tripId, packingItems, todoItems }: { tripId: number; p
   })
   const setSubTabPersist = (tab: 'packing' | 'todo') => { setSubTab(tab); sessionStorage.setItem(`trip-lists-subtab-${tripId}`, tab) }
   const [importPackingSignal, setImportPackingSignal] = useState(0)
+  const [clearCheckedSignal, setClearCheckedSignal] = useState(0)
+  const [saveTemplateSignal, setSaveTemplateSignal] = useState(0)
   const [addTodoSignal, setAddTodoSignal] = useState(0)
   const { t } = useTranslation()
 
@@ -79,7 +83,7 @@ function ListsContainer({ tripId, packingItems, todoItems }: { tripId: number; p
                     color: active ? 'var(--text-primary)' : 'var(--text-muted)',
                     fontWeight: active ? 500 : 400,
                     boxShadow: active ? '0 1px 2px rgba(0,0,0,0.06)' : 'none',
-                    transition: 'all 0.15s ease',
+                    transition: 'background 180ms cubic-bezier(0.23,1,0.32,1), color 180ms cubic-bezier(0.23,1,0.32,1), box-shadow 180ms cubic-bezier(0.23,1,0.32,1)',
                   }}
                 >
                   <Icon size={13} style={{ color: active ? 'var(--text-primary)' : 'var(--text-faint)' }} />
@@ -95,33 +99,58 @@ function ListsContainer({ tripId, packingItems, todoItems }: { tripId: number; p
             })}
           </div>
 
-          {subTab === 'packing' && (
-            <button onClick={() => setImportPackingSignal(s => s + 1)} style={{
+          {subTab === 'packing' && (() => {
+            const packingAbgehakt = packingItems.filter(i => i.checked).length
+            const sharedBtnClass = 'inline-flex items-center gap-1.5 px-2.5 sm:px-[14px] py-[7px] sm:py-[9px] hover:opacity-[0.88]'
+            const sharedBtnStyle: React.CSSProperties = {
               appearance: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit',
-              display: 'inline-flex', alignItems: 'center', gap: 6,
-              padding: '9px 14px', borderRadius: 10, fontSize: 13, fontWeight: 500,
-              background: 'var(--accent)', color: 'var(--accent-text)', flexShrink: 0,
-              marginLeft: 'auto',
-              transition: 'opacity 0.15s ease',
-            }}
-              onMouseEnter={e => e.currentTarget.style.opacity = '0.88'}
-              onMouseLeave={e => e.currentTarget.style.opacity = '1'}
-            >
-              <Upload size={14} strokeWidth={2.5} />
-              <span className="hidden sm:inline">{t('packing.import')}</span>
-            </button>
-          )}
+              borderRadius: 10, fontSize: 13, fontWeight: 500,
+            }
+            return (
+              <div style={{ display: 'flex', gap: 6, flexShrink: 0, marginLeft: 'auto', flexWrap: 'wrap' }}>
+                {packingAbgehakt > 0 && (
+                  <button onClick={() => setClearCheckedSignal(s => s + 1)}
+                    className={`hidden sm:inline-flex items-center gap-1.5 px-[14px] py-[9px] hover:opacity-[0.88]`}
+                    style={{ ...sharedBtnStyle, background: 'rgba(239,68,68,0.14)', color: '#ef4444' }}
+                  >
+                    <Trash2 size={14} strokeWidth={2.5} />
+                    <span>{t('packing.clearChecked', { count: packingAbgehakt })}</span>
+                  </button>
+                )}
+                <ApplyTemplateButton
+                  tripId={tripId}
+                  className={sharedBtnClass}
+                  style={{ ...sharedBtnStyle, background: 'var(--accent)', color: 'var(--accent-text)' }}
+                />
+                {packingItems.length > 0 && (
+                  <button onClick={() => setSaveTemplateSignal(s => s + 1)}
+                    className={sharedBtnClass}
+                    style={{ ...sharedBtnStyle, background: 'var(--accent)', color: 'var(--accent-text)' }}
+                  >
+                    <FolderPlus size={14} strokeWidth={2.5} />
+                    <span className="hidden sm:inline">{t('packing.saveAsTemplate')}</span>
+                  </button>
+                )}
+                <button onClick={() => setImportPackingSignal(s => s + 1)}
+                  className={sharedBtnClass}
+                  style={{ ...sharedBtnStyle, background: 'var(--accent)', color: 'var(--accent-text)' }}
+                >
+                  <Upload size={14} strokeWidth={2.5} />
+                  <span className="hidden sm:inline">{t('packing.import')}</span>
+                </button>
+              </div>
+            )
+          })()}
           {subTab === 'todo' && (
-            <button onClick={() => setAddTodoSignal(s => s + 1)} style={{
-              appearance: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit',
-              display: 'inline-flex', alignItems: 'center', gap: 6,
-              padding: '9px 14px', borderRadius: 10, fontSize: 13, fontWeight: 500,
-              background: 'var(--accent)', color: 'var(--accent-text)', flexShrink: 0,
-              marginLeft: 'auto',
-              transition: 'opacity 0.15s ease',
-            }}
-              onMouseEnter={e => e.currentTarget.style.opacity = '0.88'}
-              onMouseLeave={e => e.currentTarget.style.opacity = '1'}
+            <button onClick={() => setAddTodoSignal(s => s + 1)}
+              className="hover:opacity-[0.88]"
+              style={{
+                appearance: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit',
+                display: 'inline-flex', alignItems: 'center', gap: 6,
+                padding: '9px 14px', borderRadius: 10, fontSize: 13, fontWeight: 500,
+                background: 'var(--accent)', color: 'var(--accent-text)', flexShrink: 0,
+                marginLeft: 'auto',
+              }}
             >
               <Plus size={14} strokeWidth={2.5} />
               <span className="hidden sm:inline">{t('todo.addItem')}</span>
@@ -130,7 +159,7 @@ function ListsContainer({ tripId, packingItems, todoItems }: { tripId: number; p
         </div>
       </div>
       <div style={{ padding: '16px 28px 0' }} className="max-md:!px-4">
-        {subTab === 'packing' && <PackingListPanel tripId={tripId} items={packingItems} openImportSignal={importPackingSignal} inlineHeader={false} />}
+        {subTab === 'packing' && <PackingListPanel tripId={tripId} items={packingItems} openImportSignal={importPackingSignal} clearCheckedSignal={clearCheckedSignal} saveTemplateSignal={saveTemplateSignal} inlineHeader={false} />}
         {subTab === 'todo' && <TodoListPanel tripId={tripId} items={todoItems} addItemSignal={addTodoSignal} />}
       </div>
     </div>
@@ -720,34 +749,17 @@ export default function TripPlannerPage(): React.ReactElement | null {
         WebkitBackdropFilter: 'blur(16px)',
         borderBottom: '1px solid var(--border-faint)',
         height: 44,
-        overflowX: 'auto', scrollbarWidth: 'none', msOverflowStyle: 'none',
-        gap: 2,
       }}>
-        {TRIP_TABS.map(tab => {
-          const isActive = activeTab === tab.id
-          const TabIcon = tab.icon
-          return (
-            <button
-              key={tab.id}
-              onClick={() => handleTabChange(tab.id)}
-              title={tab.label}
-              style={{
-                flexShrink: 0,
-                padding: '5px 14px', borderRadius: 20, border: 'none', cursor: 'pointer',
-                fontSize: 13, fontWeight: isActive ? 600 : 400,
-                background: isActive ? 'var(--accent)' : 'transparent',
-                color: isActive ? 'var(--accent-text)' : 'var(--text-muted)',
-                fontFamily: 'inherit', transition: 'all 0.15s',
-                display: 'flex', alignItems: 'center', gap: 5,
-              }}
-              onMouseEnter={e => { if (!isActive) e.currentTarget.style.background = 'var(--bg-hover)'; e.currentTarget.style.color = isActive ? 'var(--accent-text)' : 'var(--text-primary)' }}
-              onMouseLeave={e => { if (!isActive) e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = isActive ? 'var(--accent-text)' : 'var(--text-muted)' }}
-            >
-              {TabIcon && <><TabIcon size={20} className="sm:hidden" /><TabIcon size={15} className="hidden sm:block" /></>}
-              <span className="hidden sm:inline">{tab.shortLabel || tab.label}</span>
-            </button>
-          )
-        })}
+        <SlidingTabs
+          tabs={TRIP_TABS.map(tab => ({
+            id: tab.id,
+            label: <span className="hidden sm:inline">{tab.shortLabel || tab.label}</span>,
+            title: tab.label,
+            icon: tab.icon,
+          }))}
+          activeTab={activeTab}
+          onChange={handleTabChange}
+        />
       </div>
 
       {/* Offset by navbar + tab bar (44px) */}

@@ -87,7 +87,10 @@ function StatCard({ stat: s, isMe, canEdit, selectedYear, onSave, t }: StatCardP
         <span className="text-[10px] tabular-nums" style={{ color: 'var(--text-faint)' }}>{s.used}/{s.total_available}</span>
       </div>
       <div className="h-1.5 rounded-full overflow-hidden" style={{ background: 'var(--bg-secondary)' }}>
-        <div className="h-full rounded-full transition-all duration-500" style={{ width: `${pct}%`, backgroundColor: s.person_color }} />
+        <div
+          className="trek-bar-fill h-full rounded-full transition-[width] duration-500 ease-[cubic-bezier(0.23,1,0.32,1)]"
+          style={{ width: `${pct}%`, backgroundColor: s.person_color }}
+        />
       </div>
       <div className="grid grid-cols-3 gap-1.5">
         {/* Days — editable */}

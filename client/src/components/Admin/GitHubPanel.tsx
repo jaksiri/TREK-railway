@@ -130,7 +130,7 @@ export default function GitHubPanel({ isPrerelease = false }: { isPrerelease?: b
           href="https://ko-fi.com/mauriceboe"
           target="_blank"
           rel="noopener noreferrer"
-          className="rounded-xl border overflow-hidden flex items-center gap-4 px-5 py-4 transition-all"
+          className="rounded-xl border overflow-hidden flex items-center gap-4 px-5 py-4 transition-[border-color,box-shadow] duration-200 ease-[cubic-bezier(0.23,1,0.32,1)]"
           style={{ background: 'var(--bg-card)', borderColor: 'var(--border-primary)', textDecoration: 'none' }}
           onMouseEnter={e => { e.currentTarget.style.borderColor = '#ff5e5b'; e.currentTarget.style.boxShadow = '0 0 0 1px #ff5e5b22' }}
           onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border-primary)'; e.currentTarget.style.boxShadow = 'none' }}
@@ -148,7 +148,7 @@ export default function GitHubPanel({ isPrerelease = false }: { isPrerelease?: b
           href="https://buymeacoffee.com/mauriceboe"
           target="_blank"
           rel="noopener noreferrer"
-          className="rounded-xl border overflow-hidden flex items-center gap-4 px-5 py-4 transition-all"
+          className="rounded-xl border overflow-hidden flex items-center gap-4 px-5 py-4 transition-[border-color,box-shadow] duration-200 ease-[cubic-bezier(0.23,1,0.32,1)]"
           style={{ background: 'var(--bg-card)', borderColor: 'var(--border-primary)', textDecoration: 'none' }}
           onMouseEnter={e => { e.currentTarget.style.borderColor = '#ffdd00'; e.currentTarget.style.boxShadow = '0 0 0 1px #ffdd0022' }}
           onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border-primary)'; e.currentTarget.style.boxShadow = 'none' }}
@@ -166,7 +166,7 @@ export default function GitHubPanel({ isPrerelease = false }: { isPrerelease?: b
           href="https://discord.gg/NhZBDSd4qW"
           target="_blank"
           rel="noopener noreferrer"
-          className="rounded-xl border overflow-hidden flex items-center gap-4 px-5 py-4 transition-all"
+          className="rounded-xl border overflow-hidden flex items-center gap-4 px-5 py-4 transition-[border-color,box-shadow] duration-200 ease-[cubic-bezier(0.23,1,0.32,1)]"
           style={{ background: 'var(--bg-card)', borderColor: 'var(--border-primary)', textDecoration: 'none' }}
           onMouseEnter={e => { e.currentTarget.style.borderColor = '#5865F2'; e.currentTarget.style.boxShadow = '0 0 0 1px #5865F222' }}
           onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border-primary)'; e.currentTarget.style.boxShadow = 'none' }}
@@ -187,7 +187,7 @@ export default function GitHubPanel({ isPrerelease = false }: { isPrerelease?: b
           href="https://github.com/mauriceboe/TREK/issues/new?template=bug_report.yml"
           target="_blank"
           rel="noopener noreferrer"
-          className="rounded-xl border overflow-hidden flex items-center gap-4 px-5 py-4 transition-all"
+          className="rounded-xl border overflow-hidden flex items-center gap-4 px-5 py-4 transition-[border-color,box-shadow] duration-200 ease-[cubic-bezier(0.23,1,0.32,1)]"
           style={{ background: 'var(--bg-card)', borderColor: 'var(--border-primary)', textDecoration: 'none' }}
           onMouseEnter={e => { e.currentTarget.style.borderColor = '#ef4444'; e.currentTarget.style.boxShadow = '0 0 0 1px #ef444422' }}
           onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border-primary)'; e.currentTarget.style.boxShadow = 'none' }}
@@ -205,7 +205,7 @@ export default function GitHubPanel({ isPrerelease = false }: { isPrerelease?: b
           href="https://github.com/mauriceboe/TREK/discussions/new?category=feature-requests"
           target="_blank"
           rel="noopener noreferrer"
-          className="rounded-xl border overflow-hidden flex items-center gap-4 px-5 py-4 transition-all"
+          className="rounded-xl border overflow-hidden flex items-center gap-4 px-5 py-4 transition-[border-color,box-shadow] duration-200 ease-[cubic-bezier(0.23,1,0.32,1)]"
           style={{ background: 'var(--bg-card)', borderColor: 'var(--border-primary)', textDecoration: 'none' }}
           onMouseEnter={e => { e.currentTarget.style.borderColor = '#f59e0b'; e.currentTarget.style.boxShadow = '0 0 0 1px #f59e0b22' }}
           onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border-primary)'; e.currentTarget.style.boxShadow = 'none' }}
@@ -223,7 +223,7 @@ export default function GitHubPanel({ isPrerelease = false }: { isPrerelease?: b
           href="https://github.com/mauriceboe/TREK/wiki"
           target="_blank"
           rel="noopener noreferrer"
-          className="rounded-xl border overflow-hidden flex items-center gap-4 px-5 py-4 transition-all"
+          className="rounded-xl border overflow-hidden flex items-center gap-4 px-5 py-4 transition-[border-color,box-shadow] duration-200 ease-[cubic-bezier(0.23,1,0.32,1)]"
           style={{ background: 'var(--bg-card)', borderColor: 'var(--border-primary)', textDecoration: 'none' }}
           onMouseEnter={e => { e.currentTarget.style.borderColor = '#6366f1'; e.currentTarget.style.boxShadow = '0 0 0 1px #6366f122' }}
           onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border-primary)'; e.currentTarget.style.boxShadow = 'none' }}

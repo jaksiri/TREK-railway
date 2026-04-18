@@ -574,7 +574,7 @@ export default function LoginPage(): React.ReactElement {
               { Icon: FolderOpen, label: t('login.features.files'), desc: t('login.features.filesDesc') },
               { Icon: Route, label: t('login.features.routes'), desc: t('login.features.routesDesc') },
             ].map(({ Icon, label, desc }) => (
-              <div key={label} style={{ background: 'rgba(255,255,255,0.04)', borderRadius: 14, padding: '14px 12px', border: '1px solid rgba(255,255,255,0.06)', textAlign: 'left', transition: 'all 0.2s' }}
+              <div key={label} style={{ background: 'rgba(255,255,255,0.04)', borderRadius: 14, padding: '14px 12px', border: '1px solid rgba(255,255,255,0.06)', textAlign: 'left', transition: 'background 200ms cubic-bezier(0.23,1,0.32,1), border-color 200ms cubic-bezier(0.23,1,0.32,1)' }}
                 onMouseEnter={(e: React.MouseEvent<HTMLDivElement>) => { e.currentTarget.style.background = 'rgba(255,255,255,0.08)'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.12)' }}
                 onMouseLeave={(e: React.MouseEvent<HTMLDivElement>) => { e.currentTarget.style.background = 'rgba(255,255,255,0.04)'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.06)' }}>
                 <Icon size={17} style={{ color: 'rgba(255,255,255,0.7)', marginBottom: 7 }} />
@@ -619,7 +619,7 @@ export default function LoginPage(): React.ReactElement {
                     border: 'none', borderRadius: 12,
                     fontSize: 14, fontWeight: 700, cursor: 'pointer',
                     fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-                    textDecoration: 'none', transition: 'all 0.15s',
+                    textDecoration: 'none', transition: 'background 180ms cubic-bezier(0.23,1,0.32,1)',
                     boxSizing: 'border-box',
                   }}
                   onMouseEnter={(e: React.MouseEvent<HTMLAnchorElement>) => { e.currentTarget.style.background = '#1f2937' }}
@@ -764,9 +764,21 @@ export default function LoginPage(): React.ReactElement {
                   />
                   <button type="button" onClick={() => setShowPassword(v => !v)} style={{
                     position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)',
-                    background: 'none', border: 'none', cursor: 'pointer', padding: 2, display: 'flex', color: '#9ca3af',
+                    background: 'none', border: 'none', cursor: 'pointer', padding: 2, color: '#9ca3af',
+                    width: 22, height: 22,
                   }}>
-                    {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                    <Eye size={16} style={{
+                      position: 'absolute', inset: 3,
+                      opacity: showPassword ? 0 : 1,
+                      transform: showPassword ? 'scale(0.7) rotate(-20deg)' : 'scale(1) rotate(0)',
+                      transition: 'opacity 180ms cubic-bezier(0.23,1,0.32,1), transform 180ms cubic-bezier(0.23,1,0.32,1)',
+                    }} />
+                    <EyeOff size={16} style={{
+                      position: 'absolute', inset: 3,
+                      opacity: showPassword ? 1 : 0,
+                      transform: showPassword ? 'scale(1) rotate(0)' : 'scale(0.7) rotate(20deg)',
+                      transition: 'opacity 180ms cubic-bezier(0.23,1,0.32,1), transform 180ms cubic-bezier(0.23,1,0.32,1)',
+                    }} />
                   </button>
                 </div>
               </div>
@@ -816,7 +828,7 @@ export default function LoginPage(): React.ReactElement {
                   border: '1px solid #d1d5db', borderRadius: 12,
                   fontSize: 14, fontWeight: 600, cursor: 'pointer',
                   fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-                  textDecoration: 'none', transition: 'all 0.15s',
+                  textDecoration: 'none', transition: 'background 180ms cubic-bezier(0.23,1,0.32,1), border-color 180ms cubic-bezier(0.23,1,0.32,1)',
                   boxSizing: 'border-box',
                 }}
                 onMouseEnter={(e: React.MouseEvent<HTMLAnchorElement>) => { e.currentTarget.style.background = '#f9fafb'; e.currentTarget.style.borderColor = '#9ca3af' }}
@@ -837,7 +849,7 @@ export default function LoginPage(): React.ReactElement {
                 color: '#451a03', border: 'none', borderRadius: 14,
                 fontSize: 15, fontWeight: 700, cursor: isLoading ? 'default' : 'pointer',
                 fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
-                opacity: isLoading ? 0.7 : 1, transition: 'all 0.2s',
+                opacity: isLoading ? 0.7 : 1, transition: 'transform 200ms cubic-bezier(0.23,1,0.32,1), box-shadow 200ms cubic-bezier(0.23,1,0.32,1), opacity 200ms cubic-bezier(0.23,1,0.32,1)',
                 boxShadow: '0 2px 12px rgba(245, 158, 11, 0.3)',
               }}
               onMouseEnter={(e: React.MouseEvent<HTMLButtonElement>) => { if (!isLoading) e.currentTarget.style.transform = 'translateY(-1px)'; e.currentTarget.style.boxShadow = '0 4px 16px rgba(245, 158, 11, 0.4)' }}

@@ -68,6 +68,7 @@ export function Tooltip({ label, placement = 'bottom', delay = 250, disabled, ch
         <div
           ref={tooltipRef}
           role="tooltip"
+          className="trek-popover-enter"
           style={{
             position: 'fixed',
             top: coords?.top ?? -9999,
@@ -85,6 +86,7 @@ export function Tooltip({ label, placement = 'bottom', delay = 250, disabled, ch
             boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
             border: '1px solid var(--border-faint, #e5e7eb)',
             fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui, sans-serif",
+            transformOrigin: placement === 'top' ? 'bottom center' : placement === 'bottom' ? 'top center' : placement === 'left' ? 'center right' : 'center left',
           }}
         >
           {label}

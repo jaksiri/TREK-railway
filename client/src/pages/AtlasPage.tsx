@@ -938,7 +938,7 @@ export default function AtlasPage(): React.ReactElement {
           ref={panelRef}
           onMouseMove={handlePanelMouseMove}
           onMouseLeave={handlePanelMouseLeave}
-          className="hidden md:flex flex-col absolute z-10 overflow-hidden transition-all duration-300"
+          className="hidden md:flex flex-col absolute z-10 overflow-hidden transition-[width,height,transform,box-shadow] duration-300 ease-[cubic-bezier(0.23,1,0.32,1)]"
           style={{
             bottom: 16,
             left: '50%',

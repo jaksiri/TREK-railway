@@ -25,6 +25,15 @@ afterAll(() => server.close());
 
 // ── jsdom stubs ────────────────────────────────────────────────────────────────
 
+// Force en-US locale for toLocaleDateString so tests are deterministic on
+// non-US dev machines (Windows-de-DE returns "Sonntag" instead of "Sunday").
+// Only affects calls without an explicit locale — callers that pass a locale
+// keep their behavior.
+const _origToLocaleDateString = Date.prototype.toLocaleDateString
+Date.prototype.toLocaleDateString = function (locales?: Intl.LocalesArgument, options?: Intl.DateTimeFormatOptions) {
+  return _origToLocaleDateString.call(this, locales ?? 'en-US', options)
+}
+
 // window.matchMedia — used by dark mode / responsive components
 Object.defineProperty(window, 'matchMedia', {
   writable: true,

@@ -94,7 +94,7 @@ export default function VacayCalendar() {
         <div className="flex items-center gap-1.5 sm:gap-2 px-2 sm:px-3 py-1.5 sm:py-2 rounded-xl border" style={{ background: 'var(--bg-card)', borderColor: 'var(--border-primary)', boxShadow: '0 8px 32px rgba(0,0,0,0.12)' }}>
           <button
             onClick={() => setCompanyMode(false)}
-            className="flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1.5 rounded-lg text-[11px] sm:text-xs font-medium transition-all"
+            className="flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1.5 rounded-lg text-[11px] sm:text-xs font-medium transition-[background-color,color,border-color] duration-150 ease-[cubic-bezier(0.23,1,0.32,1)]"
             style={{
               background: !companyMode ? 'var(--text-primary)' : 'transparent',
               color: !companyMode ? 'var(--bg-card)' : 'var(--text-muted)',
@@ -107,7 +107,7 @@ export default function VacayCalendar() {
           {companyHolidaysEnabled && (
             <button
               onClick={() => setCompanyMode(true)}
-              className="flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1.5 rounded-lg text-[11px] sm:text-xs font-medium transition-all"
+              className="flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1.5 rounded-lg text-[11px] sm:text-xs font-medium transition-[background-color,color,border-color] duration-150 ease-[cubic-bezier(0.23,1,0.32,1)]"
               style={{
                 background: companyMode ? '#d97706' : 'transparent',
                 color: companyMode ? '#fff' : 'var(--text-muted)',

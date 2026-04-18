@@ -529,11 +529,14 @@ function PieChart({ segments, size = 200, totalLabel }: PieChartProps) {
 
   return (
     <div style={{ position: 'relative', width: size, height: size, margin: '0 auto' }}>
-      <div style={{
-        width: size, height: size, borderRadius: '50%',
-        background: `conic-gradient(${stops})`,
-        boxShadow: '0 4px 24px rgba(0,0,0,0.08)',
-      }} />
+      <div
+        className="trek-pie-reveal"
+        style={{
+          width: size, height: size, borderRadius: '50%',
+          background: `conic-gradient(${stops})`,
+          boxShadow: '0 4px 24px rgba(0,0,0,0.08)',
+        }}
+      />
       <div style={{
         position: 'absolute', top: '50%', left: '50%',
         transform: 'translate(-50%, -50%)',

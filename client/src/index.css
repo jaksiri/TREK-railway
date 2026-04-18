@@ -6,6 +6,30 @@ html { height: 100%; overflow: hidden; background-color: var(--bg-primary); }
 body { height: 100%; overflow: auto; overscroll-behavior: none; -webkit-overflow-scrolling: touch; }
 
 
+/* Leaflet Popups — Enter-Animation vom Anchor-Tip */
+.leaflet-popup {
+  animation: trek-popover-enter 220ms cubic-bezier(0.23, 1, 0.32, 1);
+  transform-origin: bottom center;
+  will-change: transform, opacity;
+}
+.leaflet-popup-content-wrapper {
+  border-radius: 14px !important;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.18) !important;
+  background: var(--bg-card) !important;
+  color: var(--text-primary) !important;
+  border: 1px solid var(--border-faint);
+}
+.leaflet-popup-tip {
+  background: var(--bg-card) !important;
+}
+.leaflet-popup-close-button {
+  transition: color 150ms cubic-bezier(0.23, 1, 0.32, 1), transform 150ms cubic-bezier(0.23, 1, 0.32, 1) !important;
+}
+.leaflet-popup-close-button:hover {
+  transform: scale(1.15);
+  color: var(--text-primary) !important;
+}
+
 .atlas-tooltip {
   background: rgba(10, 10, 20, 0.6) !important;
   backdrop-filter: blur(20px) saturate(180%) !important;
@@ -137,8 +161,268 @@ html.dark .bg-slate-50\/60, html.dark [class*="bg-slate-50/"] { background-color
   to { transform: rotate(360deg); }
 }
 
+/* ── Press-Feedback + bessere Easings (Emil Kowalski) ─────────── */
+/* Buttons sollen antworten wenn sie gedrückt werden. */
+button:not(:disabled):not([data-no-press]),
+[role="button"]:not([aria-disabled="true"]):not([data-no-press]) {
+  transition-property: transform, color, background-color, border-color, box-shadow, opacity, filter !important;
+  transition-duration: 180ms;
+  transition-timing-function: cubic-bezier(0.23, 1, 0.32, 1);
+}
+button:not(:disabled):not([data-no-press]):active,
+[role="button"]:not([aria-disabled="true"]):not([data-no-press]):active {
+  transform: scale(0.97);
+  transition-duration: 80ms;
+}
+
+/* Tailwind-Default-Easing durch ease-out-quint ersetzen.
+   Eingebaute CSS-Easings sind kraftlos; ease-out-quint hat Punch. */
+.transition,
+.transition-all,
+.transition-colors,
+.transition-opacity,
+.transition-transform,
+.transition-shadow {
+  transition-timing-function: cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+/* Input-Focus transitions — border + ring faden weich ein */
+input, textarea, select {
+  transition: border-color 150ms cubic-bezier(0.23, 1, 0.32, 1),
+              box-shadow 150ms cubic-bezier(0.23, 1, 0.32, 1),
+              background-color 150ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+/* Back-Button Icon-Slide on hover */
+.trek-back-btn .trek-back-icon {
+  transition: transform 200ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+.trek-back-btn:hover .trek-back-icon {
+  transform: translateX(-2px);
+}
+
+/* Global focus-visible ring — konsistent überall */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+button:focus-visible, [role="button"]:focus-visible, a:focus-visible {
+  outline-offset: 3px;
+}
+input:focus-visible, textarea:focus-visible, select:focus-visible {
+  outline: none;
+}
+
+/* Theme crossfade — beim Dark/Light switch, Hauptflächen + Text faden ihre Farben.
+   Sparingly: nur background-color und color bekommen eine Transition. */
+html.trek-theme-transitioning,
+html.trek-theme-transitioning body,
+html.trek-theme-transitioning *:not(img):not(video):not(canvas):not([class*="trek-skeleton"]):not(.leaflet-layer) {
+  transition:
+    background-color 320ms cubic-bezier(0.23, 1, 0.32, 1),
+    color 320ms cubic-bezier(0.23, 1, 0.32, 1),
+    border-color 320ms cubic-bezier(0.23, 1, 0.32, 1),
+    fill 320ms cubic-bezier(0.23, 1, 0.32, 1) !important;
+}
+
+/* Touch-Geräte: iOS-Tap-Highlight weg (wir haben eigenes Press-Feedback) */
+@media (hover: none) {
+  button, [role="button"], a {
+    -webkit-tap-highlight-color: transparent;
+  }
+}
+html, body {
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Tabular-nums global für Time/Date/Currency/Counter */
+time, .tabular-nums, [data-tabular],
+input[type="number"], input[type="time"], input[type="date"], input[type="datetime-local"] {
+  font-variant-numeric: tabular-nums;
+}
+/* Wenn Element explizit ease-in-out nutzt (z.B. Accordions), nicht überschreiben.
+   Tailwind setzt ease-in-out via eigener Klasse — die gewinnt durch letzte Deklaration. */
+
+/* Press-Scale für clickbare Divs (Cards, Tiles) — sanfter als Buttons */
+[data-press]:active {
+  transform: scale(0.985);
+  transition-duration: 80ms;
+}
+
+/* ── Popover/Dropdown Enter-Animationen ─────────────────────────
+   Emil: Popovers sollen von ihrem Trigger aus scalen, nicht vom Center.
+   Start bei scale(0.95) — nichts in der echten Welt poppt aus dem Nichts. */
+@keyframes trek-menu-enter {
+  from { opacity: 0; transform: scale(0.95) translateY(-4px); }
+  to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+@keyframes trek-popover-enter {
+  from { opacity: 0; transform: scale(0.96); }
+  to   { opacity: 1; transform: scale(1); }
+}
+@keyframes trek-modal-enter {
+  from { opacity: 0; transform: scale(0.97); }
+  to   { opacity: 1; transform: scale(1); }
+}
+@keyframes trek-backdrop-enter {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes trek-toast-enter {
+  from { opacity: 0; transform: translateY(8px) scale(0.96); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes trek-progress-fill {
+  from { width: 0%; }
+  to   { width: var(--trek-progress-to, 0%); }
+}
+
+/* Pie-Chart Reveal — rotate + fade-in, gibt dem Kreisdiagramm ein "Draw"-Gefühl */
+@keyframes trek-pie-reveal {
+  from { opacity: 0; transform: rotate(-90deg) scale(0.85); }
+  to   { opacity: 1; transform: rotate(0deg) scale(1); }
+}
+.trek-pie-reveal {
+  animation: trek-pie-reveal 900ms cubic-bezier(0.23, 1, 0.32, 1) both;
+  transform-origin: center;
+  will-change: transform, opacity;
+}
+
+/* Bar-Chart Reveal — horizontaler Fill von links */
+@keyframes trek-bar-fill {
+  from { transform: scaleX(0); }
+  to   { transform: scaleX(1); }
+}
+.trek-bar-fill {
+  animation: trek-bar-fill 700ms cubic-bezier(0.23, 1, 0.32, 1) both;
+  transform-origin: left center;
+  will-change: transform;
+}
+
+/* Page-Transition — subtiler Fade-Up beim Mount */
+@keyframes trek-page-enter {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.trek-page-enter {
+  animation: trek-page-enter 220ms cubic-bezier(0.23, 1, 0.32, 1) both;
+}
+
+/* Skeleton shimmer — ein fließender Gradient-Strip überquert den Platzhalter */
+@keyframes trek-shimmer {
+  from { background-position: -200% 0; }
+  to   { background-position: 200% 0; }
+}
+.trek-skeleton {
+  background: linear-gradient(
+    90deg,
+    var(--bg-tertiary) 0%,
+    var(--bg-hover) 50%,
+    var(--bg-tertiary) 100%
+  );
+  background-size: 200% 100%;
+  animation: trek-shimmer 1.6s linear infinite;
+  border-radius: 8px;
+  color: transparent;
+  user-select: none;
+}
+.dark .trek-skeleton {
+  background: linear-gradient(
+    90deg,
+    rgba(255,255,255,0.04) 0%,
+    rgba(255,255,255,0.08) 50%,
+    rgba(255,255,255,0.04) 100%
+  );
+  background-size: 200% 100%;
+}
+.trek-menu-enter {
+  animation: trek-menu-enter 200ms cubic-bezier(0.23, 1, 0.32, 1);
+  transform-origin: top right;
+  will-change: transform, opacity;
+}
+.trek-menu-enter-left {
+  animation: trek-menu-enter 200ms cubic-bezier(0.23, 1, 0.32, 1);
+  transform-origin: top left;
+  will-change: transform, opacity;
+}
+.trek-popover-enter {
+  animation: trek-popover-enter 180ms cubic-bezier(0.23, 1, 0.32, 1);
+  will-change: transform, opacity;
+}
+.trek-modal-enter {
+  animation: trek-modal-enter 220ms cubic-bezier(0.23, 1, 0.32, 1);
+  will-change: transform, opacity;
+}
+
+/* Mobile-Drawer-Feel — Modal slidet von unten rein, wird unten am Screen angedockt */
+@keyframes trek-drawer-enter {
+  from { opacity: 0; transform: translateY(100%); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@media (max-width: 639px) {
+  .trek-modal-enter {
+    animation: trek-drawer-enter 320ms cubic-bezier(0.32, 0.72, 0, 1);
+    border-bottom-left-radius: 0 !important;
+    border-bottom-right-radius: 0 !important;
+    margin-top: auto !important;
+    align-self: flex-end;
+  }
+}
+.trek-backdrop-enter {
+  animation: trek-backdrop-enter 180ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+.trek-toast-enter {
+  animation: trek-toast-enter 260ms cubic-bezier(0.23, 1, 0.32, 1);
+  will-change: transform, opacity;
+}
+
+/* Stagger-Helpers für Listen — Enter-Animation mit Offset */
+@keyframes trek-fade-up {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.trek-stagger > * {
+  animation: trek-fade-up 280ms cubic-bezier(0.23, 1, 0.32, 1) both;
+}
+.trek-stagger > *:nth-child(1) { animation-delay: 0ms; }
+.trek-stagger > *:nth-child(2) { animation-delay: 40ms; }
+.trek-stagger > *:nth-child(3) { animation-delay: 80ms; }
+.trek-stagger > *:nth-child(4) { animation-delay: 120ms; }
+.trek-stagger > *:nth-child(5) { animation-delay: 160ms; }
+.trek-stagger > *:nth-child(6) { animation-delay: 200ms; }
+.trek-stagger > *:nth-child(7) { animation-delay: 240ms; }
+.trek-stagger > *:nth-child(8) { animation-delay: 280ms; }
+.trek-stagger > *:nth-child(n+9) { animation-delay: 320ms; }
+
+/* Reduced motion — Emil's Accessibility-Regel: fewer and gentler, not zero */
+@media (prefers-reduced-motion: reduce) {
+  .trek-menu-enter, .trek-menu-enter-left, .trek-popover-enter,
+  .trek-modal-enter, .trek-toast-enter, .trek-stagger > * {
+    animation: trek-backdrop-enter 120ms ease-out;
+  }
+  .trek-skeleton {
+    animation: none;
+    background: var(--bg-tertiary);
+  }
+  button:not(:disabled):not([data-no-press]):active,
+  [role="button"]:not([aria-disabled="true"]):not([data-no-press]):active,
+  [data-press]:active {
+    transform: none;
+  }
+  /* Parallax & lift disablen */
+  .group:hover img,
+  .group:hover .cover-img { transform: none !important; }
+  *:hover { translate: none !important; }
+}
+
 /* ── Design tokens ─────────────────────────────── */
 :root {
+  /* Easing curves — stärker als die CSS-Defaults, siehe easing.dev */
+  --ease-out-quint: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out-quint: cubic-bezier(0.77, 0, 0.175, 1);
+  --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
+
   --safe-top: env(safe-area-inset-top, 0px);
   --nav-h: 0px;
   --bottom-nav-h: 0px;

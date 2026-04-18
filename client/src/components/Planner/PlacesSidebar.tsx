@@ -374,6 +374,7 @@ const PlacesSidebar = React.memo(function PlacesSidebar({
             <MapPin size={11} strokeWidth={2} /> {t(hasMultipleListImportProviders ? 'places.importList' : 'places.importGoogleList')}
           </button>
         </div>
+        <div style={{ height: 1, background: 'var(--border-primary)', margin: '2px 0 10px' }} />
         </>}
 
         {/* Filter-Tabs */}
@@ -635,7 +636,7 @@ const PlacesSidebar = React.memo(function PlacesSidebar({
       )}
 
       {/* Liste */}
-      <div style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
+      <div className="trek-stagger" style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
         {filtered.length === 0 ? (
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '40px 16px', gap: 8 }}>
             <span style={{ fontSize: 13, color: 'var(--text-faint)' }}>

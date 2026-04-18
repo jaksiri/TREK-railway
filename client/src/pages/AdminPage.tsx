@@ -11,6 +11,7 @@ import { getApiErrorMessage } from '../types'
 import Navbar from '../components/Layout/Navbar'
 import Modal from '../components/shared/Modal'
 import { useToast } from '../components/shared/Toast'
+import { useCountUp } from '../hooks/useCountUp'
 import CategoryManager from '../components/Admin/CategoryManager'
 import BackupPanel from '../components/Admin/BackupPanel'
 import GitHubPanel from '../components/Admin/GitHubPanel'
@@ -155,6 +156,21 @@ function AdminNotificationsPanel({ t, toast }: { t: (k: string) => string; toast
               </div>
             )
           })}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function AdminStatCard({ label, value, icon: Icon }: { label: string; value: number; icon: React.ComponentType<{ className?: string; style?: React.CSSProperties }> }): React.ReactElement {
+  const animated = useCountUp(value, 900)
+  return (
+    <div className="rounded-xl border p-4" style={{ background: 'var(--bg-card)', borderColor: 'var(--border-primary)' }}>
+      <div className="flex items-center gap-4">
+        <Icon className="w-5 h-5" style={{ color: 'var(--text-primary)' }} />
+        <div>
+          <p className="text-xl font-bold tabular-nums" style={{ color: 'var(--text-primary)' }}>{animated}</p>
+          <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{label}</p>
         </div>
       </div>
     </div>
@@ -565,15 +581,7 @@ export default function AdminPage(): React.ReactElement {
                 { label: t('admin.stats.places'), value: stats.totalPlaces, icon: Map },
                 { label: t('admin.stats.files'), value: stats.totalFiles || 0, icon: FileText },
               ].map(({ label, value, icon: Icon }) => (
-                <div key={label} className="rounded-xl border p-4" style={{ background: 'var(--bg-card)', borderColor: 'var(--border-primary)' }}>
-                  <div className="flex items-center gap-4">
-                    <Icon className="w-5 h-5" style={{ color: 'var(--text-primary)' }} />
-                    <div>
-                      <p className="text-xl font-bold" style={{ color: 'var(--text-primary)' }}>{value}</p>
-                      <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{label}</p>
-                    </div>
-                  </div>
-                </div>
+                <AdminStatCard key={label} label={label} value={value} icon={Icon} />
               ))}
             </div>
           )}
@@ -629,7 +637,7 @@ export default function AdminPage(): React.ReactElement {
                         <th className="px-5 py-3 text-right">{t('admin.table.actions')}</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-100">
+                    <tbody className="divide-y divide-slate-100 trek-stagger">
                       {users.map(u => (
                         <tr key={u.id} className={`hover:bg-slate-50 transition-colors ${u.id === currentUser?.id ? 'bg-slate-50/60' : ''}`}>
                           <td className="px-5 py-3">
