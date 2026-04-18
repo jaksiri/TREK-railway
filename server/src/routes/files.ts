@@ -98,6 +98,13 @@ router.get('/:id/download', (req: Request, res: Response) => {
   if (!safe) return res.status(403).json({ error: 'Forbidden' });
   if (!fs.existsSync(resolved)) return res.status(404).json({ error: 'File not found' });
 
+  // Serve Apple Wallet passes inline with the canonical MIME type so Safari
+  // (iOS/macOS) hands them off to Wallet instead of downloading as a blob.
+  if (path.extname(resolved).toLowerCase() === '.pkpass') {
+    res.setHeader('Content-Type', 'application/vnd.apple.pkpass');
+    res.setHeader('Content-Disposition', `inline; filename="${path.basename(file.original_name || resolved)}"`);
+  }
+
   res.sendFile(resolved);
 });
 
