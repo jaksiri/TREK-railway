@@ -2,10 +2,10 @@ import cron, { type ScheduledTask } from 'node-cron';
 import archiver from 'archiver';
 import path from 'node:path';
 import fs from 'node:fs';
+import { listFiles, getFileStream } from './services/s3';
 
 const dataDir = path.join(__dirname, '../data');
 const backupsDir = path.join(dataDir, 'backups');
-const uploadsDir = path.join(__dirname, '../uploads');
 const settingsFile = path.join(dataDir, 'backup-settings.json');
 
 const VALID_INTERVALS = ['hourly', 'daily', 'weekly', 'monthly'];
@@ -76,8 +76,13 @@ async function runBackup(): Promise<void> {
       archive.pipe(output);
       const dbPath = path.join(dataDir, 'travel.db');
       if (fs.existsSync(dbPath)) archive.file(dbPath, { name: 'travel.db' });
-      if (fs.existsSync(uploadsDir)) archive.directory(uploadsDir, 'uploads');
-      archive.finalize();
+      void (async () => {
+        for await (const key of listFiles('')) {
+          const { stream } = await getFileStream(key);
+          archive.append(stream, { name: `uploads/${key}` });
+        }
+        archive.finalize();
+      })().catch(reject);
     });
     const { logInfo: li } = require('./services/auditLog');
     li(`Auto-Backup created: ${filename}`);

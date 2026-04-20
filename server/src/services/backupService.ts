@@ -5,6 +5,7 @@ import fs from 'fs';
 import Database from 'better-sqlite3';
 import { db, closeDb, reinitialize } from '../db/database';
 import * as scheduler from '../scheduler';
+import { listFiles, getFileStream, uploadStream, deleteFile as deleteS3File } from './s3';
 
 // ---------------------------------------------------------------------------
 // Paths
@@ -12,7 +13,6 @@ import * as scheduler from '../scheduler';
 
 const dataDir = path.join(__dirname, '../../data');
 const backupsDir = path.join(dataDir, 'backups');
-const uploadsDir = path.join(__dirname, '../../uploads');
 
 export const MAX_BACKUP_UPLOAD_SIZE = 500 * 1024 * 1024; // 500 MB
 
@@ -151,11 +151,13 @@ export async function createBackup(): Promise<BackupInfo> {
         archive.file(dbPath, { name: 'travel.db' });
       }
 
-      if (fs.existsSync(uploadsDir)) {
-        archive.directory(uploadsDir, 'uploads');
-      }
-
-      archive.finalize();
+      void (async () => {
+        for await (const key of listFiles('')) {
+          const { stream } = await getFileStream(key);
+          archive.append(stream, { name: `uploads/${key}` });
+        }
+        archive.finalize();
+      })().catch(reject);
     });
 
     const stat = fs.statSync(outputPath);
@@ -234,15 +236,22 @@ export async function restoreFromZip(zipPath: string): Promise<RestoreResult> {
 
       const extractedUploads = path.join(extractDir, 'uploads');
       if (fs.existsSync(extractedUploads)) {
-        for (const sub of fs.readdirSync(uploadsDir)) {
-          const subPath = path.join(uploadsDir, sub);
-          if (fs.statSync(subPath).isDirectory()) {
-            for (const file of fs.readdirSync(subPath)) {
-              try { fs.unlinkSync(path.join(subPath, file)); } catch (e) {}
-            }
-          }
+        for await (const key of listFiles('')) {
+          await deleteS3File(key);
         }
-        fs.cpSync(extractedUploads, uploadsDir, { recursive: true, force: true });
+        const walkDir = (dir: string): string[] => {
+          const results: string[] = [];
+          for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+            const full = path.join(dir, entry.name);
+            if (entry.isDirectory()) results.push(...walkDir(full));
+            else results.push(full);
+          }
+          return results;
+        };
+        for (const filePath of walkDir(extractedUploads)) {
+          const key = path.relative(extractedUploads, filePath).replace(/\\/g, '/');
+          await uploadStream(key, fs.createReadStream(filePath));
+        }
       }
     } finally {
       reinitialize();

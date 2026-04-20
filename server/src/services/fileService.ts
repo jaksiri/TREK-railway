@@ -1,10 +1,9 @@
-import path from 'path';
-import fs from 'fs';
 import jwt from 'jsonwebtoken';
 import { JWT_SECRET } from '../config';
 import { db, canAccessTrip } from '../db/database';
 import { consumeEphemeralToken } from './ephemeralTokens';
 import { TripFile } from '../types';
+import { deleteFile as deleteS3File } from './s3';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -13,7 +12,6 @@ import { TripFile } from '../types';
 export const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50 MB
 export const DEFAULT_ALLOWED_EXTENSIONS = 'jpg,jpeg,png,gif,webp,heic,pdf,doc,docx,xls,xlsx,txt,csv';
 export const BLOCKED_EXTENSIONS = ['.svg', '.html', '.htm', '.xml'];
-export const filesDir = path.join(__dirname, '../../uploads/files');
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -37,7 +35,7 @@ const FILE_SELECT = `
   LEFT JOIN users u ON f.uploaded_by = u.id
 `;
 
-export function formatFile(file: TripFile & { trip_id?: number }) {
+export function formatFile(file: TripFile & { trip_id?: number; uploaded_by_avatar?: string | null }) {
   const tripId = file.trip_id;
   return {
     ...file,
@@ -46,16 +44,8 @@ export function formatFile(file: TripFile & { trip_id?: number }) {
   };
 }
 
-// ---------------------------------------------------------------------------
-// File path resolution & validation
-// ---------------------------------------------------------------------------
-
-export function resolveFilePath(filename: string): { resolved: string; safe: boolean } {
-  const safeName = path.basename(filename);
-  const filePath = path.join(filesDir, safeName);
-  const resolved = path.resolve(filePath);
-  const safe = resolved.startsWith(path.resolve(filesDir));
-  return { resolved, safe };
+function toS3Key(filename: string): string {
+  return filename.startsWith('files/') ? filename : `files/${filename}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -194,20 +184,14 @@ export function restoreFile(id: string | number) {
 }
 
 export function permanentDeleteFile(file: TripFile) {
-  const { resolved } = resolveFilePath(file.filename);
-  if (fs.existsSync(resolved)) {
-    try { fs.unlinkSync(resolved); } catch (e) { console.error('Error deleting file:', e); }
-  }
+  void deleteS3File(toS3Key(file.filename));
   db.prepare('DELETE FROM trip_files WHERE id = ?').run(file.id);
 }
 
 export function emptyTrash(tripId: string | number): number {
   const trashed = db.prepare('SELECT * FROM trip_files WHERE trip_id = ? AND deleted_at IS NOT NULL').all(tripId) as TripFile[];
   for (const file of trashed) {
-    const { resolved } = resolveFilePath(file.filename);
-    if (fs.existsSync(resolved)) {
-      try { fs.unlinkSync(resolved); } catch (e) { console.error('Error deleting file:', e); }
-    }
+    void deleteS3File(toS3Key(file.filename));
   }
   db.prepare('DELETE FROM trip_files WHERE trip_id = ? AND deleted_at IS NOT NULL').run(tripId);
   return trashed.length;

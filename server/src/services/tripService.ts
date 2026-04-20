@@ -1,5 +1,3 @@
-import path from 'path';
-import fs from 'fs';
 import { db, canAccessTrip, isOwner } from '../db/database';
 import { Trip, User } from '../types';
 import { listDays, listAccommodations } from './dayService';
@@ -7,6 +5,7 @@ import { listBudgetItems } from './budgetService';
 import { listItems as listPackingItems } from './packingService';
 import { listReservations } from './reservationService';
 import { listNotes as listCollabNotes } from './collabService';
+import { deleteFile as deleteS3File } from './s3';
 
 export const MS_PER_DAY = 86400000;
 export const MAX_TRIP_DAYS = 365;
@@ -211,6 +210,10 @@ export function updateTrip(tripId: string | number, userId: number, data: Update
     ? (Number(reminder_days) >= 0 && Number(reminder_days) <= 30 ? Number(reminder_days) : oldReminder)
     : oldReminder;
 
+  if (cover_image !== undefined && trip.cover_image && trip.cover_image !== cover_image) {
+    deleteOldCover(trip.cover_image);
+  }
+
   db.prepare(`
     UPDATE trips SET title=?, description=?, start_date=?, end_date=?,
       currency=?, is_archived=?, cover_image=?, reminder_days=?, updated_at=CURRENT_TIMESTAMP
@@ -268,12 +271,8 @@ export function deleteTrip(tripId: string | number, userId: number, userRole: st
 
 export function deleteOldCover(coverImage: string | null | undefined) {
   if (!coverImage) return;
-  const oldPath = path.join(__dirname, '../../', coverImage.replace(/^\//, ''));
-  const resolvedPath = path.resolve(oldPath);
-  const uploadsDir = path.resolve(__dirname, '../../uploads');
-  if (resolvedPath.startsWith(uploadsDir) && fs.existsSync(resolvedPath)) {
-    fs.unlinkSync(resolvedPath);
-  }
+  const key = coverImage.replace(/^\/uploads\//, '');
+  void deleteS3File(key);
 }
 
 export function updateCoverImage(tripId: string | number, coverUrl: string) {

@@ -108,6 +108,14 @@ helm install trek trek/trek
 
 See [`charts/README.md`](charts/README.md) for configuration options.
 
+## Railway (Fork)
+
+This fork is configured for Railway with S3-compatible object storage for uploads.
+
+- Railway uses [railway.toml](railway.toml) and [Dockerfile.railway](Dockerfile.railway).
+- Configure `AWS_ENDPOINT_URL`, `AWS_S3_BUCKET_NAME`, `AWS_DEFAULT_REGION`, `AWS_ACCESS_KEY_ID`, and `AWS_SECRET_ACCESS_KEY`.
+- Keep SQLite on a small volume and use object storage for uploaded assets.
+
 ## Quick Start
 
 ```bash
@@ -326,6 +334,18 @@ trek.yourdomain.com {
 | `MCP_RATE_LIMIT` | Max MCP API requests per user per minute | `60` |
 | `MCP_MAX_SESSION_PER_USER` | Max concurrent MCP sessions per user | `5` |
 
+### Object Storage
+
+This fork also expects these upload storage variables:
+
+| Variable | Description |
+|----------|-------------|
+| `AWS_ENDPOINT_URL` | S3-compatible endpoint |
+| `AWS_S3_BUCKET_NAME` | Bucket name |
+| `AWS_DEFAULT_REGION` | Region |
+| `AWS_ACCESS_KEY_ID` | Access key |
+| `AWS_SECRET_ACCESS_KEY` | Secret key |
+
 ## Optional API Keys
 
 API keys are configured in the **Admin Panel** after login. Keys set by the admin are automatically shared with all users — no per-user configuration needed.
@@ -348,7 +368,7 @@ docker build -t trek .
 ## Data & Backups
 
 - **Database**: SQLite, stored in `./data/travel.db`
-- **Uploads**: Stored in `./uploads/`
+- **Uploads**: Stored in configured S3-compatible object storage in this fork
 - **Logs**: `./data/logs/trek.log` (auto-rotated)
 - **Backups**: Create and restore via Admin Panel
 - **Auto-Backups**: Configurable schedule and retention in Admin Panel

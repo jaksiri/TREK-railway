@@ -3,7 +3,6 @@ import cors from 'cors';
 import helmet from 'helmet';
 import cookieParser from 'cookie-parser';
 import path from 'node:path';
-import fs from 'node:fs';
 
 import jwt from 'jsonwebtoken';
 import { JWT_SECRET } from './config';
@@ -40,6 +39,7 @@ import shareRoutes from './routes/share';
 import { mcpHandler } from './mcp';
 import { Addon } from './types';
 import { getPhotoProviderConfig } from './services/memories/helpersService';
+import { getFileStream } from './services/s3';
 
 export function createApp(): express.Application {
   const app = express();
@@ -142,31 +142,37 @@ export function createApp(): express.Application {
     });
   }
 
-  // Static: avatars and covers are public
-  app.use('/uploads/avatars', express.static(path.join(__dirname, '../uploads/avatars')));
-  app.use('/uploads/covers', express.static(path.join(__dirname, '../uploads/covers')));
-
-  // Photos require auth or valid share token
-  app.get('/uploads/photos/:filename', (req: Request, res: Response) => {
-    const safeName = path.basename(req.params.filename);
-    const filePath = path.join(__dirname, '../uploads/photos', safeName);
-    const resolved = path.resolve(filePath);
-    if (!resolved.startsWith(path.resolve(__dirname, '../uploads/photos'))) {
-      return res.status(403).send('Forbidden');
+  app.get('/uploads/:type/:filename', async (req: Request, res: Response) => {
+    const { type, filename } = req.params;
+    const safeName = path.basename(filename);
+    if (!['avatars', 'covers', 'photos'].includes(type)) {
+      return res.status(404).send('Not found');
     }
-    if (!fs.existsSync(resolved)) return res.status(404).send('Not found');
 
-    const authHeader = req.headers.authorization;
-    const token = (req.query.token as string) || (authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null);
-    if (!token) return res.status(401).send('Authentication required');
+    if (type === 'photos') {
+      const authHeader = req.headers.authorization;
+      const token = (req.query.token as string) || (authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null);
+      if (!token) return res.status(401).send('Authentication required');
+
+      try {
+        jwt.verify(token, JWT_SECRET, { algorithms: ['HS256'] });
+      } catch {
+        const shareRow = db.prepare('SELECT id FROM share_tokens WHERE token = ?').get(token);
+        if (!shareRow) return res.status(401).send('Authentication required');
+      }
+    }
 
     try {
-      jwt.verify(token, JWT_SECRET, { algorithms: ['HS256'] });
+      const { stream, contentType, contentLength } = await getFileStream(`${type}/${safeName}`);
+      if (contentType) res.setHeader('Content-Type', contentType);
+      if (contentLength) res.setHeader('Content-Length', String(contentLength));
+      if (type === 'avatars' || type === 'covers') {
+        res.setHeader('Cache-Control', 'public, max-age=86400');
+      }
+      stream.pipe(res);
     } catch {
-      const shareRow = db.prepare('SELECT id FROM share_tokens WHERE token = ?').get(token);
-      if (!shareRow) return res.status(401).send('Authentication required');
+      res.status(404).send('Not found');
     }
-    res.sendFile(resolved);
   });
 
   // Block direct access to /uploads/files

@@ -4,22 +4,20 @@ import path from 'path';
 import fs from 'fs';
 import { v4 as uuidv4 } from 'uuid';
 import { authenticate, demoUploadBlock } from '../middleware/auth';
+import { s3Upload } from '../middleware/s3Upload';
 import { requireTripAccess } from '../middleware/tripAccess';
 import { broadcast } from '../websocket';
 import { AuthRequest } from '../types';
 import { checkPermission } from '../services/permissions';
+import { getFileStream, tempDir } from '../services/s3';
 import {
   MAX_FILE_SIZE,
   BLOCKED_EXTENSIONS,
-  filesDir,
   getAllowedExtensions,
   verifyTripAccess,
-  formatFile,
-  resolveFilePath,
   authenticateDownload,
   listFiles,
   getFileById,
-  getFileByIdFull,
   getDeletedFile,
   createFile,
   updateFile,
@@ -41,8 +39,8 @@ const router = express.Router({ mergeParams: true });
 
 const storage = multer.diskStorage({
   destination: (_req, _file, cb) => {
-    if (!fs.existsSync(filesDir)) fs.mkdirSync(filesDir, { recursive: true });
-    cb(null, filesDir);
+    if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir, { recursive: true });
+    cb(null, tempDir);
   },
   filename: (_req, file, cb) => {
     const ext = path.extname(file.originalname);
@@ -78,7 +76,7 @@ const upload = multer({
 // ---------------------------------------------------------------------------
 
 // Authenticated file download (supports Bearer header or ?token= query param)
-router.get('/:id/download', (req: Request, res: Response) => {
+router.get('/:id/download', async (req: Request, res: Response) => {
   const { tripId, id } = req.params;
 
   const authHeader = req.headers['authorization'];
@@ -94,11 +92,19 @@ router.get('/:id/download', (req: Request, res: Response) => {
   const file = getFileById(id, tripId);
   if (!file) return res.status(404).json({ error: 'File not found' });
 
-  const { resolved, safe } = resolveFilePath(file.filename);
-  if (!safe) return res.status(403).json({ error: 'Forbidden' });
-  if (!fs.existsSync(resolved)) return res.status(404).json({ error: 'File not found' });
-
-  res.sendFile(resolved);
+  const key = file.filename.startsWith('files/') ? file.filename : `files/${file.filename}`;
+  try {
+    const { stream, contentType, contentLength } = await getFileStream(key);
+    if (contentType) res.setHeader('Content-Type', contentType);
+    if (contentLength) res.setHeader('Content-Length', String(contentLength));
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename*=UTF-8''${encodeURIComponent(file.original_name || path.basename(file.filename))}`,
+    );
+    stream.pipe(res);
+  } catch {
+    res.status(404).json({ error: 'File not found' });
+  }
 });
 
 // List files (excludes soft-deleted by default)
@@ -114,7 +120,7 @@ router.get('/', authenticate, (req: Request, res: Response) => {
 });
 
 // Upload file
-router.post('/', authenticate, requireTripAccess, demoUploadBlock, upload.single('file'), (req: Request, res: Response) => {
+router.post('/', authenticate, requireTripAccess, demoUploadBlock, upload.single('file'), s3Upload('files'), (req: Request, res: Response) => {
   const authReq = req as AuthRequest;
   const { tripId } = req.params;
   const { user_id: tripOwnerId } = authReq.trip!;
