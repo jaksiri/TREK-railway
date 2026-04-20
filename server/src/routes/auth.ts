@@ -200,7 +200,7 @@ router.get('/me/settings', authenticate, (req: Request, res: Response) => {
   res.json({ settings: result.settings });
 });
 
-router.post('/avatar', authenticate, demoUploadBlock, avatarUpload.single('avatar'), s3Upload('avatars'), (req: Request, res: Response) => {
+router.post('/avatar', authenticate, avatarUpload.single('avatar'), demoUploadBlock, s3Upload('avatars'), (req: Request, res: Response) => {
   const authReq = req as AuthRequest;
   if (!req.file) return res.status(400).json({ error: 'No image uploaded' });
   res.json(saveAvatar(authReq.user.id, req.file.filename));

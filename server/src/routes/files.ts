@@ -120,7 +120,7 @@ router.get('/', authenticate, (req: Request, res: Response) => {
 });
 
 // Upload file
-router.post('/', authenticate, requireTripAccess, demoUploadBlock, upload.single('file'), s3Upload('files'), (req: Request, res: Response) => {
+router.post('/', authenticate, requireTripAccess, upload.single('file'), demoUploadBlock, s3Upload('files'), (req: Request, res: Response) => {
   const authReq = req as AuthRequest;
   const { tripId } = req.params;
   const { user_id: tripOwnerId } = authReq.trip!;

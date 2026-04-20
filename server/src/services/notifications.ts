@@ -173,6 +173,7 @@ const EVENT_TEXTS: Record<string, Record<NotifEventType, EventTextFn>> = {
     photos_shared: p => ({ title: `已分享 ${p.count} 張照片`, body: `${p.actor} 在「${p.trip}」中分享了 ${p.count} 張照片。` }),
     collab_message: p => ({ title: `「${p.trip}」中的新訊息`, body: `${p.actor}：${p.preview}` }),
     packing_tagged: p => ({ title: `打包清單：${p.category}`, body: `${p.actor} 已將您指派到「${p.trip}」中的「${p.category}」分類。` }),
+    version_available: p => ({ title: '新版 TREK 可用', body: `TREK ${p.version} 現已可用。請前往管理面板進行更新。` }),
   },
   ar: {
     trip_invite: p => ({ title: `دعوة إلى "${p.trip}"`, body: `${p.actor} دعا ${p.invitee || 'عضو'} إلى الرحلة "${p.trip}".` }),
@@ -400,4 +401,3 @@ export async function testWebhook(url: string): Promise<{ success: boolean; erro
     return { success: false, error: err instanceof Error ? err.message : 'Unknown error' };
   }
 }
-

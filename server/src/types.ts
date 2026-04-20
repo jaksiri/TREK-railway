@@ -117,6 +117,7 @@ export interface PackingItem {
 export interface BudgetItem {
   id: number;
   trip_id: number;
+  reservation_id?: number | null;
   category: string;
   name: string;
   total_price: number;

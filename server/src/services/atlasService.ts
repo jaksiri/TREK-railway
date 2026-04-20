@@ -3,20 +3,25 @@ import { Trip, Place } from '../types';
 
 // ── Admin-1 GeoJSON cache (sub-national regions) ─────────────────────────
 
-let admin1GeoCache: any = null;
-let admin1GeoLoading: Promise<any> | null = null;
+interface Admin1FeatureCollection {
+  features?: Array<{ properties?: { iso_a2?: string } }>;
+}
 
-async function loadAdmin1Geo(): Promise<any> {
+let admin1GeoCache: Admin1FeatureCollection | null = null;
+let admin1GeoLoading: Promise<Admin1FeatureCollection | null> | null = null;
+
+async function loadAdmin1Geo(): Promise<Admin1FeatureCollection | null> {
   if (admin1GeoCache) return admin1GeoCache;
   if (admin1GeoLoading) return admin1GeoLoading;
   admin1GeoLoading = fetch(
     'https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_10m_admin_1_states_provinces.geojson',
     { headers: { 'User-Agent': 'TREK Travel Planner' } }
-  ).then(r => r.json()).then(geo => {
-    admin1GeoCache = geo;
+  ).then(r => r.json()).then((geo: unknown) => {
+    const typedGeo = (geo ?? {}) as Admin1FeatureCollection;
+    admin1GeoCache = typedGeo;
     admin1GeoLoading = null;
-    console.log(`[Atlas] Cached admin-1 GeoJSON: ${geo.features?.length || 0} features`);
-    return geo;
+    console.log(`[Atlas] Cached admin-1 GeoJSON: ${typedGeo.features?.length || 0} features`);
+    return typedGeo;
   }).catch(err => {
     admin1GeoLoading = null;
     console.error('[Atlas] Failed to load admin-1 GeoJSON:', err);
@@ -29,7 +34,7 @@ export async function getRegionGeo(countryCodes: string[]): Promise<any> {
   const geo = await loadAdmin1Geo();
   if (!geo) return { type: 'FeatureCollection', features: [] };
   const codes = new Set(countryCodes.map(c => c.toUpperCase()));
-  const features = geo.features.filter((f: any) => codes.has(f.properties?.iso_a2?.toUpperCase()));
+  const features = (geo.features || []).filter((f) => codes.has(f.properties?.iso_a2?.toUpperCase() || ''));
   return { type: 'FeatureCollection', features };
 }
 

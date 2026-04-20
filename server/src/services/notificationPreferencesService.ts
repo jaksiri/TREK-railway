@@ -21,6 +21,8 @@ export interface AvailableChannels {
   inapp: boolean;
 }
 
+type StatementRunner = { run: (...args: unknown[]) => unknown };
+
 // Which channels are implemented for each event type.
 // Only implemented combos show toggles in the user preferences UI.
 const IMPLEMENTED_COMBOS: Record<NotifEventType, NotifChannel[]> = {
@@ -178,8 +180,8 @@ function setAdminGlobalPref(event: NotifEventType, channel: 'email' | 'webhook',
 function applyUserChannelPrefs(
   userId: number,
   prefs: Partial<Record<string, Partial<Record<string, boolean>>>>,
-  upsert: ReturnType<typeof db.prepare>,
-  del: ReturnType<typeof db.prepare>
+  upsert: StatementRunner,
+  del: StatementRunner
 ): void {
   for (const [eventType, channels] of Object.entries(prefs)) {
     if (!channels) continue;

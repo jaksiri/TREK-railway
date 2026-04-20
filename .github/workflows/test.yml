@@ -5,7 +5,12 @@ permissions:
 
 on:
   pull_request:
-    branches: [main, dev]
+    branches: [main]
+    paths:
+      - 'server/**'
+      - '.github/workflows/test.yml'
+  push:
+    branches: [main]
     paths:
       - 'server/**'
       - '.github/workflows/test.yml'
@@ -26,6 +31,9 @@ jobs:
 
       - name: Install dependencies
         run: cd server && npm ci
+
+      - name: Typecheck
+        run: cd server && npm run typecheck
 
       - name: Run tests
         run: cd server && npm run test:coverage

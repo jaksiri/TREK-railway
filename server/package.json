@@ -5,12 +5,13 @@
   "scripts": {
     "start": "node --import tsx src/index.ts",
     "dev": "tsx watch src/index.ts",
-    "test": "vitest run",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "TREK_TEST_STORAGE=s3 vitest run",
     "test:watch": "vitest",
-    "test:unit": "vitest run tests/unit",
-    "test:integration": "vitest run tests/integration",
-    "test:ws": "vitest run tests/websocket",
-    "test:coverage": "vitest run --coverage"
+    "test:unit": "vitest run --config vitest.unit.config.ts",
+    "test:integration": "TREK_TEST_STORAGE=s3 vitest run --config vitest.integration.config.ts",
+    "test:ws": "vitest run --config vitest.websocket.config.ts",
+    "test:coverage": "TREK_TEST_STORAGE=s3 vitest run --config vitest.coverage.config.ts --coverage"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1020.0",
@@ -58,6 +59,7 @@
     "@types/ws": "^8.18.1",
     "@vitest/coverage-v8": "^3.2.4",
     "nodemon": "^3.1.0",
+    "s3rver": "^3.7.1",
     "supertest": "^7.2.2",
     "vitest": "^3.2.4"
   }

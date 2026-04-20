@@ -171,7 +171,7 @@ router.put('/:id', authenticate, (req: Request, res: Response) => {
 
 // ── Cover upload ──────────────────────────────────────────────────────────
 
-router.post('/:id/cover', authenticate, demoUploadBlock, uploadCover.single('cover'), s3Upload('covers'), (req: Request, res: Response) => {
+router.post('/:id/cover', authenticate, uploadCover.single('cover'), demoUploadBlock, s3Upload('covers'), (req: Request, res: Response) => {
   const authReq = req as AuthRequest;
   const access = canAccessTrip(req.params.id, authReq.user.id);
   const tripOwnerId = access?.user_id;

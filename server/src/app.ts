@@ -142,6 +142,11 @@ export function createApp(): express.Application {
     });
   }
 
+  // Block direct access to /uploads/files before the generic uploads handler.
+  app.use('/uploads/files', (_req: Request, res: Response) => {
+    res.status(401).send('Authentication required');
+  });
+
   app.get('/uploads/:type/:filename', async (req: Request, res: Response) => {
     const { type, filename } = req.params;
     const safeName = path.basename(filename);
@@ -173,11 +178,6 @@ export function createApp(): express.Application {
     } catch {
       res.status(404).send('Not found');
     }
-  });
-
-  // Block direct access to /uploads/files
-  app.use('/uploads/files', (_req: Request, res: Response) => {
-    res.status(401).send('Authentication required');
   });
 
   // API Routes
