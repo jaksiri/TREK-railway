@@ -114,6 +114,8 @@ export const authApi = {
   validateKeys: () => apiClient.get('/auth/validate-keys').then(r => r.data),
   travelStats: () => apiClient.get('/auth/travel-stats').then(r => r.data),
   changePassword: (data: { current_password: string; new_password: string }) => apiClient.put('/auth/me/password', data).then(r => r.data),
+  forgotPassword: (data: { email: string }) => apiClient.post('/auth/forgot-password', data).then(r => r.data as { ok: true }),
+  resetPassword: (data: { token: string; new_password: string; mfa_code?: string }) => apiClient.post('/auth/reset-password', data).then(r => r.data as { success?: true; mfa_required?: true }),
   deleteOwnAccount: () => apiClient.delete('/auth/me').then(r => r.data),
   demoLogin: () => apiClient.post('/auth/demo-login').then(r => r.data),
   mcpTokens: {

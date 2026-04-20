@@ -36,7 +36,10 @@ import {
   deleteMcpToken,
   createWsToken,
   createResourceToken,
+  requestPasswordReset,
+  resetPassword,
 } from '../services/authService';
+import { sendPasswordResetEmail } from '../services/notifications';
 
 const router = express.Router();
 
@@ -76,6 +79,8 @@ const RATE_LIMIT_CLEANUP = 5 * 60 * 1000;
 
 const loginAttempts = new Map<string, { count: number; first: number }>();
 const mfaAttempts = new Map<string, { count: number; first: number }>();
+const forgotAttempts = new Map<string, { count: number; first: number }>();
+const resetAttempts = new Map<string, { count: number; first: number }>();
 setInterval(() => {
   const now = Date.now();
   for (const [key, record] of loginAttempts) {
@@ -83,6 +88,12 @@ setInterval(() => {
   }
   for (const [key, record] of mfaAttempts) {
     if (now - record.first >= RATE_LIMIT_WINDOW) mfaAttempts.delete(key);
+  }
+  for (const [key, record] of forgotAttempts) {
+    if (now - record.first >= RATE_LIMIT_WINDOW) forgotAttempts.delete(key);
+  }
+  for (const [key, record] of resetAttempts) {
+    if (now - record.first >= RATE_LIMIT_WINDOW) resetAttempts.delete(key);
   }
 }, RATE_LIMIT_CLEANUP);
 
@@ -104,6 +115,8 @@ function rateLimiter(maxAttempts: number, windowMs: number, store = loginAttempt
 }
 const authLimiter = rateLimiter(10, RATE_LIMIT_WINDOW);
 const mfaLimiter = rateLimiter(5, RATE_LIMIT_WINDOW, mfaAttempts);
+const forgotLimiter = rateLimiter(3, RATE_LIMIT_WINDOW, forgotAttempts);
+const resetLimiter = rateLimiter(5, RATE_LIMIT_WINDOW, resetAttempts);
 
 // ---------------------------------------------------------------------------
 // Routes
@@ -144,6 +157,71 @@ router.post('/login', authLimiter, (req: Request, res: Response) => {
   if (result.mfa_required) return res.json({ mfa_required: true, mfa_token: result.mfa_token });
   setAuthCookie(res, result.token!);
   res.json({ token: result.token, user: result.user });
+});
+
+// ---------------------------------------------------------------------------
+// Password reset (forgot / complete)
+// ---------------------------------------------------------------------------
+
+// Generic OK response — identical regardless of email existence, to
+// prevent enumeration via response body OR status code.
+const GENERIC_FORGOT_RESPONSE = { ok: true };
+// Minimum time we spend inside the forgot handler so a "no such user"
+// path does not complete noticeably faster than a real reset.
+const FORGOT_MIN_LATENCY_MS = 350;
+
+router.post('/forgot-password', forgotLimiter, async (req: Request, res: Response) => {
+  const started = Date.now();
+  const rawEmail = typeof req.body?.email === 'string' ? req.body.email : '';
+  const ip = getClientIp(req);
+
+  const outcome = requestPasswordReset(rawEmail, ip);
+
+  if (outcome.reason === 'issued' && outcome.tokenForDelivery && outcome.userEmail) {
+    // Build the reset URL from the incoming request origin so dev /
+    // prod both work without extra config.
+    const origin = (req.headers['origin'] as string | undefined)
+      || (req.headers['referer'] ? new URL(req.headers['referer'] as string).origin : undefined)
+      || `${req.protocol}://${req.get('host')}`;
+    const url = `${origin.replace(/\/$/, '')}/reset-password?token=${encodeURIComponent(outcome.tokenForDelivery)}`;
+
+    // Audit the REQUEST always — even for "no user" — so abuse is visible.
+    writeAudit({ userId: outcome.userId, action: 'user.password_reset_request', ip, details: { delivered: 'pending' } });
+
+    try {
+      const delivery = await sendPasswordResetEmail(outcome.userEmail, url, outcome.userId);
+      writeAudit({ userId: outcome.userId, action: 'user.password_reset_request', ip, details: { delivered: delivery.delivered } });
+    } catch (err) {
+      // Never surface delivery failure to the caller — still respond ok.
+      writeAudit({ userId: outcome.userId, action: 'user.password_reset_request', ip, details: { delivered: 'failed' } });
+    }
+  } else {
+    writeAudit({ userId: outcome.userId, action: 'user.password_reset_request', ip, details: { reason: outcome.reason } });
+  }
+
+  // Pad the response so timing doesn't reveal outcome.
+  const elapsed = Date.now() - started;
+  if (elapsed < FORGOT_MIN_LATENCY_MS) {
+    await new Promise((r) => setTimeout(r, FORGOT_MIN_LATENCY_MS - elapsed));
+  }
+  res.json(GENERIC_FORGOT_RESPONSE);
+});
+
+router.post('/reset-password', resetLimiter, (req: Request, res: Response) => {
+  const ip = getClientIp(req);
+  const result = resetPassword(req.body);
+  if (result.error) {
+    writeAudit({ userId: null, action: 'user.password_reset_fail', ip, details: { reason: result.error } });
+    return res.status(result.status!).json({ error: result.error });
+  }
+  if (result.mfa_required) {
+    return res.status(200).json({ mfa_required: true });
+  }
+  writeAudit({ userId: result.userId ?? null, action: 'user.password_reset_success', ip });
+  // Purposefully do NOT auto-login — the user just demonstrated they
+  // have email+password access; asking them to sign in fresh is the
+  // standard, safer UX.
+  res.json({ success: true });
 });
 
 router.get('/me', authenticate, (req: Request, res: Response) => {

@@ -15,11 +15,21 @@ export function extractToken(req: Request): string | null {
 
 function verifyJwtAndLoadUser(token: string): User | null {
   try {
-    const decoded = jwt.verify(token, JWT_SECRET, { algorithms: ['HS256'] }) as { id: number };
-    const user = db.prepare(
-      'SELECT id, username, email, role FROM users WHERE id = ?'
-    ).get(decoded.id) as User | undefined;
-    return user ?? null;
+    const decoded = jwt.verify(token, JWT_SECRET, { algorithms: ['HS256'] }) as { id: number; pv?: number };
+    const row = db.prepare(
+      'SELECT id, username, email, role, password_version FROM users WHERE id = ?'
+    ).get(decoded.id) as (User & { password_version?: number }) | undefined;
+    if (!row) return null;
+    // Session invalidation: any token whose embedded password_version
+    // predates the user's current one is rejected. Tokens issued before
+    // the `pv` claim existed (decoded.pv === undefined) are treated as
+    // version 0 so legacy sessions keep working until the user resets.
+    const tokenPv = typeof decoded.pv === 'number' ? decoded.pv : 0;
+    const currentPv = typeof row.password_version === 'number' ? row.password_version : 0;
+    if (tokenPv !== currentPv) return null;
+    // Don't leak password_version beyond the middleware.
+    const { password_version: _pv, ...user } = row;
+    return user as User;
   } catch {
     return null;
   }
@@ -68,15 +78,7 @@ const optionalAuth = (req: Request, res: Response, next: NextFunction): void => 
     return next();
   }
 
-  try {
-    const decoded = jwt.verify(token, JWT_SECRET, { algorithms: ['HS256'] }) as { id: number };
-    const user = db.prepare(
-      'SELECT id, username, email, role FROM users WHERE id = ?'
-    ).get(decoded.id) as User | undefined;
-    (req as OptionalAuthRequest).user = user || null;
-  } catch (err: unknown) {
-    (req as OptionalAuthRequest).user = null;
-  }
+  (req as OptionalAuthRequest).user = verifyJwtAndLoadUser(token) || null;
   next();
 };
 

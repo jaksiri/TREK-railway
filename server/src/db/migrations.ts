@@ -1772,6 +1772,26 @@ function runMigrations(db: Database.Database): void {
       try { db.exec('ALTER TABLE oauth_tokens ADD COLUMN audience TEXT'); }
       catch (err: any) { if (!err.message?.includes('duplicate column name')) throw err; }
     },
+    // Migration: password reset — add password_version for session
+    // invalidation, and a token table keyed by SHA-256 hash (raw tokens
+    // never hit the DB).
+    () => {
+      try { db.exec('ALTER TABLE users ADD COLUMN password_version INTEGER NOT NULL DEFAULT 0'); }
+      catch (err: any) { if (!err.message?.includes('duplicate column name')) throw err; }
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS password_reset_tokens (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          token_hash TEXT NOT NULL UNIQUE,
+          expires_at DATETIME NOT NULL,
+          consumed_at DATETIME,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          created_ip TEXT
+        );
+        CREATE INDEX IF NOT EXISTS idx_prt_user ON password_reset_tokens(user_id);
+        CREATE INDEX IF NOT EXISTS idx_prt_hash ON password_reset_tokens(token_hash);
+      `);
+    },
   ];
 
   if (currentVersion < migrations.length) {

@@ -781,6 +781,17 @@ export default function LoginPage(): React.ReactElement {
                     }} />
                   </button>
                 </div>
+                {mode === 'login' && (
+                  <div style={{ textAlign: 'right', marginTop: 6 }}>
+                    <button type="button" onClick={() => navigate('/forgot-password')} style={{
+                      background: 'none', border: 'none', cursor: 'pointer', padding: 0,
+                      color: '#6b7280', fontSize: 12.5, fontWeight: 500, fontFamily: 'inherit',
+                    }}
+                      onMouseEnter={(e: React.MouseEvent<HTMLButtonElement>) => { e.currentTarget.style.color = '#111827' }}
+                      onMouseLeave={(e: React.MouseEvent<HTMLButtonElement>) => { e.currentTarget.style.color = '#6b7280' }}
+                    >{t('login.forgotPassword')}</button>
+                  </div>
+                )}
               </div>
               )}
 

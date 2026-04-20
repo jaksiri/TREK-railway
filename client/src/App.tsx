@@ -4,6 +4,8 @@ import { useAuthStore } from './store/authStore'
 import { useSettingsStore } from './store/settingsStore'
 import { useAddonStore } from './store/addonStore'
 import LoginPage from './pages/LoginPage'
+import ForgotPasswordPage from './pages/ForgotPasswordPage'
+import ResetPasswordPage from './pages/ResetPasswordPage'
 import DashboardPage from './pages/DashboardPage'
 import TripPlannerPage from './pages/TripPlannerPage'
 import FilesPage from './pages/FilesPage'
@@ -197,7 +199,10 @@ export default function App() {
     applyDark(mode === true || mode === 'dark')
   }, [settings.dark_mode, isSharedPage])
 
-  const isAuthPage = location.pathname.startsWith('/login') || location.pathname.startsWith('/register')
+  const isAuthPage = location.pathname.startsWith('/login')
+    || location.pathname.startsWith('/register')
+    || location.pathname.startsWith('/forgot-password')
+    || location.pathname.startsWith('/reset-password')
 
   return (
     <TranslationProvider>
@@ -210,6 +215,8 @@ export default function App() {
         <Route path="/shared/:token" element={<SharedTripPage />} />
         <Route path="/public/journey/:token" element={<JourneyPublicPage />} />
         <Route path="/register" element={<LoginPage />} />
+        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+        <Route path="/reset-password" element={<ResetPasswordPage />} />
         {/* OAuth 2.1 consent page — intentionally outside ProtectedRoute */}
         <Route path="/oauth/authorize" element={<OAuthAuthorizePage />} />
         <Route
