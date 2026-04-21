@@ -64,11 +64,13 @@ class _MockIntersectionObserver {
 globalThis.IntersectionObserver = _MockIntersectionObserver as unknown as typeof IntersectionObserver;
 
 // ResizeObserver — used by resizable panels
-globalThis.ResizeObserver = vi.fn().mockImplementation(() => ({
-  observe: vi.fn(),
-  unobserve: vi.fn(),
-  disconnect: vi.fn(),
-})) as unknown as typeof ResizeObserver;
+class _MockResizeObserver {
+  observe = vi.fn()
+  unobserve = vi.fn()
+  disconnect = vi.fn()
+  constructor(_callback: ResizeObserverCallback) {}
+}
+globalThis.ResizeObserver = _MockResizeObserver as unknown as typeof ResizeObserver;
 
 // URL.createObjectURL / revokeObjectURL — Node 22 URL.createObjectURL requires
 // a native node:buffer Blob; passing a jsdom Blob throws ERR_INVALID_ARG_TYPE.

@@ -1240,6 +1240,15 @@ interface SidebarContentProps {
 
 function SidebarContent({ data, stats, countries, selectedCountry, countryDetail, resolveName, onTripClick, onUnmarkCountry, bucketList, bucketTab, setBucketTab, showBucketAdd, setShowBucketAdd, bucketForm, setBucketForm, onAddBucket, onDeleteBucket, onSearchBucket, onSelectBucketPoi, bucketSearchResults, setBucketSearchResults, bucketPoiMonth, setBucketPoiMonth, bucketPoiYear, setBucketPoiYear, bucketSearching, bucketSearch, setBucketSearch, t, dark }: SidebarContentProps): React.ReactElement {
   const { language } = useTranslation()
+  const statsContentRef = useRef<HTMLDivElement>(null)
+  const [statsWidth, setStatsWidth] = useState<number | undefined>(undefined)
+  useEffect(() => {
+    const el = statsContentRef.current
+    if (!el || typeof ResizeObserver === 'undefined') return
+    const ro = new ResizeObserver(() => setStatsWidth(el.offsetWidth))
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
   const bg = (o) => dark ? `rgba(255,255,255,${o})` : `rgba(0,0,0,${o})`
   const tp = dark ? '#f1f5f9' : '#0f172a'
   const tm = dark ? '#94a3b8' : '#64748b'
@@ -1290,7 +1299,7 @@ function SidebarContent({ data, stats, countries, selectedCountry, countryDetail
   // Bucket list content
   const bucketContent = (
     <>
-    <div className="flex items-stretch" style={{ overflowX: 'auto', padding: '0 8px' }}>
+    <div className="flex items-stretch" style={{ overflowX: 'auto', padding: '0 8px', maxWidth: statsWidth, width: '100%' }}>
       {bucketList.map(item => (
         <div key={item.id} className="group flex flex-col items-center justify-center shrink-0" style={{ padding: '8px 14px', position: 'relative', minWidth: 80 }}>
           {(() => {
@@ -1400,7 +1409,7 @@ function SidebarContent({ data, stats, countries, selectedCountry, countryDetail
     {/* Both tabs always rendered so the wider one sets the panel width */}
     <div style={{ display: 'grid' }}>
     <div style={bucketTab === 'bucket' ? { visibility: 'hidden' as const, gridArea: '1/1' } : { gridArea: '1/1' }}>
-    <div className="flex items-stretch justify-center">
+    <div ref={statsContentRef} className="flex items-stretch justify-center">
 
       {/* ═══ SECTION 1: Numbers ═══ */}
       {/* Countries hero */}
