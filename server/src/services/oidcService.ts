@@ -143,7 +143,7 @@ export async function discover(issuer: string, discoveryUrl?: string | null): Pr
   // Validate that the discovery doc's issuer matches the operator-configured
   // one. A MITM or compromised doc could otherwise supply a crafted issuer
   // that passes jwt.verify() because we used doc.issuer as the expected value.
-  if (doc.issuer && doc.issuer !== issuer) {
+  if (doc.issuer && doc.issuer.replace(/\/+$/, '') !== issuer) {
     throw new Error(`OIDC discovery issuer mismatch: expected "${issuer}", got "${doc.issuer}"`);
   }
   doc._issuer = url;
