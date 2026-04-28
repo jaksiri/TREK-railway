@@ -1,8 +1,6 @@
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
-import path from 'path';
-import fs from 'fs';
 import { authenticator } from 'otplib';
 import QRCode from 'qrcode';
 import { randomBytes, createHash } from 'crypto';
@@ -19,6 +17,7 @@ import { deleteUserCompletely } from './userCleanupService';
 import { verifyJwtAndLoadUser } from '../middleware/auth';
 import { User } from '../types';
 import { DEMO_EMAIL_PRIMARY, isDemoEmail } from './demo';
+import { deleteFile as deleteS3File } from './s3';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -37,9 +36,6 @@ const ADMIN_SETTINGS_KEYS = [
   'notify_trip_reminder',
   'password_login', 'password_registration', 'oidc_login', 'oidc_registration',
 ];
-
-const avatarDir = path.join(__dirname, '../../uploads/avatars');
-if (!fs.existsSync(avatarDir)) fs.mkdirSync(avatarDir, { recursive: true });
 
 const KNOWN_COUNTRIES = new Set([
   'Japan', 'Germany', 'Deutschland', 'France', 'Frankreich', 'Italy', 'Italien', 'Spain', 'Spanien',
@@ -642,10 +638,7 @@ export function getSettings(userId: number): { error?: string; status?: number; 
 export async function saveAvatar(userId: number, filename: string) {
   const current = db.prepare('SELECT avatar FROM users WHERE id = ?').get(userId) as { avatar: string | null } | undefined;
   if (current && current.avatar) {
-    // Fire-and-forget: leftover files are harmless; the DB update is
-    // the source of truth for which avatar is current.
-    const oldPath = path.join(avatarDir, current.avatar);
-    await fs.promises.rm(oldPath, { force: true }).catch(() => {});
+    await deleteS3File(`avatars/${current.avatar}`);
   }
 
   db.prepare('UPDATE users SET avatar = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(filename, userId);
@@ -657,8 +650,7 @@ export async function saveAvatar(userId: number, filename: string) {
 export async function deleteAvatar(userId: number) {
   const current = db.prepare('SELECT avatar FROM users WHERE id = ?').get(userId) as { avatar: string | null } | undefined;
   if (current && current.avatar) {
-    const filePath = path.join(avatarDir, current.avatar);
-    await fs.promises.rm(filePath, { force: true }).catch(() => {});
+    await deleteS3File(`avatars/${current.avatar}`);
   }
   db.prepare('UPDATE users SET avatar = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(userId);
   return { success: true };

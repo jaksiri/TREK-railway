@@ -1,3 +1,4 @@
+import fs from 'node:fs';
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import { db } from '../db/database';
@@ -106,6 +107,11 @@ const adminOnly = (req: Request, res: Response, next: NextFunction): void => {
 const demoUploadBlock = (req: Request, res: Response, next: NextFunction): void => {
   const authReq = req as AuthRequest;
   if (process.env.DEMO_MODE?.toLowerCase() === 'true' && isDemoEmail(authReq.user?.email)) {
+    if (req.file?.path && fs.existsSync(req.file.path)) {
+      try {
+        fs.unlinkSync(req.file.path);
+      } catch {}
+    }
     res.status(403).json({ error: 'Uploads are disabled in demo mode. Self-host TREK for full functionality.' });
     return;
   }

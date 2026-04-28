@@ -1,9 +1,10 @@
 import express, { Request, Response } from 'express';
 import multer from 'multer';
+import fs from 'node:fs';
 import path from 'path';
-import fs from 'fs';
 import { v4 as uuidv4 } from 'uuid';
 import { authenticate } from '../middleware/auth';
+import { s3Upload } from '../middleware/s3Upload';
 import { broadcast } from '../websocket';
 import { validateStringLengths } from '../middleware/validate';
 import { checkPermission } from '../services/permissions';
@@ -30,12 +31,15 @@ import {
   addOrRemoveReaction,
   fetchLinkPreview,
 } from '../services/collabService';
+import { tempDir } from '../services/s3';
 
 const MAX_NOTE_FILE_SIZE = 50 * 1024 * 1024; // 50 MB
-const filesDir = path.join(__dirname, '../../uploads/files');
 const noteUpload = multer({
   storage: multer.diskStorage({
-    destination: (_req, _file, cb) => { if (!fs.existsSync(filesDir)) fs.mkdirSync(filesDir, { recursive: true }); cb(null, filesDir) },
+    destination: (_req, _file, cb) => {
+      if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir, { recursive: true });
+      cb(null, tempDir);
+    },
     filename: (_req, file, cb) => { cb(null, `${uuidv4()}${path.extname(file.originalname)}`) },
   }),
   limits: { fileSize: MAX_NOTE_FILE_SIZE },
@@ -122,7 +126,7 @@ router.delete('/notes/:id', authenticate, (req: Request, res: Response) => {
 /*  Note files                                                         */
 /* ------------------------------------------------------------------ */
 
-router.post('/notes/:id/files', authenticate, noteUpload.single('file'), (req: Request, res: Response) => {
+router.post('/notes/:id/files', authenticate, noteUpload.single('file'), s3Upload('files'), (req: Request, res: Response) => {
   const authReq = req as AuthRequest;
   const { tripId, id } = req.params;
   const access = verifyTripAccess(Number(tripId), authReq.user.id);

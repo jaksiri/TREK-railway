@@ -1,9 +1,10 @@
 import express, { Request, Response } from 'express';
 import multer from 'multer';
+import fs from 'node:fs';
 import path from 'path';
-import fs from 'fs';
 import { v4 as uuidv4 } from 'uuid';
 import { authenticate, demoUploadBlock } from '../middleware/auth';
+import { s3Upload } from '../middleware/s3Upload';
 import { requireTripAccess } from '../middleware/tripAccess';
 import { broadcast } from '../websocket';
 import { AuthRequest } from '../types';
@@ -11,11 +12,9 @@ import { checkPermission } from '../services/permissions';
 import {
   MAX_FILE_SIZE,
   BLOCKED_EXTENSIONS,
-  filesDir,
   getAllowedExtensions,
   verifyTripAccess,
   formatFile,
-  resolveFilePath,
   authenticateDownload,
   listFiles,
   getFileById,
@@ -32,6 +31,7 @@ import {
   deleteFileLink,
   getFileLinks,
 } from '../services/fileService';
+import { getFileStream, tempDir } from '../services/s3';
 
 const router = express.Router({ mergeParams: true });
 
@@ -41,8 +41,8 @@ const router = express.Router({ mergeParams: true });
 
 const storage = multer.diskStorage({
   destination: (_req, _file, cb) => {
-    if (!fs.existsSync(filesDir)) fs.mkdirSync(filesDir, { recursive: true });
-    cb(null, filesDir);
+    if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir, { recursive: true });
+    cb(null, tempDir);
   },
   filename: (_req, file, cb) => {
     const ext = path.extname(file.originalname);
@@ -78,7 +78,7 @@ const upload = multer({
 // ---------------------------------------------------------------------------
 
 // Authenticated file download (supports cookie, Bearer header, or ?token= query param)
-router.get('/:id/download', (req: Request, res: Response) => {
+router.get('/:id/download', async (req: Request, res: Response) => {
   const { tripId, id } = req.params;
 
   const auth = authenticateDownload(req);
@@ -90,18 +90,31 @@ router.get('/:id/download', (req: Request, res: Response) => {
   const file = getFileById(id, tripId);
   if (!file) return res.status(404).json({ error: 'File not found' });
 
-  const { resolved, safe } = resolveFilePath(file.filename);
-  if (!safe) return res.status(403).json({ error: 'Forbidden' });
-  if (!fs.existsSync(resolved)) return res.status(404).json({ error: 'File not found' });
+  const key = file.filename.startsWith('files/') ? file.filename : `files/${file.filename}`;
+  const isPkpass = path.extname(file.original_name || file.filename).toLowerCase() === '.pkpass';
+  const localPath = path.resolve(path.join(__dirname, '../../uploads', key));
+  const localRoot = path.resolve(path.join(__dirname, '../../uploads/files'));
 
-  // Serve Apple Wallet passes inline with the canonical MIME type so Safari
-  // (iOS/macOS) hands them off to Wallet instead of downloading as a blob.
-  if (path.extname(resolved).toLowerCase() === '.pkpass') {
-    res.setHeader('Content-Type', 'application/vnd.apple.pkpass');
-    res.setHeader('Content-Disposition', `inline; filename="${path.basename(file.original_name || resolved)}"`);
+  try {
+    const { stream, contentType, contentLength } = await getFileStream(key);
+    if (isPkpass) {
+      res.setHeader('Content-Type', 'application/vnd.apple.pkpass');
+      res.setHeader('Content-Disposition', `inline; filename="${path.basename(file.original_name || file.filename)}"`);
+    } else if (contentType) {
+      res.setHeader('Content-Type', contentType);
+    }
+    if (contentLength) res.setHeader('Content-Length', String(contentLength));
+    stream.pipe(res);
+  } catch {
+    if (!localPath.startsWith(localRoot) || !fs.existsSync(localPath)) {
+      return res.status(404).json({ error: 'File not found' });
+    }
+    if (isPkpass) {
+      res.setHeader('Content-Type', 'application/vnd.apple.pkpass');
+      res.setHeader('Content-Disposition', `inline; filename="${path.basename(file.original_name || file.filename)}"`);
+    }
+    return res.sendFile(localPath);
   }
-
-  res.sendFile(resolved);
 });
 
 // List files (excludes soft-deleted by default)
@@ -117,7 +130,7 @@ router.get('/', authenticate, (req: Request, res: Response) => {
 });
 
 // Upload file
-router.post('/', authenticate, requireTripAccess, demoUploadBlock, upload.single('file'), (req: Request, res: Response) => {
+router.post('/', authenticate, requireTripAccess, demoUploadBlock, upload.single('file'), s3Upload('files'), (req: Request, res: Response) => {
   const authReq = req as AuthRequest;
   const { tripId } = req.params;
   const { user_id: tripOwnerId } = authReq.trip!;

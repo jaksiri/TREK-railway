@@ -26,4 +26,7 @@ rm -rf /app/server/uploads /app/server/data
 ln -sf "$STORAGE/uploads" /app/server/uploads
 ln -sf "$STORAGE/data" /app/server/data
 
+# Temp directory for uploads before they are moved to S3
+mkdir -p /app/.tmp-uploads
+
 exec "$@"
