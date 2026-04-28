@@ -5,11 +5,15 @@ permissions:
 
 on:
   pull_request:
-    branches: [main, dev]
+    branches: [main]
     paths:
       - 'server/**'
       - '.github/workflows/test.yml'
-      - 'client/**'
+  push:
+    branches: [main]
+    paths:
+      - 'server/**'
+      - '.github/workflows/test.yml'
 
 jobs:
   server-tests:

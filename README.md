@@ -279,6 +279,14 @@ helm install trek trek/trek
 
 See [`charts/README.md`](https://github.com/mauriceboe/TREK/blob/main/charts/README.md) for values.
 
+<h2>Railway (Fork)</h2>
+
+This fork is configured for Railway with S3-compatible object storage for uploads.
+
+- Railway uses [railway.toml](railway.toml) and [Dockerfile.railway](Dockerfile.railway).
+- Configure `AWS_ENDPOINT_URL`, `AWS_S3_BUCKET_NAME`, `AWS_DEFAULT_REGION`, `AWS_ACCESS_KEY_ID`, and `AWS_SECRET_ACCESS_KEY`.
+- Keep SQLite on a small volume and use object storage for uploaded assets.
+
 <h2 id="install-as-app-pwa">Install as App (PWA)</h2>
 
 TREK works as a Progressive Web App — no App Store needed.
@@ -423,6 +431,18 @@ Caddy handles TLS and WebSockets automatically.
 | `MCP_RATE_LIMIT` | Max MCP API requests per user per minute | `300` |
 | `MCP_MAX_SESSION_PER_USER` | Max concurrent MCP sessions per user | `20` |
 
+### Object Storage
+
+This fork also expects these upload storage variables:
+
+| Variable | Description |
+|----------|-------------|
+| `AWS_ENDPOINT_URL` | S3-compatible endpoint |
+| `AWS_S3_BUCKET_NAME` | Bucket name |
+| `AWS_DEFAULT_REGION` | Region |
+| `AWS_ACCESS_KEY_ID` | Access key |
+| `AWS_SECRET_ACCESS_KEY` | Secret key |
+
 </details>
 
 <br />
@@ -430,7 +450,7 @@ Caddy handles TLS and WebSockets automatically.
 ## Data & Backups
 
 - **Database** — SQLite, stored in `./data/travel.db`
-- **Uploads** — stored in `./uploads/`
+- **Uploads** — stored in configured S3-compatible object storage in this fork
 - **Logs** — `./data/logs/trek.log` (auto-rotated)
 - **Backups** — create and restore via Admin Panel
 - **Auto-Backups** — configurable schedule and retention in Admin Panel
@@ -440,4 +460,3 @@ Caddy handles TLS and WebSockets automatically.
 ## License
 
 TREK is [AGPL v3](LICENSE). Self-host freely for personal or internal company use. If you modify and offer TREK as a network service to third parties, your modifications must be open-sourced under the same licence.
-

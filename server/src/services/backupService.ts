@@ -5,6 +5,7 @@ import fs from 'fs';
 import Database from 'better-sqlite3';
 import { db, closeDb, reinitialize } from '../db/database';
 import * as scheduler from '../scheduler';
+import { getFileStream, listFiles } from './s3';
 import { invalidatePermissionsCache } from './permissions';
 
 // ---------------------------------------------------------------------------
@@ -156,7 +157,13 @@ export async function createBackup(): Promise<BackupInfo> {
         archive.directory(uploadsDir, 'uploads');
       }
 
-      archive.finalize();
+      void (async () => {
+        for await (const key of listFiles('')) {
+          const { stream } = await getFileStream(key);
+          archive.append(stream, { name: `uploads/${key}` });
+        }
+        archive.finalize();
+      })().catch(reject);
     });
 
     const stat = fs.statSync(outputPath);

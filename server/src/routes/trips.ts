@@ -1,10 +1,11 @@
 import express, { Request, Response } from 'express';
 import multer from 'multer';
+import fs from 'node:fs';
 import path from 'path';
-import fs from 'fs';
 import { v4 as uuidv4 } from 'uuid';
 import { db, canAccessTrip } from '../db/database';
 import { authenticate, demoUploadBlock } from '../middleware/auth';
+import { s3Upload } from '../middleware/s3Upload';
 import { broadcast } from '../websocket';
 import { AuthRequest, Trip } from '../types';
 import { writeAudit, getClientIp, logInfo } from '../services/auditLog';
@@ -36,16 +37,16 @@ import { listItems as listTodoItems } from '../services/todoService';
 import { listBudgetItems } from '../services/budgetService';
 import { listReservations } from '../services/reservationService';
 import { listFiles } from '../services/fileService';
+import { tempDir } from '../services/s3';
 
 const router = express.Router();
 
 const MAX_COVER_SIZE = 20 * 1024 * 1024; // 20 MB
 
-const coversDir = path.join(__dirname, '../../uploads/covers');
 const coverStorage = multer.diskStorage({
   destination: (_req, _file, cb) => {
-    if (!fs.existsSync(coversDir)) fs.mkdirSync(coversDir, { recursive: true });
-    cb(null, coversDir);
+    if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir, { recursive: true });
+    cb(null, tempDir);
   },
   filename: (_req, file, cb) => {
     const ext = path.extname(file.originalname);
@@ -178,7 +179,7 @@ router.put('/:id', authenticate, (req: Request, res: Response) => {
 
 // ── Cover upload ──────────────────────────────────────────────────────────
 
-router.post('/:id/cover', authenticate, demoUploadBlock, uploadCover.single('cover'), (req: Request, res: Response) => {
+router.post('/:id/cover', authenticate, demoUploadBlock, uploadCover.single('cover'), s3Upload('covers'), (req: Request, res: Response) => {
   const authReq = req as AuthRequest;
   const access = canAccessTrip(req.params.id, authReq.user.id);
   const tripOwnerId = access?.user_id;

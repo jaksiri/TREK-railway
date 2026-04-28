@@ -1,10 +1,9 @@
-import path from 'path';
-import fs from 'fs';
 import type { Request } from 'express';
 import { db, canAccessTrip } from '../db/database';
 import { consumeEphemeralToken } from './ephemeralTokens';
 import { verifyJwtAndLoadUser } from '../middleware/auth';
 import { TripFile } from '../types';
+import { deleteFile as deleteS3File } from './s3';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -24,12 +23,6 @@ export const BLOCKED_EXTENSIONS = [
   // Executables
   '.exe', '.bat', '.sh', '.cmd', '.msi', '.dll', '.com', '.vbs', '.ps1', '.app',
 ];
-export const filesDir = path.join(__dirname, '../../uploads/files');
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
 export function verifyTripAccess(tripId: string | number, userId: number) {
   return canAccessTrip(tripId, userId);
 }
@@ -48,25 +41,13 @@ const FILE_SELECT = `
   LEFT JOIN users u ON f.uploaded_by = u.id
 `;
 
-export function formatFile(file: TripFile & { trip_id?: number }) {
+export function formatFile(file: TripFile & { trip_id?: number; uploaded_by_avatar?: string | null }) {
   const tripId = file.trip_id;
   return {
     ...file,
     url: `/api/trips/${tripId}/files/${file.id}/download`,
     uploaded_by_avatar: file.uploaded_by_avatar ? `/uploads/avatars/${file.uploaded_by_avatar}` : null,
   };
-}
-
-// ---------------------------------------------------------------------------
-// File path resolution & validation
-// ---------------------------------------------------------------------------
-
-export function resolveFilePath(filename: string): { resolved: string; safe: boolean } {
-  const safeName = path.basename(filename);
-  const filePath = path.join(filesDir, safeName);
-  const resolved = path.resolve(filePath);
-  const safe = resolved.startsWith(path.resolve(filesDir));
-  return { resolved, safe };
 }
 
 // ---------------------------------------------------------------------------
@@ -212,41 +193,17 @@ export function restoreFile(id: string | number) {
 }
 
 export async function permanentDeleteFile(file: TripFile): Promise<void> {
-  const { resolved } = resolveFilePath(file.filename);
-  // `force: true` swallows ENOENT, replacing the prior existsSync+unlink
-  // double-call that blocked the event loop twice per deletion. Only
-  // drop the DB row when the on-disk unlink either succeeded or the
-  // file was already gone — otherwise a permission / ENOSPC failure
-  // would orphan the bytes on disk with no DB pointer left to clean it.
-  try {
-    await fs.promises.rm(resolved, { force: true });
-  } catch (e) {
-    console.error(`[files] unlink failed for ${file.filename}, keeping DB row:`, e);
-    throw e;
-  }
+  await deleteS3File(file.filename.startsWith('files/') ? file.filename : `files/${file.filename}`);
   db.prepare('DELETE FROM trip_files WHERE id = ?').run(file.id);
 }
 
 export async function emptyTrash(tripId: string | number): Promise<number> {
   const trashed = db.prepare('SELECT * FROM trip_files WHERE trip_id = ? AND deleted_at IS NOT NULL').all(tripId) as TripFile[];
-  // Collect successful IDs separately so we only DELETE rows whose disk
-  // content was actually removed — failing unlinks keep their DB row
-  // and a retry via the single-file delete path can try again.
-  const successfullyUnlinked: number[] = [];
   await Promise.all(trashed.map(async (file) => {
-    const { resolved } = resolveFilePath(file.filename);
-    try {
-      await fs.promises.rm(resolved, { force: true });
-      successfullyUnlinked.push(Number(file.id));
-    } catch (e) {
-      console.error(`[files] unlink failed for ${file.filename}, keeping DB row:`, e);
-    }
+    await deleteS3File(file.filename.startsWith('files/') ? file.filename : `files/${file.filename}`);
   }));
-  if (successfullyUnlinked.length > 0) {
-    const placeholders = successfullyUnlinked.map(() => '?').join(',');
-    db.prepare(`DELETE FROM trip_files WHERE id IN (${placeholders})`).run(...successfullyUnlinked);
-  }
-  return successfullyUnlinked.length;
+  db.prepare('DELETE FROM trip_files WHERE trip_id = ? AND deleted_at IS NOT NULL').run(tripId);
+  return trashed.length;
 }
 
 // ---------------------------------------------------------------------------
