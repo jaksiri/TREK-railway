@@ -1,9 +1,10 @@
 import express, { Request, Response, NextFunction } from 'express';
 import multer from 'multer';
+import fs from 'node:fs';
 import path from 'path';
-import fs from 'fs';
 import { v4 as uuid } from 'uuid';
 import { authenticate, optionalAuth, demoUploadBlock } from '../middleware/auth';
+import { s3Upload } from '../middleware/s3Upload';
 import { AuthRequest, OptionalAuthRequest } from '../types';
 import { writeAudit, getClientIp } from '../services/auditLog';
 import { setAuthCookie, clearAuthCookie } from '../services/cookie';
@@ -40,6 +41,7 @@ import {
   resetPassword,
 } from '../services/authService';
 import { sendPasswordResetEmail, getAppUrl } from '../services/notifications';
+import { tempDir } from '../services/s3';
 
 const router = express.Router();
 
@@ -47,11 +49,11 @@ const router = express.Router();
 // Avatar upload (multer config stays in route — middleware concern)
 // ---------------------------------------------------------------------------
 
-const avatarDir = path.join(__dirname, '../../uploads/avatars');
-if (!fs.existsSync(avatarDir)) fs.mkdirSync(avatarDir, { recursive: true });
-
 const avatarStorage = multer.diskStorage({
-  destination: (_req, _file, cb) => cb(null, avatarDir),
+  destination: (_req, _file, cb) => {
+    if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir, { recursive: true });
+    cb(null, tempDir);
+  },
   filename: (_req, file, cb) => cb(null, uuid() + path.extname(file.originalname)),
 });
 const ALLOWED_AVATAR_EXTS = ['.jpg', '.jpeg', '.png', '.gif', '.webp'];
@@ -277,7 +279,7 @@ router.get('/me/settings', authenticate, (req: Request, res: Response) => {
   res.json({ settings: result.settings });
 });
 
-router.post('/avatar', authenticate, demoUploadBlock, avatarUpload.single('avatar'), async (req: Request, res: Response) => {
+router.post('/avatar', authenticate, demoUploadBlock, avatarUpload.single('avatar'), s3Upload('avatars'), async (req: Request, res: Response) => {
   const authReq = req as AuthRequest;
   if (!req.file) return res.status(400).json({ error: 'No image uploaded' });
   res.json(await saveAvatar(authReq.user.id, req.file.filename));

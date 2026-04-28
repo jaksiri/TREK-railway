@@ -11,8 +11,9 @@ const coversDir = path.join(uploadsDir, 'covers');
 const avatarsDir = path.join(uploadsDir, 'avatars');
 const backupsDir = path.join(__dirname, '../data/backups');
 const tmpDir = path.join(__dirname, '../data/tmp');
+const tmpUploadsDir = path.join(__dirname, '../.tmp-uploads');
 
-[uploadsDir, photosDir, filesDir, coversDir, avatarsDir, backupsDir, tmpDir].forEach(dir => {
+[uploadsDir, photosDir, filesDir, coversDir, avatarsDir, backupsDir, tmpDir, tmpUploadsDir].forEach(dir => {
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 });
 

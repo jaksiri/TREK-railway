@@ -45,6 +45,7 @@ import systemNoticesRoutes from './routes/systemNotices';
 import { mcpHandler } from './mcp';
 import { Addon } from './types';
 import { getPhotoProviderConfig } from './services/memories/helpersService';
+import { getFileStream } from './services/s3';
 import { getCollabFeatures } from './services/adminService';
 import { isAddonEnabled } from './services/adminService';
 import { ADDON_IDS } from './addons';
@@ -191,8 +192,6 @@ export function createApp(): express.Application {
   // not embedded in unauthenticated UI contexts, so that endpoint IS
   // gated (session JWT with pv, or a share token scoped to the photo's
   // trip).
-  app.use('/uploads/avatars', express.static(path.join(__dirname, '../uploads/avatars')));
-  app.use('/uploads/covers', express.static(path.join(__dirname, '../uploads/covers')));
   app.use('/uploads/journey', express.static(path.join(__dirname, '../uploads/journey')));
 
   // Photos require either a valid logged-in session (via JWT with the
@@ -200,42 +199,53 @@ export function createApp(): express.Application {
   // photo's trip. Previously any share token for any trip could request
   // any photo filename by UUID — fine in practice because UUIDs are
   // unguessable, but the auth model was wrong.
-  app.get('/uploads/photos/:filename', (req: Request, res: Response) => {
-    const safeName = path.basename(req.params.filename);
-    const filePath = path.join(__dirname, '../uploads/photos', safeName);
-    const resolved = path.resolve(filePath);
-    if (!resolved.startsWith(path.resolve(__dirname, '../uploads/photos'))) {
-      return res.status(403).send('Forbidden');
-    }
-    // existsSync here is cheap and avoids a sendFile error frame; kept
-    // sync because the handler is already short-lived.
-    if (!fs.existsSync(resolved)) return res.status(404).send('Not found');
-
-    const authHeader = req.headers.authorization;
-    const rawToken = (req.query.token as string) || (authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null);
-    if (!rawToken) return res.status(401).send('Authentication required');
-
-    // JWT session path (with pv check).
-    const user = verifyJwtAndLoadUser(rawToken);
-    if (user) return res.sendFile(resolved);
-
-    // Share-token path: require the token to cover the exact trip the
-    // photo belongs to. Expired tokens fall through to 401.
-    const photo = db.prepare('SELECT trip_id FROM photos WHERE filename = ?').get(safeName) as { trip_id: number } | undefined;
-    if (!photo) return res.status(401).send('Authentication required');
-
-    const share = db.prepare(
-      "SELECT trip_id FROM share_tokens WHERE token = ? AND (expires_at IS NULL OR expires_at > datetime('now'))"
-    ).get(rawToken) as { trip_id: number } | undefined;
-    if (!share || share.trip_id !== photo.trip_id) {
-      return res.status(401).send('Authentication required');
-    }
-    res.sendFile(resolved);
-  });
-
-  // Block direct access to /uploads/files
   app.use('/uploads/files', (_req: Request, res: Response) => {
     res.status(401).send('Authentication required');
+  });
+
+  app.get('/uploads/:type/*', async (req: Request, res: Response) => {
+    const { type } = req.params;
+    const keyPath = req.params[0];
+    if (!['avatars', 'covers', 'photos'].includes(type) || !keyPath) {
+      return res.status(404).send('Not found');
+    }
+
+    if (type === 'photos') {
+      const authHeader = req.headers.authorization;
+      const rawToken = (req.query.token as string) || (authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null);
+      if (!rawToken) return res.status(401).send('Authentication required');
+
+      const user = verifyJwtAndLoadUser(rawToken);
+      if (!user) {
+        const safeName = path.basename(keyPath);
+        const photo = db.prepare('SELECT trip_id FROM photos WHERE filename = ?').get(safeName) as { trip_id: number } | undefined;
+        if (!photo) return res.status(401).send('Authentication required');
+
+        const share = db.prepare(
+          "SELECT trip_id FROM share_tokens WHERE token = ? AND (expires_at IS NULL OR expires_at > datetime('now'))"
+        ).get(rawToken) as { trip_id: number } | undefined;
+        if (!share || share.trip_id !== photo.trip_id) {
+          return res.status(401).send('Authentication required');
+        }
+      }
+    }
+
+    const localPath = path.resolve(path.join(__dirname, '../uploads', type, keyPath));
+    const localRoot = path.resolve(path.join(__dirname, '../uploads', type));
+    if (!localPath.startsWith(localRoot)) {
+      return res.status(403).send('Forbidden');
+    }
+
+    try {
+      const { stream, contentType, contentLength } = await getFileStream(`${type}/${keyPath}`);
+      if (contentType) res.setHeader('Content-Type', contentType);
+      if (contentLength) res.setHeader('Content-Length', String(contentLength));
+      if (type !== 'photos') res.setHeader('Cache-Control', 'public, max-age=86400');
+      stream.pipe(res);
+    } catch {
+      if (!fs.existsSync(localPath)) return res.status(404).send('Not found');
+      res.sendFile(localPath);
+    }
   });
 
   // API Routes
