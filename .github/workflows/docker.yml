@@ -50,17 +50,10 @@ jobs:
           echo "::error::Dispatch this workflow on main, not on $GITHUB_REF."
           exit 1
 
-      - uses: actions/create-github-app-token@v3
-        id: app-token
-        with:
-          app-id: ${{ secrets.RELEASE_APP_ID }}
-          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
-
       - uses: actions/checkout@v6
         with:
           fetch-depth: 0
           fetch-tags: true
-          token: ${{ steps.app-token.outputs.token }}
 
       # The dev push, the main push and any manual run each leave a ci-ok on
       # this commit. scripts/ci/ci-ok-verdict.mjs counts the newest attempt of
@@ -85,6 +78,7 @@ jobs:
         run: |
           set -eu
           git fetch --tags
+          echo "SHA=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
 
           # Derive version from git tags, no package.json dependency
           STABLE_TAG=$(git tag -l 'v[0-9]*.[0-9]*.[0-9]*' | grep -v '\-pre\.' | sort -V | tail -1)
@@ -142,24 +136,6 @@ jobs:
           echo "Bump type: $BUMP"
           echo "VERSION=$NEW_VERSION" >> "$GITHUB_OUTPUT"
           echo "$STABLE to $NEW_VERSION ($BUMP)"
-
-          # Update all workspace + root package.json files and the root lockfile in one shot
-          npm version "$NEW_VERSION" --workspaces --include-workspace-root --no-git-tag-version
-          sed -i "s/^version: .*/version: $NEW_VERSION/" charts/trek/Chart.yaml
-          sed -i "s/^appVersion: .*/appVersion: \"$NEW_VERSION\"/" charts/trek/Chart.yaml
-
-          # Commit and tag. The push fast-forwards main from the commit ci-ok
-          # was checked on, so it fails rather than release past anything that
-          # landed on main in the meantime.
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add package.json package-lock.json server/package.json client/package.json shared/package.json charts/trek/Chart.yaml
-          git commit -m "chore: bump version to $NEW_VERSION [skip ci]"
-          git tag -a "v$NEW_VERSION" -m "v$NEW_VERSION"
-          git push origin HEAD:main --follow-tags
-
-          # build, merge and release-helm check out exactly this commit.
-          echo "SHA=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
   build:
     runs-on: ${{ matrix.runner }}
@@ -232,6 +208,8 @@ jobs:
       - uses: actions/checkout@v6
         with:
           ref: ${{ needs.version-bump.outputs.sha }}
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Download build digests
         uses: actions/download-artifact@v7
@@ -287,6 +265,14 @@ jobs:
 
       - name: Inspect manifest
         run: docker buildx imagetools inspect mauriceboe/trek:latest
+
+      - name: Push git tag
+        run: |
+          VERSION="${{ needs.version-bump.outputs.version }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag "v$VERSION"
+          git push origin "v$VERSION"
 
   release-helm:
     runs-on: ubuntu-24.04
