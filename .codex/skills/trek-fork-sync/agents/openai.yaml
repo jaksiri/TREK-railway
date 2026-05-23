@@ -1,0 +1,4 @@
+interface:
+  display_name: "TREK Fork Sync"
+  short_description: "Sync TREK fork with upstream safely"
+  default_prompt: "Use $trek-fork-sync to update this TREK fork from upstream and, by default, apply my branch on top of the latest upstream changes."
