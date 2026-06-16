@@ -7,8 +7,12 @@ import { dayRepo } from '../repo/dayRepo'
 import { placeRepo } from '../repo/placeRepo'
 import { packingRepo } from '../repo/packingRepo'
 import { todoRepo } from '../repo/todoRepo'
+import { budgetRepo } from '../repo/budgetRepo'
+import { reservationRepo } from '../repo/reservationRepo'
+import { fileRepo } from '../repo/fileRepo'
 import { createPlacesSlice } from './slices/placesSlice'
 import { createAssignmentsSlice } from './slices/assignmentsSlice'
+import { createDaysSlice } from './slices/daysSlice'
 import { createDayNotesSlice } from './slices/dayNotesSlice'
 import { createPackingSlice } from './slices/packingSlice'
 import { createTodoSlice } from './slices/todoSlice'
@@ -24,6 +28,7 @@ import type {
 import { getApiErrorMessage } from '../types'
 import type { PlacesSlice } from './slices/placesSlice'
 import type { AssignmentsSlice } from './slices/assignmentsSlice'
+import type { DaysSlice } from './slices/daysSlice'
 import type { DayNotesSlice } from './slices/dayNotesSlice'
 import type { PackingSlice } from './slices/packingSlice'
 import type { TodoSlice } from './slices/todoSlice'
@@ -34,6 +39,7 @@ import type { FilesSlice } from './slices/filesSlice'
 export interface TripStoreState
   extends PlacesSlice,
     AssignmentsSlice,
+    DaysSlice,
     DayNotesSlice,
     PackingSlice,
     TodoSlice,
@@ -58,11 +64,13 @@ export interface TripStoreState
 
   setSelectedDay: (dayId: number | null) => void
   handleRemoteEvent: (event: WebSocketEvent) => void
+  resetTrip: () => void
   loadTrip: (tripId: number | string) => Promise<void>
+  hydrateActiveTrip: (tripId: number | string) => Promise<void>
   refreshDays: (tripId: number | string) => Promise<void>
   updateTrip: (tripId: number | string, data: Partial<Trip>) => Promise<Trip>
-  addTag: (data: Partial<Tag>) => Promise<Tag>
-  addCategory: (data: Partial<Category>) => Promise<Category>
+  addTag: (data: Partial<Tag> & { name: string }) => Promise<Tag>
+  addCategory: (data: Partial<Category> & { name: string }) => Promise<Category>
 }
 
 export const useTripStore = create<TripStoreState>((set, get) => ({
@@ -86,15 +94,40 @@ export const useTripStore = create<TripStoreState>((set, get) => ({
 
   handleRemoteEvent: (event: WebSocketEvent) => handleRemoteEvent(set, get, event),
 
+  // Clear every trip-scoped slice so switching trips (or losing access to one)
+  // can never leave a previous trip's data visible. Global tags/categories are
+  // left intact. Called at the top of loadTrip.
+  resetTrip: () => set({
+    trip: null,
+    days: [],
+    places: [],
+    assignments: {},
+    dayNotes: {},
+    packingItems: [],
+    todoItems: [],
+    budgetItems: [],
+    files: [],
+    reservations: [],
+    selectedDayId: null,
+    error: null,
+  }),
+
   loadTrip: async (tripId: number | string) => {
+    get().resetTrip()
     set({ isLoading: true, error: null })
     try {
-      const [tripData, daysData, placesData, packingData, todoData, tagsData, categoriesData] = await Promise.all([
+      const [tripData, daysData, placesData, packingData, todoData, budgetData, reservationsData, filesData, tagsData, categoriesData] = await Promise.all([
         tripRepo.get(tripId),
         dayRepo.list(tripId),
         placeRepo.list(tripId),
         packingRepo.list(tripId),
         todoRepo.list(tripId),
+        // Budget / reservations / files are hydrated here too so the offline
+        // path is uniform (no separate tab-gated effects). Non-fatal: a failure
+        // in any of these must not blank the whole trip.
+        budgetRepo.list(tripId).catch(() => ({ items: [] as BudgetItem[] })),
+        reservationRepo.list(tripId).catch(() => ({ reservations: [] as Reservation[] })),
+        fileRepo.list(tripId).catch(() => ({ files: [] as TripFile[] })),
         navigator.onLine
           ? tagsApi.list().catch(() => offlineDb.tags.toArray().then(tags => ({ tags })))
           : offlineDb.tags.toArray().then(tags => ({ tags })),
@@ -118,6 +151,9 @@ export const useTripStore = create<TripStoreState>((set, get) => ({
         dayNotes: dayNotesMap,
         packingItems: packingData.items,
         todoItems: todoData.items,
+        budgetItems: budgetData.items,
+        reservations: reservationsData.reservations,
+        files: filesData.files,
         tags: tagsData.tags,
         categories: categoriesData.categories,
         isLoading: false,
@@ -127,6 +163,22 @@ export const useTripStore = create<TripStoreState>((set, get) => ({
       set({ isLoading: false, error: message })
       throw err
     }
+  },
+
+  // Silently re-fetch the active trip's collaborative state into the store after
+  // the network comes back (WS reconnect or `online` event) so edits missed while
+  // offline appear in place — no splash, no resetTrip. Each resource is
+  // best-effort; a failure on one must not wipe the others.
+  hydrateActiveTrip: async (tripId: number | string) => {
+    await Promise.all([
+      get().refreshDays(tripId),
+      placeRepo.list(tripId).then(d => set({ places: d.places })).catch(() => {}),
+      packingRepo.list(tripId).then(d => set({ packingItems: d.items })).catch(() => {}),
+      todoRepo.list(tripId).then(d => set({ todoItems: d.items })).catch(() => {}),
+      get().loadBudgetItems(tripId),
+      get().loadReservations(tripId),
+      get().loadFiles(tripId),
+    ])
   },
 
   refreshDays: async (tripId: number | string) => {
@@ -162,7 +214,7 @@ export const useTripStore = create<TripStoreState>((set, get) => ({
     }
   },
 
-  addTag: async (data: Partial<Tag>) => {
+  addTag: async (data: Partial<Tag> & { name: string }) => {
     try {
       const result = await tagsApi.create(data)
       set((state) => ({ tags: [...state.tags, result.tag] }))
@@ -172,7 +224,7 @@ export const useTripStore = create<TripStoreState>((set, get) => ({
     }
   },
 
-  addCategory: async (data: Partial<Category>) => {
+  addCategory: async (data: Partial<Category> & { name: string }) => {
     try {
       const result = await categoriesApi.create(data)
       set((state) => ({ categories: [...state.categories, result.category] }))
@@ -184,6 +236,7 @@ export const useTripStore = create<TripStoreState>((set, get) => ({
 
   ...createPlacesSlice(set, get),
   ...createAssignmentsSlice(set, get),
+  ...createDaysSlice(set, get),
   ...createDayNotesSlice(set, get),
   ...createPackingSlice(set, get),
   ...createTodoSlice(set, get),

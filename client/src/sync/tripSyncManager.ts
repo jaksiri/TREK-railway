@@ -27,8 +27,10 @@ import {
   upsertCategories,
   upsertSyncMeta,
   clearTripData,
+  enforceBlobBudget,
 } from '../db/offlineDb'
 import { prefetchTilesForTrip } from './tilePrefetcher'
+import { isAuthed } from './authGate'
 import { useSettingsStore } from '../store/settingsStore'
 import type { Trip, Day, Place, PackingItem, TodoItem, BudgetItem, Reservation, TripFile, Accommodation, TripMember } from '../types'
 
@@ -108,12 +110,15 @@ async function cacheFilesForTrip(files: TripFile[]): Promise<void> {
       const resp = await fetch(file.url!, { credentials: 'include' })
       if (!resp.ok) continue
       const blob = await resp.blob()
-      await offlineDb.blobCache.put({ url: file.url!, blob, mime: file.mime_type, cachedAt: Date.now() })
+      await offlineDb.blobCache.put({ url: file.url!, tripId: file.trip_id, blob, bytes: blob.size, mime: file.mime_type, cachedAt: Date.now() })
       cached++
     } catch {
       // Network failure — skip this file, will retry next sync
     }
   }
+
+  // Keep the blob cache within its size/count budget after adding new files.
+  if (cached > 0) await enforceBlobBudget().catch(() => {})
 
   // Update filesCachedCount in syncMeta
   const tripId = files[0]?.trip_id
@@ -134,7 +139,7 @@ export const tripSyncManager = {
    * No-ops when offline.
    */
   async syncAll(): Promise<void> {
-    if (_syncing || !navigator.onLine) return
+    if (_syncing || !navigator.onLine || !isAuthed()) return
     _syncing = true
     try {
       const { trips } = await tripsApi.list() as { trips: Trip[] }

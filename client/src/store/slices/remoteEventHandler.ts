@@ -1,6 +1,6 @@
 import type { StoreApi } from 'zustand'
 import type { TripStoreState } from '../tripStore'
-import type { Assignment, Place, Day, DayNote, PackingItem, TodoItem, BudgetItem, BudgetMember, Reservation, Trip, TripFile, WebSocketEvent } from '../../types'
+import type { Assignment, Place, Day, DayNote, PackingItem, TodoItem, BudgetItem, BudgetItemMember, Reservation, Trip, TripFile, WebSocketEvent } from '../../types'
 import { offlineDb } from '../../db/offlineDb'
 
 type SetState = StoreApi<TripStoreState>['setState']
@@ -193,25 +193,34 @@ export function handleRemoteEvent(set: SetState, get: GetState, event: WebSocket
 
       // Assignments
       case 'assignment:created': {
-        const dayKey = String((payload.assignment as Assignment).day_id)
-        const existing = (state.assignments[dayKey] || [])
-        const placeId = (payload.assignment as Assignment).place?.id || (payload.assignment as Assignment).place_id
-        if (existing.some(a => a.id === (payload.assignment as Assignment).id || (placeId && a.place?.id === placeId))) {
-          const hasTempVersion = existing.some(a => a.id < 0 && a.place?.id === placeId)
-          if (hasTempVersion) {
-            return {
-              assignments: {
-                ...state.assignments,
-                [dayKey]: existing.map(a => (a.id < 0 && a.place?.id === placeId) ? payload.assignment as Assignment : a),
-              }
-            }
+        const incoming = payload.assignment as Assignment
+        const dayKey = String(incoming.day_id)
+        const existing = state.assignments[dayKey] || []
+        const placeId = incoming.place?.id ?? incoming.place_id
+
+        // Already have this exact assignment id → duplicate broadcast or the
+        // echo of an already-committed assignment. No-op.
+        if (existing.some(a => a.id === incoming.id)) return {}
+
+        // Reconcile our own optimistic create: replace the temp (negative-id)
+        // assignment of the same place on this day with the real one. Guarded on
+        // a real placeId so an assignment with no place can never collapse onto
+        // another place-less one (undefined === undefined).
+        if (placeId != null) {
+          const tempIdx = existing.findIndex(a => a.id < 0 && a.place?.id === placeId)
+          if (tempIdx !== -1) {
+            const next = existing.slice()
+            next[tempIdx] = incoming
+            return { assignments: { ...state.assignments, [dayKey]: next } }
           }
-          return {}
         }
+
+        // Genuinely new — including a legitimate second assignment of a place
+        // already on this day (no temp version to reconcile). Append.
         return {
           assignments: {
             ...state.assignments,
-            [dayKey]: [...existing, payload.assignment as Assignment],
+            [dayKey]: [...existing, incoming],
           }
         }
       }
@@ -250,7 +259,7 @@ export function handleRemoteEvent(set: SetState, get: GetState, event: WebSocket
       case 'assignment:reordered': {
         const dayKey = String(payload.dayId)
         const currentItems = state.assignments[dayKey] || []
-        const orderedIds: number[] = payload.orderedIds || []
+        const orderedIds: number[] = (payload.orderedIds as number[] | undefined) || []
         const reordered = orderedIds.map((id, idx) => {
           const item = currentItems.find(a => a.id === id)
           return item ? { ...item, order_index: idx } : null
@@ -282,6 +291,15 @@ export function handleRemoteEvent(set: SetState, get: GetState, event: WebSocket
           assignments: newAssignments,
           dayNotes: newDayNotes,
         }
+      }
+      case 'day:reordered': {
+        // Apply the new order instantly when we know all ids; the authoritative
+        // dates + re-stamped booking times are pulled by the refresh below.
+        const orderedIds = payload.orderedIds as number[] | undefined
+        if (!orderedIds || orderedIds.length !== state.days.length) return {}
+        const byId = new Map(state.days.map(d => [d.id, d]))
+        if (!orderedIds.every(id => byId.has(id))) return {}
+        return { days: orderedIds.map((id, i) => ({ ...byId.get(id)!, day_number: i + 1 })) }
       }
 
       // Day Notes
@@ -356,14 +374,17 @@ export function handleRemoteEvent(set: SetState, get: GetState, event: WebSocket
       case 'budget:members-updated':
         return {
           budgetItems: state.budgetItems.map(i =>
-            i.id === payload.itemId ? { ...i, members: payload.members as BudgetMember[], persons: payload.persons as number } : i
+            i.id === payload.itemId ? { ...i, members: payload.members as BudgetItemMember[], persons: payload.persons as number } : i
           ),
         }
       case 'budget:member-paid-updated':
         return {
           budgetItems: state.budgetItems.map(i =>
             i.id === payload.itemId
-              ? { ...i, members: (i.members || []).map(m => m.user_id === payload.userId ? { ...m, paid: payload.paid } : m) }
+              // `paid` arrives over the wire as the raw value the server emits;
+              // it's stored verbatim. The member type models it as a number, so
+              // narrow without changing the value.
+              ? { ...i, members: (i.members || []).map(m => m.user_id === payload.userId ? { ...m, paid: payload.paid as number } : m) }
               : i
           ),
         }
@@ -371,7 +392,7 @@ export function handleRemoteEvent(set: SetState, get: GetState, event: WebSocket
         if (payload.orderedIds) {
           const orderedIds = payload.orderedIds as number[]
           const byId = new Map(state.budgetItems.map(i => [i.id, i]))
-          const reordered = orderedIds.map((id, idx) => {
+          const reordered = orderedIds.map((id, idx): BudgetItem | null => {
             const item = byId.get(id)
             return item ? { ...item, sort_order: idx } : null
           }).filter((i): i is BudgetItem => i !== null)
@@ -438,6 +459,16 @@ export function handleRemoteEvent(set: SetState, get: GetState, event: WebSocket
         return {}
     }
   })
+
+  // A reorder/insert re-pins dates and re-stamps booking times server-side, so
+  // pull the authoritative days + reservations for collaborators.
+  if (type === 'day:reordered') {
+    const tripId = get().trip?.id
+    if (tripId) {
+      get().refreshDays(tripId)
+      get().loadReservations(tripId)
+    }
+  }
 
   // Write the change through to IndexedDB using the post-update state
   writeToDexie(type, payload as Record<string, unknown>, get())

@@ -79,7 +79,80 @@ npm ci
 
 ---
 
-## 6. Available Scripts
+## 6. Optional: KItinerary (Booking Import)
+
+The booking-confirmation import feature uses [KDE KItinerary](https://apps.kde.org/itinerary/) to parse travel documents. The server works without it, but the import endpoint will be non-functional.
+
+### Linux — amd64
+
+Download the static binary from the KDE CDN and verify the checksum:
+
+```bash
+wget -qO /tmp/ki.tgz https://cdn.kde.org/ci-builds/pim/kitinerary/release-26.04/linux/kitinerary-extractor-x86_64-26.04.0.tgz
+echo "b7058d98990053c7b61847fef0c21e02d59b60e323e2b171ca210b682334e801  /tmp/ki.tgz" | sha256sum -c
+sudo tar -xz -C /usr/local -f /tmp/ki.tgz bin/kitinerary-extractor share/locale
+rm /tmp/ki.tgz
+```
+
+### Linux — arm64
+
+```bash
+sudo apt-get install -y libkitinerary-bin
+sudo ln -sf "$(find /usr/lib -name kitinerary-extractor -type f | head -1)" /usr/local/bin/kitinerary-extractor
+```
+
+### Environment variables
+
+Add these to your local `.env` (or export them before starting the server):
+
+```bash
+# Required: path to the extractor binary
+KITINERARY_EXTRACTOR_PATH=/usr/local/bin/kitinerary-extractor
+
+# Prevent Qt from probing for a display in headless/server environments
+QT_QPA_PLATFORM=offscreen
+
+# KDE cache directory (avoids writing to $HOME)
+XDG_CACHE_HOME=/tmp/kf6-cache
+```
+
+You can override `KITINERARY_EXTRACTOR_PATH` if you installed the binary to a different location.
+
+---
+
+## 7. Available Scripts
+
+### Root (`/`)
+
+These commands run across all workspaces at once and are the recommended way to work:
+
+| Command              | Description                                                         |
+|----------------------|---------------------------------------------------------------------|
+| `npm run dev`        | Build shared, then start shared (watch), server, and client together via `concurrently` |
+| `npm run build`      | Build shared → server → client in order                            |
+| `npm test`           | Run tests in shared, server, and client                            |
+| `npm run test:cov`   | Run coverage for server and client                                 |
+| `npm run test:e2e`   | Run end-to-end tests (server)                                      |
+| `npm run lint`       | Lint shared, server, and client                                    |
+| `npm run format`     | Format shared, server, and client                                  |
+| `npm run format:check` | Check formatting across all workspaces                           |
+
+### Shared (`/shared`)
+
+The `@trek/shared` package is the single source of truth for code shared between the client and server. It holds the **Zod schemas that define the API contracts** (request/response shapes, common primitives, pagination) and the **i18n translation layer** (per-language keys and types). Both workspaces import from it, so schema and translation changes propagate to both sides from one place.
+
+> **Tip:** run `npm run i18n:parity` (or `i18n:parity:strict`) in this package to verify every locale exposes the same translation keys — the CI parity gate runs the strict variant.
+
+| Command                     | Description                          |
+|-----------------------------|--------------------------------------|
+| `npm run build`             | Compile shared package (tsup)        |
+| `npm run build:watch`       | Compile in watch mode                |
+| `npm test`                  | Run tests                            |
+| `npm run typecheck`         | Type-check without emitting          |
+| `npm run i18n:parity`       | Check locale key parity              |
+| `npm run i18n:parity:strict`| Strict locale key parity (CI gate)   |
+| `npm run lint`              | Lint source                          |
+| `npm run format`            | Format source                        |
 
 ### Root (`/`)
 
@@ -123,7 +196,6 @@ The `@trek/shared` package is the single source of truth for code shared between
 | `npm run test:unit`        | Run unit tests only                      |
 | `npm run test:integration` | Run integration tests                    |
 | `npm run test:ws`          | Run WebSocket tests                      |
-| `npm run test:parity`      | Run parity tests                         |
 | `npm run test:e2e`         | Run end-to-end tests                     |
 | `npm run test:watch`       | Run tests in watch mode                  |
 | `npm run test:coverage`    | Run tests with coverage report           |
@@ -147,7 +219,7 @@ The `@trek/shared` package is the single source of truth for code shared between
 
 ---
 
-## 7. Commit & Push Your Changes
+## 8. Commit & Push Your Changes
 
 ```bash
 git add .

@@ -1,6 +1,7 @@
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
+import { SUPPORTED_LANGUAGE_CODES as SUPPORTED_LANG_CODES } from '@trek/shared';
 
 const dataDir = path.resolve(__dirname, '../data');
 
@@ -101,12 +102,55 @@ export const ENCRYPTION_KEY = _encryptionKey;
 
 // DEFAULT_LANGUAGE sets the language shown on the login page before the user
 // selects one. Only applies when the user has no saved language preference.
-// Supported values: de, en, es, fr, hu, nl, br, cs, pl, ru, zh, zh-TW, it, ar
-// Must stay in sync with client/src/i18n/supportedLanguages.ts (canonical source).
-// Kept duplicated here because server and client are separate npm packages.
-const SUPPORTED_LANG_CODES = ['de', 'en', 'es', 'fr', 'hu', 'nl', 'br', 'cs', 'pl', 'ru', 'zh', 'zh-TW', 'it', 'ar'];
 const rawDefaultLang = process.env.DEFAULT_LANGUAGE?.toLowerCase() || 'en';
 if (!SUPPORTED_LANG_CODES.includes(rawDefaultLang)) {
   console.warn(`DEFAULT_LANGUAGE="${rawDefaultLang}" is not supported. Falling back to "en". Supported: ${SUPPORTED_LANG_CODES.join(', ')}`);
 }
 export const DEFAULT_LANGUAGE = SUPPORTED_LANG_CODES.includes(rawDefaultLang) ? rawDefaultLang : 'en';
+
+// SESSION_DURATION controls how long a TREK session (the `trek_session` JWT
+// cookie) stays valid before re-login is required. Accepts ms-style strings:
+// '1h', '12h', '7d', '30d', '90d', etc. It applies to BOTH the JWT `exp` claim
+// and the cookie `maxAge`, so the two never drift apart. Invalid values warn at
+// startup and fall back to the default. Does not affect the short-lived MFA
+// challenge token or MCP OAuth tokens — those keep their own TTL.
+const DEFAULT_SESSION_DURATION = '24h';
+const DURATION_UNITS_MS: Record<string, number> = {
+  ms: 1, s: 1000, m: 60_000, h: 3_600_000, d: 86_400_000, w: 604_800_000, y: 31_557_600_000,
+};
+function parseDurationMs(value: string): number | null {
+  const m = /^(\d+(?:\.\d+)?)\s*(ms|s|m|h|d|w|y)?$/i.exec(value.trim());
+  if (!m) return null;
+  const n = parseFloat(m[1]);
+  if (!Number.isFinite(n) || n <= 0) return null;
+  return n * DURATION_UNITS_MS[(m[2] || 'ms').toLowerCase()];
+}
+const rawSessionDuration = process.env.SESSION_DURATION?.trim() || DEFAULT_SESSION_DURATION;
+const parsedSessionMs = parseDurationMs(rawSessionDuration);
+if (parsedSessionMs == null) {
+  console.warn(`SESSION_DURATION="${rawSessionDuration}" is not a valid duration (use e.g. 1h, 7d, 30d). Falling back to "${DEFAULT_SESSION_DURATION}".`);
+}
+/** Human-readable session length actually in effect (for logs/diagnostics). */
+export const SESSION_DURATION = parsedSessionMs == null ? DEFAULT_SESSION_DURATION : rawSessionDuration;
+/** Session length in milliseconds — used for the cookie `maxAge`. */
+export const SESSION_DURATION_MS = parsedSessionMs ?? parseDurationMs(DEFAULT_SESSION_DURATION)!;
+/** Session length in seconds — passed to `jwt.sign({ expiresIn })` (number = seconds). */
+export const SESSION_DURATION_SECONDS = Math.floor(SESSION_DURATION_MS / 1000);
+
+// SESSION_DURATION_REMEMBER is the session length used when the user ticks
+// "Remember me" on the login form: a longer-lived JWT `exp` claim plus a
+// persistent `trek_session` cookie `maxAge`. An unticked login keeps
+// SESSION_DURATION and a browser-session cookie (no `maxAge`). Same ms-style
+// format and fallback behavior as SESSION_DURATION.
+const DEFAULT_SESSION_DURATION_REMEMBER = '30d';
+const rawRememberDuration = process.env.SESSION_DURATION_REMEMBER?.trim() || DEFAULT_SESSION_DURATION_REMEMBER;
+const parsedRememberMs = parseDurationMs(rawRememberDuration);
+if (parsedRememberMs == null) {
+  console.warn(`SESSION_DURATION_REMEMBER="${rawRememberDuration}" is not a valid duration (use e.g. 7d, 30d, 90d). Falling back to "${DEFAULT_SESSION_DURATION_REMEMBER}".`);
+}
+/** Human-readable "remember me" session length actually in effect (for logs/diagnostics). */
+export const SESSION_DURATION_REMEMBER = parsedRememberMs == null ? DEFAULT_SESSION_DURATION_REMEMBER : rawRememberDuration;
+/** "Remember me" session length in milliseconds — used for the persistent cookie `maxAge`. */
+export const SESSION_DURATION_REMEMBER_MS = parsedRememberMs ?? parseDurationMs(DEFAULT_SESSION_DURATION_REMEMBER)!;
+/** "Remember me" session length in seconds — passed to `jwt.sign({ expiresIn })`. */
+export const SESSION_DURATION_REMEMBER_SECONDS = Math.floor(SESSION_DURATION_REMEMBER_MS / 1000);

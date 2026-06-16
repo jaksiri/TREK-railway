@@ -37,6 +37,7 @@ import { createUser, createTrip } from '../../helpers/factories';
 import {
   saveAsTemplate,
   applyTemplate,
+  listTemplates,
   setBagMembers,
   createBag,
   deleteBag,
@@ -89,6 +90,27 @@ describe('saveAsTemplate', () => {
     const result = saveAsTemplate(trip.id, user.id, 'Empty');
 
     expect(result).toBeNull();
+  });
+});
+
+// ── listTemplates ───────────────────────────────────────────────────────────────
+
+describe('listTemplates', () => {
+  it('PACK-SVC-LIST-001: returns templates with id, name and item_count', () => {
+    const { user } = createUser(testDb);
+    const trip = createTrip(testDb, user.id);
+
+    testDb.prepare('INSERT INTO packing_items (trip_id, name, category, checked, sort_order) VALUES (?, ?, ?, 0, ?)').run(trip.id, 'Shirt', 'Clothes', 0);
+    testDb.prepare('INSERT INTO packing_items (trip_id, name, category, checked, sort_order) VALUES (?, ?, ?, 0, ?)').run(trip.id, 'Toothbrush', 'Toiletries', 1);
+    const saved = saveAsTemplate(trip.id, user.id, 'Weekend');
+
+    const templates = listTemplates();
+    expect(templates).toHaveLength(1);
+    expect(templates[0]).toMatchObject({ id: saved!.id, name: 'Weekend', item_count: 2 });
+  });
+
+  it('PACK-SVC-LIST-002: returns an empty array when no templates exist', () => {
+    expect(listTemplates()).toEqual([]);
   });
 });
 
@@ -251,5 +273,29 @@ describe('bulkImport with bag field', () => {
     expect(items).toHaveLength(2);
     expect(items[0].bag_id).toBe(bags[0].id);
     expect(items[1].bag_id).toBe(bags[0].id);
+  });
+});
+
+// ── bulkImport with quantity field ────────────────────────────────────────────
+
+describe('bulkImport with quantity field', () => {
+  it('PACK-SVC-013: bulk import respects per-item quantity, defaults to 1, and clamps out-of-range', () => {
+    const { user } = createUser(testDb);
+    const trip = createTrip(testDb, user.id);
+
+    bulkImport(trip.id, [
+      { name: 'Socks', quantity: 5 },
+      { name: 'Toothbrush' },
+      { name: 'Batteries', quantity: 9999 },
+      { name: 'Charger', quantity: 0 },
+    ]);
+
+    const byName = (n: string) =>
+      testDb.prepare('SELECT * FROM packing_items WHERE trip_id = ? AND name = ?').get(trip.id, n) as any;
+
+    expect(byName('Socks').quantity).toBe(5);
+    expect(byName('Toothbrush').quantity).toBe(1);
+    expect(byName('Batteries').quantity).toBe(999);
+    expect(byName('Charger').quantity).toBe(1);
   });
 });

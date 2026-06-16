@@ -103,6 +103,38 @@ describe('LoginPage', () => {
     });
   });
 
+  describe('FE-PAGE-LOGIN-007: Remember me sends remember_me to the API', () => {
+    it('renders an off toggle and forwards remember_me: true when toggled on', async () => {
+      let capturedBody: Record<string, unknown> | null = null;
+      server.use(
+        http.post('/api/auth/login', async ({ request }) => {
+          capturedBody = (await request.json()) as Record<string, unknown>;
+          return HttpResponse.json({ user: { id: 1, username: 'test', email: 'test@example.com', role: 'user' } });
+        }),
+      );
+
+      const user = userEvent.setup();
+      render(<LoginPage />);
+
+      await waitFor(() => {
+        expect(screen.getByPlaceholderText(EMAIL_PLACEHOLDER)).toBeInTheDocument();
+      });
+
+      const toggle = screen.getByRole('button', { name: /remember me/i });
+      expect(toggle).toHaveAttribute('aria-pressed', 'false');
+
+      await user.type(screen.getByPlaceholderText(EMAIL_PLACEHOLDER), 'user@example.com');
+      await user.type(screen.getByPlaceholderText(PASSWORD_PLACEHOLDER), 'password123');
+      await user.click(toggle);
+      expect(toggle).toHaveAttribute('aria-pressed', 'true');
+      await user.click(screen.getByRole('button', { name: /sign in/i }));
+
+      await waitFor(() => {
+        expect(capturedBody).toEqual(expect.objectContaining({ remember_me: true }));
+      });
+    });
+  });
+
   describe('FE-PAGE-LOGIN-005: Registration toggle visible', () => {
     it('shows a Register button to switch to registration mode', async () => {
       // Default appConfig has allow_registration: true, has_users: true

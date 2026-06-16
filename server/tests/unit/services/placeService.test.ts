@@ -41,6 +41,14 @@ vi.mock('../../../src/config', () => ({
   updateJwtSecret: () => {},
 }));
 
+// Spy on the photo-cache reclaim hook so delete tests assert the wiring without
+// touching disk. The removal logic itself is covered in placePhotoCache.test.ts.
+const { removeIfUnreferencedSpy } = vi.hoisted(() => ({ removeIfUnreferencedSpy: vi.fn() }));
+vi.mock('../../../src/services/placePhotoCache', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../../src/services/placePhotoCache')>()),
+  removeIfUnreferenced: removeIfUnreferencedSpy,
+}));
+
 import { createTables } from '../../../src/db/schema';
 import { runMigrations } from '../../../src/db/migrations';
 import { resetTestDb } from '../../helpers/test-db';
@@ -252,6 +260,18 @@ describe('deletePlace', () => {
     expect(remaining).toHaveLength(1);
     expect(remaining[0].id).toBe(p1.id);
   });
+
+  it('PLACE-SVC-019b — reclaims the photo cache for the deleted place', () => {
+    removeIfUnreferencedSpy.mockClear();
+    const { user } = createUser(testDb);
+    const trip = createTrip(testDb, user.id);
+    const place = createPlace(testDb, trip.id, { name: 'With Photo' }) as any;
+    testDb.prepare('UPDATE places SET google_place_id = ? WHERE id = ?').run('ChIJgid', place.id);
+
+    deletePlace(String(trip.id), String(place.id));
+
+    expect(removeIfUnreferencedSpy).toHaveBeenCalledWith('ChIJgid');
+  });
 });
 
 // ── importGpx ─────────────────────────────────────────────────────────────────
@@ -345,6 +365,39 @@ describe('importGpx', () => {
     const gpx = Buffer.from(`<?xml version="1.0"?><gpx version="1.1"></gpx>`);
     const result = importGpx(String(trip.id), gpx);
     expect(result).toBeNull();
+  });
+
+  it('PLACE-SVC-037 — multiple unnamed tracks in one file get distinct names instead of collapsing to one', () => {
+    const { user } = createUser(testDb);
+    const trip = createTrip(testDb, user.id);
+    const gpx = Buffer.from(`<?xml version="1.0"?><gpx version="1.1">
+      <trk><trkseg>
+        <trkpt lat="48.8566" lon="2.3522"></trkpt>
+        <trkpt lat="48.8570" lon="2.3530"></trkpt>
+      </trkseg></trk>
+      <trk><trkseg>
+        <trkpt lat="40.0000" lon="-3.0000"></trkpt>
+        <trkpt lat="40.1000" lon="-3.1000"></trkpt>
+      </trkseg></trk>
+    </gpx>`);
+    const result = importGpx(String(trip.id), gpx) as any;
+    expect(result.places).toHaveLength(2);
+    const names = result.places.map((p: any) => p.name);
+    expect(new Set(names).size).toBe(2);
+  });
+
+  it('PLACE-SVC-038 — unnamed tracks fall back to the source filename', () => {
+    const { user } = createUser(testDb);
+    const trip = createTrip(testDb, user.id);
+    const gpx = Buffer.from(`<?xml version="1.0"?><gpx version="1.1">
+      <trk><trkseg>
+        <trkpt lat="48.8566" lon="2.3522"></trkpt>
+        <trkpt lat="48.8570" lon="2.3530"></trkpt>
+      </trkseg></trk>
+    </gpx>`);
+    const result = importGpx(String(trip.id), gpx, { defaultName: 'morning-hike.gpx' }) as any;
+    expect(result.places).toHaveLength(1);
+    expect(result.places[0].name).toBe('morning-hike');
   });
 });
 

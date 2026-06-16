@@ -15,21 +15,25 @@ export default defineConfig({
         runtimeCaching: [
           {
             // Carto map tiles (default provider)
+            // maxEntries MUST stay >= MAX_TILES in src/sync/tilePrefetcher.ts
+            // (both are 12288) so prefetched tiles aren't evicted on arrival.
             urlPattern: /^https:\/\/[a-d]\.basemaps\.cartocdn\.com\/.*/i,
             handler: 'CacheFirst',
             options: {
               cacheName: 'map-tiles',
-              expiration: { maxEntries: 1000, maxAgeSeconds: 30 * 24 * 60 * 60 },
+              expiration: { maxEntries: 12288, maxAgeSeconds: 30 * 24 * 60 * 60 },
               cacheableResponse: { statuses: [0, 200] },
             },
           },
           {
             // OpenStreetMap tiles (fallback / alternative)
+            // Shares the 'map-tiles' cache; keep maxEntries equal to the Carto
+            // rule above and MAX_TILES in src/sync/tilePrefetcher.ts (12288).
             urlPattern: /^https:\/\/[a-c]\.tile\.openstreetmap\.org\/.*/i,
             handler: 'CacheFirst',
             options: {
               cacheName: 'map-tiles',
-              expiration: { maxEntries: 1000, maxAgeSeconds: 30 * 24 * 60 * 60 },
+              expiration: { maxEntries: 12288, maxAgeSeconds: 30 * 24 * 60 * 60 },
               cacheableResponse: { statuses: [0, 200] },
             },
           },
@@ -44,16 +48,31 @@ export default defineConfig({
             },
           },
           {
-            // API calls — prefer network, fall back to cache
-            // Exclude sensitive endpoints (auth, admin, backup, settings)
-            urlPattern: /\/api\/(?!auth|admin|backup|settings|health).*/i,
-            handler: 'NetworkFirst',
+            // Mapbox GL style, glyphs, sprites and vector tiles. Best-effort
+            // offline only: opportunistically caches what the user has already
+            // viewed online. Full pre-download offline maps require the Leaflet
+            // renderer (raster prefetch in tilePrefetcher.ts) — the GL vector
+            // pipeline is not prefetched. StaleWhileRevalidate keeps the basemap
+            // fresh online while still serving from cache when offline. Mapbox
+            // sends CORS, so responses are non-opaque (real 200s, no quota pad).
+            urlPattern: /^https:\/\/(api\.mapbox\.com|[a-d]\.tiles\.mapbox\.com)\/.*/i,
+            handler: 'StaleWhileRevalidate',
             options: {
-              cacheName: 'api-data',
-              expiration: { maxEntries: 200, maxAgeSeconds: 24 * 60 * 60 },
-              networkTimeoutSeconds: 5,
+              cacheName: 'mapbox-tiles',
+              expiration: { maxEntries: 3000, maxAgeSeconds: 30 * 24 * 60 * 60 },
               cacheableResponse: { statuses: [200] },
             },
+          },
+          {
+            // API calls — network only. We deliberately do NOT cache API
+            // responses in the Service Worker: Workbox keys entries by URL and
+            // cannot vary on the httpOnly session cookie, so a shared device
+            // could serve one user's cached data to the next (cross-user leak).
+            // Offline reads are served from the per-user IndexedDB cache via the
+            // repo layer instead. The urlPattern is kept so these requests still
+            // bypass the SPA navigation fallback.
+            urlPattern: /\/api\/(?!auth|admin|backup|settings|health).*/i,
+            handler: 'NetworkOnly',
           },
           {
             // Uploaded files (photos, covers — public assets only)
@@ -76,7 +95,6 @@ export default defineConfig({
         display: 'standalone',
         scope: '/',
         start_url: '/',
-        orientation: 'any',
         categories: ['travel', 'navigation'],
         icons: [
           { src: 'icons/apple-touch-icon-180x180.png', sizes: '180x180', type: 'image/png' },

@@ -1,11 +1,9 @@
-import { db, canAccessTrip } from '../db/database';
+import { db } from '../db/database';
 import { avatarUrl } from './authService';
 
-const BAG_COLORS = ['#6366f1', '#ec4899', '#f97316', '#10b981', '#06b6d4', '#8b5cf6', '#ef4444', '#f59e0b'];
+const BAG_COLORS = ['#6366f1', '#ec4899', '#f97316', '#10b981', '#06b6d4', '#8b5cf6', '#ef4444', '#f59e0b', '#3b82f6', '#84cc16', '#d946ef', '#14b8a6', '#f43f5e', '#a855f7', '#eab308', '#64748b'];
 
-export function verifyTripAccess(tripId: string | number, userId: number) {
-  return canAccessTrip(tripId, userId);
-}
+export { verifyTripAccess } from './tripAccess';
 
 // ── Items ──────────────────────────────────────────────────────────────────
 
@@ -78,13 +76,14 @@ interface ImportItem {
   category?: string;
   weight_grams?: string | number;
   bag?: string;
+  quantity?: number;
 }
 
 export function bulkImport(tripId: string | number, items: ImportItem[]) {
   const maxOrder = db.prepare('SELECT MAX(sort_order) as max FROM packing_items WHERE trip_id = ?').get(tripId) as { max: number | null };
   let sortOrder = (maxOrder.max !== null ? maxOrder.max : -1) + 1;
 
-  const stmt = db.prepare('INSERT INTO packing_items (trip_id, name, checked, category, weight_grams, bag_id, sort_order) VALUES (?, ?, ?, ?, ?, ?, ?)');
+  const stmt = db.prepare('INSERT INTO packing_items (trip_id, name, checked, category, weight_grams, bag_id, sort_order, quantity) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
   const created: any[] = [];
 
   const insertAll = db.transaction(() => {
@@ -107,7 +106,8 @@ export function bulkImport(tripId: string | number, items: ImportItem[]) {
         }
       }
 
-      const result = stmt.run(tripId, item.name.trim(), checked, item.category?.trim() || 'Other', weight, bagId, sortOrder++);
+      const qty = Math.max(1, Math.min(999, Number(item.quantity) || 1));
+      const result = stmt.run(tripId, item.name.trim(), checked, item.category?.trim() || 'Other', weight, bagId, sortOrder++, qty);
       created.push(db.prepare('SELECT * FROM packing_items WHERE id = ?').get(result.lastInsertRowid));
     }
   });
@@ -191,6 +191,22 @@ export function deleteBag(tripId: string | number, bagId: string | number) {
 
   db.prepare('DELETE FROM packing_bags WHERE id = ?').run(bagId);
   return true;
+}
+
+// ── List Templates ─────────────────────────────────────────────────────────
+
+/**
+ * Read-only template list for trip members (name + item count), so non-admins
+ * can pick a template to apply. Management (create/edit/delete) stays admin-only
+ * under /api/admin/packing-templates.
+ */
+export function listTemplates() {
+  return db.prepare(`
+    SELECT pt.id, pt.name,
+      (SELECT COUNT(*) FROM packing_template_items ti JOIN packing_template_categories tc ON ti.category_id = tc.id WHERE tc.template_id = pt.id) as item_count
+    FROM packing_templates pt
+    ORDER BY pt.created_at DESC
+  `).all() as { id: number; name: string; item_count: number }[];
 }
 
 // ── Apply Template ─────────────────────────────────────────────────────────

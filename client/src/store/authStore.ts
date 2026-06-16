@@ -5,7 +5,9 @@ import { connect, disconnect } from '../api/websocket'
 import type { User } from '../types'
 import { getApiErrorMessage } from '../types'
 import { tripSyncManager } from '../sync/tripSyncManager'
-import { clearAll } from '../db/offlineDb'
+import { reopenForUser, deleteCurrentUserDb } from '../db/offlineDb'
+import { setAuthed } from '../sync/authGate'
+import { unregisterSyncTriggers } from '../sync/syncTriggers'
 import { useSystemNoticeStore } from './systemNoticeStore.js'
 
 interface AuthResponse {
@@ -37,10 +39,10 @@ interface AuthState {
   placesAutocompleteEnabled: boolean
   placesDetailsEnabled: boolean
 
-  login: (email: string, password: string) => Promise<LoginResult>
-  completeMfaLogin: (mfaToken: string, code: string) => Promise<AuthResponse>
+  login: (email: string, password: string, rememberMe?: boolean) => Promise<LoginResult>
+  completeMfaLogin: (mfaToken: string, code: string, rememberMe?: boolean) => Promise<AuthResponse>
   register: (username: string, email: string, password: string, invite_token?: string) => Promise<AuthResponse>
-  logout: () => void
+  logout: () => Promise<void>
   /** Pass `{ silent: true }` to refresh the user without toggling global isLoading (avoids unmounting protected routes). */
   loadUser: (opts?: { silent?: boolean }) => Promise<void>
   updateMapsKey: (key: string | null) => Promise<void>
@@ -65,6 +67,19 @@ interface AuthState {
 // Sequence counter to prevent stale loadUser responses from overwriting fresh auth state
 let authSequence = 0
 
+/**
+ * Mark the session authenticated and point the offline DB at this user's scoped
+ * database before any background sync runs, so cached data never crosses users.
+ */
+async function onAuthSuccess(userId: number): Promise<void> {
+  setAuthed(true)
+  try {
+    await reopenForUser(userId)
+  } catch (err) {
+    console.error('[auth] failed to open user-scoped offline DB', err)
+  }
+}
+
 export const useAuthStore = create<AuthState>()(
   persist(
   (set, get) => ({
@@ -84,11 +99,11 @@ export const useAuthStore = create<AuthState>()(
   placesAutocompleteEnabled: true,
   placesDetailsEnabled: true,
 
-  login: async (email: string, password: string) => {
+  login: async (email: string, password: string, rememberMe?: boolean) => {
     authSequence++
     set({ isLoading: true, error: null })
     try {
-      const data = await authApi.login({ email, password }) as AuthResponse & { mfa_required?: boolean; mfa_token?: string }
+      const data = await authApi.login({ email, password, remember_me: rememberMe }) as AuthResponse & { mfa_required?: boolean; mfa_token?: string }
       if (data.mfa_required && data.mfa_token) {
         set({ isLoading: false, error: null })
         return { mfa_required: true as const, mfa_token: data.mfa_token }
@@ -99,6 +114,7 @@ export const useAuthStore = create<AuthState>()(
         isLoading: false,
         error: null,
       })
+      await onAuthSuccess(data.user.id)
       connect()
       tripSyncManager.syncAll().catch(console.error)
       if (!data.user?.must_change_password) {
@@ -112,17 +128,18 @@ export const useAuthStore = create<AuthState>()(
     }
   },
 
-  completeMfaLogin: async (mfaToken: string, code: string) => {
+  completeMfaLogin: async (mfaToken: string, code: string, rememberMe?: boolean) => {
     authSequence++
     set({ isLoading: true, error: null })
     try {
-      const data = await authApi.verifyMfaLogin({ mfa_token: mfaToken, code: code.replace(/\s/g, '') })
+      const data = await authApi.verifyMfaLogin({ mfa_token: mfaToken, code: code.replace(/\s/g, ''), remember_me: rememberMe })
       set({
         user: data.user,
         isAuthenticated: true,
         isLoading: false,
         error: null,
       })
+      await onAuthSuccess(data.user.id)
       connect()
       tripSyncManager.syncAll().catch(console.error)
       if (!data.user?.must_change_password) {
@@ -147,6 +164,7 @@ export const useAuthStore = create<AuthState>()(
         isLoading: false,
         error: null,
       })
+      await onAuthSuccess(data.user.id)
       connect()
       tripSyncManager.syncAll().catch(console.error)
       useSystemNoticeStore.getState().fetch()
@@ -158,18 +176,27 @@ export const useAuthStore = create<AuthState>()(
     }
   },
 
-  logout: () => {
+  logout: async () => {
+    // 1. Gate first so any in-flight flush/syncAll bails before we wipe the DB.
+    setAuthed(false)
+    set({ isAuthenticated: false })
+    // 2. Stop background sync triggers (30s interval, WS pre-reconnect hook, listeners).
+    unregisterSyncTriggers()
+    // 3. Tear down the live connection.
     disconnect()
     useSystemNoticeStore.getState().reset()
-    // Tell server to clear the httpOnly cookie
-    fetch('/api/auth/logout', { method: 'POST', credentials: 'include' }).catch(() => {})
-    // Clear service worker caches containing sensitive data
+    // 4. Tell server to clear the httpOnly cookie (best-effort).
+    await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' }).catch(() => {})
+    // 5. Clear service worker caches containing sensitive data.
     if ('caches' in window) {
-      caches.delete('api-data').catch(() => {})
-      caches.delete('user-uploads').catch(() => {})
+      await Promise.all([
+        caches.delete('api-data').catch(() => {}),
+        caches.delete('user-uploads').catch(() => {}),
+      ])
     }
-    // Purge all cached trip data from IndexedDB
-    clearAll().catch(console.error)
+    // 6. Delete this user's scoped IndexedDB and return to the anonymous DB.
+    await deleteCurrentUserDb().catch(console.error)
+    // 7. Finish clearing auth state.
     set({
       user: null,
       isAuthenticated: false,
@@ -189,6 +216,7 @@ export const useAuthStore = create<AuthState>()(
         isAuthenticated: true,
         isLoading: false,
       })
+      await onAuthSuccess(data.user.id)
       connect()
     } catch (err: unknown) {
       if (seq !== authSequence) return // stale response — ignore
@@ -282,6 +310,7 @@ export const useAuthStore = create<AuthState>()(
         demoMode: true,
         error: null,
       })
+      await onAuthSuccess(data.user.id)
       connect()
       return data
     } catch (err: unknown) {

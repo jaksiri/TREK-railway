@@ -235,7 +235,7 @@ describe('PlaceInspector', () => {
   });
 
   it('FE-PLANNER-INSPECTOR-017: "Remove from day" button appears when place IS assigned to selectedDay', () => {
-    const assignmentInDay = [{ id: 99, place: { id: place.id }, day_id: 1, place_id: place.id, order_index: 0, notes: null }];
+    const assignmentInDay = [{ id: 99, place, day_id: 1, place_id: place.id, order_index: 0, notes: null }];
     render(
       <PlaceInspector
         {...defaultProps}
@@ -250,7 +250,7 @@ describe('PlaceInspector', () => {
   it('FE-PLANNER-INSPECTOR-018: clicking remove calls onRemoveAssignment with dayId and assignmentId', async () => {
     const user = userEvent.setup();
     const onRemoveAssignment = vi.fn();
-    const assignmentInDay = [{ id: 99, place: { id: place.id }, day_id: 1, place_id: place.id, order_index: 0, notes: null }];
+    const assignmentInDay = [{ id: 99, place, day_id: 1, place_id: place.id, order_index: 0, notes: null }];
     render(
       <PlaceInspector
         {...defaultProps}
@@ -406,7 +406,7 @@ describe('PlaceInspector', () => {
 
   it('FE-PLANNER-INSPECTOR-030: linked reservation shown when selectedAssignmentId has a reservation', () => {
     const reservation = buildReservation({ title: 'Museum Ticket', status: 'confirmed', assignment_id: 99 } as any);
-    const assignmentInDay = [{ id: 99, place: { id: place.id }, day_id: 1, place_id: place.id, order_index: 0, notes: null }];
+    const assignmentInDay = [{ id: 99, place, day_id: 1, place_id: place.id, order_index: 0, notes: null }];
     render(
       <PlaceInspector
         {...defaultProps}
@@ -423,7 +423,7 @@ describe('PlaceInspector', () => {
 
   it('FE-PLANNER-INSPECTOR-031: participants section shown when tripMembers > 1 and selectedAssignmentId is set', () => {
     const members = [buildUser({ id: 1 }), buildUser({ id: 2 })];
-    const assignmentInDay = [{ id: 99, place: { id: place.id }, day_id: 1, place_id: place.id, order_index: 0, notes: null }];
+    const assignmentInDay = [{ id: 99, place, day_id: 1, place_id: place.id, order_index: 0, notes: null }];
     render(
       <PlaceInspector
         {...defaultProps}
@@ -534,8 +534,8 @@ describe('PlaceInspector', () => {
     const member2 = buildUser({ id: 11, username: 'bob' });
     const members = [member1, member2];
     const assignmentInDay = [{
-      id: 99, place: { id: place.id }, day_id: 1, place_id: place.id, order_index: 0, notes: null,
-      participants: [{ user_id: 10 }],
+      id: 99, place, day_id: 1, place_id: place.id, order_index: 0, notes: null,
+      participants: [{ user_id: 10, username: 'alice' }],
     }];
     render(
       <PlaceInspector
@@ -637,7 +637,7 @@ describe('PlaceInspector', () => {
         tripMembers={[member]}
         selectedDayId={1}
         selectedAssignmentId={99}
-        assignments={{ '1': [{ id: 99, place: { id: place.id }, day_id: 1, place_id: place.id, order_index: 0, notes: null }] }}
+        assignments={{ '1': [{ id: 99, place, day_id: 1, place_id: place.id, order_index: 0, notes: null }] }}
       />
     );
     // "solo" username might be visible from other parts but participants box should not render
@@ -645,6 +645,44 @@ describe('PlaceInspector', () => {
     const text = document.body.textContent || '';
     // No second member to display
     expect(screen.queryByText('Participants')).toBeNull();
+  });
+
+  // ── Scroll / overflow (issue #1195) ──────────────────────────────────────
+
+  it('FE-PLANNER-INSPECTOR-046: content area is a bounded flex scroll region', () => {
+    const longText = 'Lorem ipsum dolor sit amet. '.repeat(200);
+    const p = buildPlace({ id: 200, description: longText, notes: longText } as any);
+    render(<PlaceInspector {...defaultProps} place={p} />);
+    const scroll = screen.getByTestId('inspector-scroll') as HTMLElement;
+    expect(scroll.style.overflowY).toBe('auto');
+    expect(scroll.style.minHeight).toBe('0px');
+    // flex must allow the region to shrink/grow within the capped card
+    expect(scroll.style.flex).not.toBe('');
+    expect(scroll.style.flex).not.toBe('0 0 auto');
+  });
+
+  it('FE-PLANNER-INSPECTOR-047: long unbroken description wraps instead of clipping horizontally', () => {
+    const longWord = 'https://example.com/' + 'a'.repeat(300);
+    const p = buildPlace({ id: 201, description: longWord } as any);
+    const { container } = render(<PlaceInspector {...defaultProps} place={p} />);
+    const descDiv = container.querySelector('.collab-note-md') as HTMLElement;
+    expect(descDiv).toBeTruthy();
+    expect(descDiv.style.overflowWrap).toBe('anywhere');
+    expect(descDiv.style.wordBreak).toBe('break-word');
+  });
+
+  it('FE-PLANNER-INSPECTOR-048: description/notes do not shrink so the card scrolls instead of clipping', () => {
+    const longText = 'Lorem ipsum dolor sit amet. '.repeat(200);
+    const p = buildPlace({ id: 202, description: longText, notes: longText } as any);
+    const { container } = render(<PlaceInspector {...defaultProps} place={p} />);
+    const notes = Array.from(container.querySelectorAll('.collab-note-md')) as HTMLElement[];
+    // Both description and notes containers must keep their natural height
+    // (flex-shrink: 0) — otherwise they compress inside the flex column and
+    // overflow:hidden clips the text with no scroll (issue #1195).
+    expect(notes.length).toBe(2);
+    for (const el of notes) {
+      expect(el.style.flexShrink).toBe('0');
+    }
   });
 
 });

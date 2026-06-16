@@ -34,4 +34,5 @@ jobs:
           command: cves
           image: trek:scan
           only-severities: critical,high
+          only-fixed: true
           exit-code: true

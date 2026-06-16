@@ -15,7 +15,10 @@ const dataDir = path.join(__dirname, '../../data');
 const backupsDir = path.join(dataDir, 'backups');
 const uploadsDir = path.join(__dirname, '../../uploads');
 
-export const MAX_BACKUP_UPLOAD_SIZE = 500 * 1024 * 1024; // 500 MB
+export const MAX_BACKUP_UPLOAD_SIZE = 500 * 1024 * 1024; // 500 MB compressed
+// Upper bound on the TOTAL decompressed size of a restore archive (the upload
+// limit only caps the compressed bytes). Generous enough for any real backup.
+export const MAX_BACKUP_DECOMPRESSED_SIZE = 5 * 1024 * 1024 * 1024; // 5 GB
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -152,8 +155,26 @@ export async function createBackup(): Promise<BackupInfo> {
         archive.file(dbPath, { name: 'travel.db' });
       }
 
+      // Bundle the at-rest encryption key so the backup is self-contained: the
+      // DB stores secrets (API keys, MFA, SMTP/OIDC) encrypted with this key, so
+      // a restore onto a different install would otherwise be unable to decrypt
+      // them. NOTE: this makes the backup file as sensitive as the key itself —
+      // store/transfer it securely. Skipped when ENCRYPTION_KEY is provided via
+      // env, since in that case the file is not the source of truth.
+      const encKeyPath = path.join(dataDir, '.encryption_key');
+      if (!process.env.ENCRYPTION_KEY && fs.existsSync(encKeyPath)) {
+        archive.file(encKeyPath, { name: '.encryption_key' });
+      }
+
       if (fs.existsSync(uploadsDir)) {
-        archive.directory(uploadsDir, 'uploads');
+        // Exclude the place-photo and trek-memory caches: both are re-derivable
+        // (re-fetched on demand, keyed on stable ids) and would otherwise dominate
+        // backup size. Restores self-heal — the cache dirs are recreated at startup.
+        archive.glob(
+          '**/*',
+          { cwd: uploadsDir, ignore: ['photos/google/**', 'photos/trek/**'], nodir: true, dot: true },
+          { prefix: 'uploads' },
+        );
       }
 
       archive.finalize();
@@ -185,7 +206,16 @@ export interface RestoreResult {
 
 export async function restoreFromZip(zipPath: string): Promise<RestoreResult> {
   const extractDir = path.join(dataDir, `restore-${Date.now()}`);
+  let reinitFailed: unknown = null;
   try {
+    // Check the declared uncompressed size from the central directory and bail
+    // if it exceeds the cap, before extracting anything.
+    const directory = await unzipper.Open.file(zipPath);
+    const claimedSize = directory.files.reduce((sum, f) => sum + (f.uncompressedSize || 0), 0);
+    if (claimedSize > MAX_BACKUP_DECOMPRESSED_SIZE) {
+      return { success: false, error: 'Backup exceeds the maximum decompressed size.', status: 400 };
+    }
+
     await fs.createReadStream(zipPath)
       .pipe(unzipper.Extract({ path: extractDir }))
       .promise();
@@ -233,6 +263,16 @@ export async function restoreFromZip(zipPath: string): Promise<RestoreResult> {
       }
       fs.copyFileSync(extractedDb, dbDest);
 
+      // Restore the bundled at-rest encryption key (if the archive carries one)
+      // so the restored DB's encrypted secrets can be decrypted. Only the file
+      // is swapped here; the in-memory key was read at startup, so a restart is
+      // required for it to take effect (and an explicit ENCRYPTION_KEY env var
+      // still overrides the file).
+      const extractedEncKey = path.join(extractDir, '.encryption_key');
+      if (fs.existsSync(extractedEncKey)) {
+        fs.copyFileSync(extractedEncKey, path.join(dataDir, '.encryption_key'));
+      }
+
       const extractedUploads = path.join(extractDir, 'uploads');
       if (fs.existsSync(extractedUploads)) {
         for (const sub of fs.readdirSync(uploadsDir)) {
@@ -243,10 +283,24 @@ export async function restoreFromZip(zipPath: string): Promise<RestoreResult> {
             }
           }
         }
-        fs.cpSync(extractedUploads, uploadsDir, { recursive: true, force: true });
+        // Copy into the real directory behind uploadsDir. In Docker, uploadsDir
+        // (/app/server/uploads) is a symlink to the mounted /app/uploads volume;
+        // cpSync(dereference:false) would otherwise try to overwrite the symlink
+        // node with a directory and throw ERR_FS_CP_DIR_TO_NON_DIR. realpathSync
+        // is a no-op when uploadsDir is a plain directory (dev/non-Docker).
+        fs.cpSync(extractedUploads, fs.realpathSync(uploadsDir), { recursive: true, force: true });
       }
     } finally {
-      reinitialize();
+      // Reopening the DB must always run (even if the copy above threw) so the
+      // process is never left without a connection. Capture a reopen failure
+      // instead of letting it propagate as a generic error — a backup whose
+      // files already landed on disk but whose connection failed to reopen
+      // needs to be reported as "restart required", not swallowed.
+      try {
+        reinitialize();
+      } catch (reinitErr) {
+        reinitFailed = reinitErr;
+      }
       // The restored DB has different permission-override rows from
       // the pre-restore DB, but our process-local permissions cache
       // still holds the pre-restore state. Any request using a cached
@@ -256,6 +310,10 @@ export async function restoreFromZip(zipPath: string): Promise<RestoreResult> {
     }
 
     fs.rmSync(extractDir, { recursive: true, force: true });
+    if (reinitFailed) {
+      console.error('Restore: database reopen failed after file swap:', reinitFailed);
+      return { success: false, error: 'Backup files were restored but the database connection could not be reopened. Restart the server to finish the restore.', status: 500 };
+    }
     return { success: true };
   } catch (err: unknown) {
     console.error('Restore error:', err);
