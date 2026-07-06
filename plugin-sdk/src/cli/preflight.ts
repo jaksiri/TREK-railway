@@ -47,7 +47,7 @@ export async function preflight(entry: Entry, opts: { all?: boolean } = {}): Pro
   // Structural checks that mirror the registry schema (fast, offline).
   if (!/^[a-z][a-z0-9-]{2,39}$/.test(entry.id)) fail(`id "${entry.id}" is not a valid slug (^[a-z][a-z0-9-]{2,39}$)`);
   if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(entry.repo)) fail(`repo "${entry.repo}" is not "owner/name"`);
-  if (!['integration', 'page', 'widget'].includes(entry.type)) fail(`type "${entry.type}" is not integration|page|widget`);
+  if (!['integration', 'page', 'widget', 'trip-page'].includes(entry.type)) fail(`type "${entry.type}" is not integration|page|widget|trip-page`);
   if (entry.authorPublicKey && !entry.versions[0]?.signature) fail('entry has authorPublicKey but the newest version has no signature (sign the version too)');
 
   const versions = opts.all ? entry.versions : entry.versions.slice(0, 1);
