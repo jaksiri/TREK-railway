@@ -82,7 +82,7 @@ export class JourneyService {
   getPublicJourney(token: string) { return share.getPublicJourney(token); }
   validateShareTokenForPhoto(token: string, photoId: number) { return share.validateShareTokenForPhoto(token, photoId); }
   validateShareTokenForAsset(token: string, assetId: string) { return share.validateShareTokenForAsset(token, assetId); }
-  streamPhoto(res: Response, ownerId: number, photoId: number, kind: 'thumbnail' | 'original') { return streamPhoto(res, ownerId, photoId, kind); }
+  streamPhoto(res: Response, ownerId: number, photoId: number, kind: 'thumbnail' | 'original', range?: string) { return streamPhoto(res, ownerId, photoId, kind, range); }
   streamImmichAsset(res: Response, userId: number, assetId: string, kind: 'thumbnail' | 'original', ownerId: number) { return streamImmichAsset(res, userId, assetId, kind, ownerId); }
   async streamSynologyAsset(res: Response, userId: number, ownerId: number, assetId: string, kind: 'thumbnail' | 'original') {
     const { streamSynologyAsset } = await import('../../services/memories/synologyService');
