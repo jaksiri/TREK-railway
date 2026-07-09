@@ -63,15 +63,15 @@ export function applyPlatformUploads(app: express.Application): void {
     res.status(401).send('Authentication required');
   });
 
-  // Avatars, covers, journey covers, and photos are served from S3 (where uploads
-  // now live), falling back to any local file still on disk when S3 misses or is
-  // not configured. Photos remain gated (session JWT with pv, or a share token
-  // scoped to the photo's trip). Avatars/covers/journey are unauthenticated by
-  // design (server-chosen UUID filenames give >122 bits of entropy — SEC-M9).
-  app.get('/uploads/:type/*', async (req: Request, res: Response) => {
+  // Avatars, covers, and photos are served from S3 (where uploads now live),
+  // falling back to any local file still on disk when S3 misses or is not
+  // configured. Photos remain gated (session JWT with pv, or a share token
+  // scoped to the photo's trip). Avatars/covers are unauthenticated by design
+  // (server-chosen UUID filenames give >122 bits of entropy — SEC-M9).
+  app.get('/uploads/:type/*path', async (req: Request, res: Response) => {
     const { type } = req.params;
-    const keyPath = (req.params as Record<string, string>)[0];
-    if (!['avatars', 'covers', 'journey', 'photos'].includes(type) || !keyPath) {
+    const keyPath = (req.params as Record<string, string>).path;
+    if (!['avatars', 'covers', 'photos'].includes(type) || !keyPath) {
       return res.status(404).send('Not found');
     }
 
