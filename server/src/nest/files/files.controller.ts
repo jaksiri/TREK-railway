@@ -26,6 +26,7 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CurrentUser } from '../auth/current-user.decorator';
 import { MAX_FILE_SIZE, MAX_VIDEO_SIZE, BLOCKED_EXTENSIONS, filesDir, getAllowedExtensions, isVideoExtension } from '../../services/fileService';
 import { isDemoEmail } from '../../services/demo';
+import { persistUploadToS3 } from '../../services/s3';
 
 const UPLOAD = {
   storage: diskStorage({
@@ -93,7 +94,7 @@ export class FilesController {
 
   @Post()
   @UseInterceptors(FileInterceptor('file', UPLOAD))
-  upload(
+  async upload(
     @CurrentUser() user: User,
     @Param('tripId') tripId: string,
     @UploadedFile() file: Express.Multer.File | undefined,
@@ -132,6 +133,15 @@ export class FilesController {
     } catch (err) {
       cleanup();
       throw err;
+    }
+    // Push to S3 before creating the DB row so a storage failure doesn't orphan
+    // a row pointing at a file that isn't there. persistUploadToS3 removes the
+    // local temp on success; it's a no-op (keeps the local file) without S3.
+    try {
+      await persistUploadToS3(file, 'files');
+    } catch {
+      cleanup();
+      throw new HttpException({ error: 'File upload failed' }, 500);
     }
     const created = this.files.createFile(tripId, file, user.id, {
       place_id: body.place_id,

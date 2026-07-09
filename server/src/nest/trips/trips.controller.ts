@@ -30,6 +30,7 @@ import { writeAudit, getClientIp, logInfo } from '../../services/auditLog';
 import { isDemoEmail } from '../../services/demo';
 import { NotFoundError, ValidationError } from '../../services/tripService';
 import { saveUnsplashCover, isUnsplashCoverUrl } from '../../services/unsplashService';
+import { persistUploadToS3 } from '../../services/s3';
 
 const MAX_COVER_SIZE = 20 * 1024 * 1024;
 const coversDir = path.join(__dirname, '../../../uploads/covers');
@@ -176,7 +177,7 @@ export class TripsController {
 
   @Post(':id/cover')
   @UseInterceptors(FileInterceptor('cover', COVER_UPLOAD))
-  cover(@CurrentUser() user: User, @Param('id') id: string, @UploadedFile() file: Express.Multer.File | undefined) {
+  async cover(@CurrentUser() user: User, @Param('id') id: string, @UploadedFile() file: Express.Multer.File | undefined) {
     if (process.env.DEMO_MODE?.toLowerCase() === 'true' && isDemoEmail(user.email)) {
       throw new HttpException({ error: 'Uploads are disabled in demo mode. Self-host TREK for full functionality.' }, 403);
     }
@@ -193,6 +194,14 @@ export class TripsController {
     }
     if (!file) {
       throw new HttpException({ error: 'No image uploaded' }, 400);
+    }
+    // Push to S3 (where covers now live) before touching the old cover / DB so a
+    // storage failure leaves the existing cover intact. No-op without S3.
+    try {
+      await persistUploadToS3(file, 'covers');
+    } catch {
+      try { fs.unlinkSync(file.path); } catch { /* best-effort */ }
+      throw new HttpException({ error: 'Cover upload failed' }, 500);
     }
     this.trips.deleteOldCover(trip.cover_image);
     const coverUrl = `/uploads/covers/${file.filename}`;

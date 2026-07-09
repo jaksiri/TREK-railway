@@ -22,6 +22,8 @@
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1020.0",
+    "@aws-sdk/lib-storage": "^3.1020.0",
     "@modelcontextprotocol/sdk": "^1.28.0",
     "@nestjs/common": "^11.1.24",
     "@nestjs/core": "^11.1.24",
@@ -100,6 +102,7 @@
     "nodemon": "^3.1.0",
     "prettier": "^3.8.3",
     "prettier-plugin-organize-imports": "^4.3.0",
+    "s3rver": "^3.7.1",
     "supertest": "^7.2.2",
     "typescript-eslint": "^8.58.2",
     "tz-lookup": "^6.1.25",

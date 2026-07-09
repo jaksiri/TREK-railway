@@ -16,6 +16,7 @@ import { createEphemeralToken } from './ephemeralTokens';
 import { revokeUserSessions } from '../mcp';
 import { startTripReminders } from '../scheduler';
 import { deleteUserCompletely } from './userCleanupService';
+import { deleteFile as deleteS3File } from './s3';
 import { getFlightDistanceKm } from './distanceService';
 import { getCountryFromCoords } from './atlasService';
 import { verifyJwtAndLoadUser } from '../middleware/auth';
@@ -724,7 +725,9 @@ export async function saveAvatar(userId: number, filename: string) {
   // (#1399) has no file on disk, so skip the rm — path.join on a URL is meaningless.
   if (current?.avatar && !/^https:\/\//i.test(current.avatar)) {
     // Fire-and-forget: leftover files are harmless; the DB update is
-    // the source of truth for which avatar is current.
+    // the source of truth for which avatar is current. Delete from S3
+    // (where uploads now live) and clean up any local fallback file.
+    await deleteS3File(`avatars/${current.avatar}`);
     const oldPath = path.join(avatarDir, current.avatar);
     await fs.promises.rm(oldPath, { force: true }).catch(() => {});
   }
@@ -739,6 +742,7 @@ export async function deleteAvatar(userId: number) {
   const current = db.prepare('SELECT avatar FROM users WHERE id = ?').get(userId) as { avatar: string | null } | undefined;
   // An OIDC picture URL (#1399) has no local file — only rm an uploaded one.
   if (current?.avatar && !/^https:\/\//i.test(current.avatar)) {
+    await deleteS3File(`avatars/${current.avatar}`);
     const filePath = path.join(avatarDir, current.avatar);
     await fs.promises.rm(filePath, { force: true }).catch(() => {});
   }

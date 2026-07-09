@@ -4,6 +4,7 @@ import fs from 'node:fs';
 
 import { verifyJwtAndLoadUser } from '../../middleware/auth';
 import { db } from '../../db/database';
+import { getFileStream } from '../../services/s3';
 import { mcpHandler } from '../../mcp';
 import { trekOAuthProvider, trekClientsStore } from '../../mcp/oauthProvider';
 import { isAddonEnabled } from '../../services/adminService';
@@ -53,51 +54,71 @@ export function applyPlatformUploads(app: express.Application): void {
   // not embedded in unauthenticated UI contexts, so that endpoint IS
   // gated (session JWT with pv, or a share token scoped to the photo's
   // trip).
-  app.use('/uploads/avatars', express.static(path.join(UPLOADS_DIR, 'avatars')));
-  app.use('/uploads/covers', express.static(path.join(UPLOADS_DIR, 'covers')));
+  // Journey photos stay on plain local static serving (public share pages
+  // embed them and they are not migrated to S3).
   app.use('/uploads/journey', express.static(path.join(UPLOADS_DIR, 'journey')));
 
-  // Photos require either a valid logged-in session (via JWT with the
-  // password_version gate) OR a share token that covers the SPECIFIC
-  // photo's trip. Previously any share token for any trip could request
-  // any photo filename by UUID — fine in practice because UUIDs are
-  // unguessable, but the auth model was wrong.
-  app.get('/uploads/photos/:filename', (req: Request, res: Response) => {
-    const safeName = path.basename(req.params.filename);
-    const filePath = path.join(UPLOADS_DIR, 'photos', safeName);
-    const resolved = path.resolve(filePath);
-    if (!resolved.startsWith(path.resolve(UPLOADS_DIR, 'photos'))) {
-      return res.status(403).send('Forbidden');
-    }
-    // existsSync here is cheap and avoids a sendFile error frame; kept
-    // sync because the handler is already short-lived.
-    if (!fs.existsSync(resolved)) return res.status(404).send('Not found');
-
-    const authHeader = req.headers.authorization;
-    const rawToken = (req.query.token as string) || (authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null);
-    if (!rawToken) return res.status(401).send('Authentication required');
-
-    // JWT session path (with pv check).
-    const user = verifyJwtAndLoadUser(rawToken);
-    if (user) return res.sendFile(resolved);
-
-    // Share-token path: require the token to cover the exact trip the
-    // photo belongs to. Expired tokens fall through to 401.
-    const photo = db.prepare('SELECT trip_id FROM photos WHERE filename = ?').get(safeName) as { trip_id: number } | undefined;
-    if (!photo) return res.status(401).send('Authentication required');
-
-    const share = db.prepare(
-        "SELECT trip_id FROM share_tokens WHERE token = ? AND (expires_at IS NULL OR expires_at > datetime('now'))"
-    ).get(rawToken) as { trip_id: number } | undefined;
-    if (!share || share.trip_id !== photo.trip_id) {
-      return res.status(401).send('Authentication required');
-    }
-    res.sendFile(resolved);
-  });
-
-  // Block direct access to /uploads/files
+  // Block direct access to /uploads/files — downloads go through the
+  // authenticated /api/.../files/:id/download route. Must stay AHEAD of the
+  // generic /uploads/:type/* handler below so it isn't shadowed by it.
   app.use('/uploads/files', (_req: Request, res: Response) => {
     res.status(401).send('Authentication required');
+  });
+
+  // Avatars, covers, and photos are served from S3 (where uploads now live),
+  // falling back to any local file still on disk when S3 misses or is not
+  // configured. Photos remain gated (session JWT with pv, or a share token
+  // scoped to the photo's trip). Avatars/covers are unauthenticated by design
+  // (server-chosen UUID filenames give >122 bits of entropy — SEC-M9).
+  app.get('/uploads/:type/*', async (req: Request, res: Response) => {
+    const { type } = req.params;
+    const keyPath = (req.params as Record<string, string>)[0];
+    if (!['avatars', 'covers', 'photos'].includes(type) || !keyPath) {
+      return res.status(404).send('Not found');
+    }
+
+    if (type === 'photos') {
+      const authHeader = req.headers.authorization;
+      const rawToken = (req.query.token as string) || (authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null);
+      if (!rawToken) return res.status(401).send('Authentication required');
+
+      // JWT session path (with pv check).
+      const user = verifyJwtAndLoadUser(rawToken);
+      if (!user) {
+        // Share-token path: require the token to cover the exact trip the
+        // photo belongs to. Expired tokens fall through to 401.
+        const safeName = path.basename(keyPath);
+        const photo = db.prepare('SELECT trip_id FROM photos WHERE filename = ?').get(safeName) as { trip_id: number } | undefined;
+        if (!photo) return res.status(401).send('Authentication required');
+
+        const share = db.prepare(
+          "SELECT trip_id FROM share_tokens WHERE token = ? AND (expires_at IS NULL OR expires_at > datetime('now'))"
+        ).get(rawToken) as { trip_id: number } | undefined;
+        if (!share || share.trip_id !== photo.trip_id) {
+          return res.status(401).send('Authentication required');
+        }
+      }
+    }
+
+    const localPath = path.resolve(path.join(UPLOADS_DIR, type, keyPath));
+    const localRoot = path.resolve(path.join(UPLOADS_DIR, type));
+    if (!localPath.startsWith(localRoot)) {
+      return res.status(403).send('Forbidden');
+    }
+
+    try {
+      const { stream, contentType, contentLength } = await getFileStream(`${type}/${keyPath}`);
+      if (contentType) res.setHeader('Content-Type', contentType);
+      if (contentLength) res.setHeader('Content-Length', String(contentLength));
+      if (type !== 'photos') res.setHeader('Cache-Control', 'public, max-age=86400');
+      stream.pipe(res);
+    } catch {
+      // S3 miss / not configured — fall back to a local file if present.
+      // Use the { root } form: under the Nest ExpressAdapter, sendFile with an
+      // absolute path resolves against the rewritten req.url and 404s.
+      if (!fs.existsSync(localPath)) return res.status(404).send('Not found');
+      res.sendFile(path.basename(localPath), { root: path.dirname(localPath) });
+    }
   });
 }
 

@@ -10,6 +10,7 @@ import { listItems as listPackingItems } from './packingService';
 import { listReservations, loadEndpointsByTrip, resyncReservationDays } from './reservationService';
 import { listNotes as listCollabNotes } from './collabService';
 import { shiftOwnerEntriesForTripWindow } from './vacayService';
+import { deleteFile as deleteS3File } from './s3';
 
 export const MS_PER_DAY = 86400000;
 export const MAX_TRIP_DAYS = 365;
@@ -327,6 +328,9 @@ export function deleteOldCover(coverImage: string | null | undefined) {
   // cover_image is client-supplied, so treat it as untrusted: covers live in
   // uploads/covers as a flat filename — use basename() and confine the unlink
   // to that directory.
+  // Uploads now live in S3 — delete there first (fire-and-forget), then
+  // clean up any local fallback file still on disk.
+  void deleteS3File(`covers/${path.basename(coverImage)}`);
   const coversDir = path.resolve(__dirname, '../../uploads/covers');
   const resolvedPath = path.resolve(path.join(coversDir, path.basename(coverImage)));
   if (resolvedPath.startsWith(coversDir + path.sep) && fs.existsSync(resolvedPath)) {

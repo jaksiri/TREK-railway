@@ -26,6 +26,7 @@ import { JwtAuthGuard } from './jwt-auth.guard';
 import { CurrentUser } from './current-user.decorator';
 import { writeAudit, getClientIp } from '../../services/auditLog';
 import { isDemoEmail } from '../../services/demo';
+import { persistUploadToS3 } from '../../services/s3';
 import type { User } from '../../types';
 
 const WINDOW = 15 * 60 * 1000;
@@ -137,6 +138,13 @@ export class AuthController {
     }
     if (!file) {
       throw new HttpException({ error: 'No image uploaded' }, 400);
+    }
+    // Push to S3 (where avatars now live) before updating the DB. No-op without S3.
+    try {
+      await persistUploadToS3(file, 'avatars');
+    } catch {
+      try { fs.unlinkSync(file.path); } catch { /* best-effort */ }
+      throw new HttpException({ error: 'Avatar upload failed' }, 500);
     }
     return this.auth.saveAvatar(user.id, file.filename);
   }
