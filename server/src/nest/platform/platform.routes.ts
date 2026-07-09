@@ -70,9 +70,9 @@ export function applyPlatformUploads(app: express.Application): void {
   // configured. Photos remain gated (session JWT with pv, or a share token
   // scoped to the photo's trip). Avatars/covers are unauthenticated by design
   // (server-chosen UUID filenames give >122 bits of entropy — SEC-M9).
-  app.get('/uploads/:type/*', async (req: Request, res: Response) => {
+  app.get('/uploads/:type/*path', async (req: Request, res: Response) => {
     const { type } = req.params;
-    const keyPath = (req.params as Record<string, string>)[0];
+    const keyPath = (req.params as Record<string, string>).path;
     if (!['avatars', 'covers', 'photos'].includes(type) || !keyPath) {
       return res.status(404).send('Not found');
     }
