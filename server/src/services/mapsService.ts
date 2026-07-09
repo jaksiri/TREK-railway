@@ -952,8 +952,13 @@ export async function getPlacePhoto(
     // error) on any miss — no key, URL-shaped id, request rejected, no photos, or
     // a failed media download — so the caller can fall back to Wikimedia.
     const fetchGooglePhoto = async (): Promise<{ filePath: string; attribution: string | null } | null> => {
-      // URL-shaped placeIds aren't Google IDs — legacy DBs may store raw photo URLs in image_url
-      if (!apiKey || /^https?:\/\//i.test(placeId)) return null;
+      // Only real Google place IDs go to Google. OSM ids ("node:123" / "way:123" /
+      // "relation:123") and coordinate ids ("coords:...") all use a ":" — Google
+      // place IDs never do — so any colon means it's not a Google id. Sending those
+      // to the Places API returns 400 INVALID_ARGUMENT on every marker, which spammed
+      // the logs enough to trip Railway's 500 logs/sec limit. URL-shaped placeIds
+      // aren't Google IDs either — legacy DBs may store raw photo URLs in image_url.
+      if (!apiKey || placeId.includes(':') || /^https?:\/\//i.test(placeId)) return null;
 
       // Fetch details to get the photo name
       const detailsRes = await googleFetch(`https://places.googleapis.com/v1/places/${placeId}`, `getPlacePhoto/details(${placeId})`, {

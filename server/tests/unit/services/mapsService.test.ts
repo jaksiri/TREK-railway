@@ -1452,6 +1452,33 @@ describe('getPlacePhoto (fetch stubbed)', () => {
     expect(mockCachePut).toHaveBeenCalledOnce();
   });
 
+  it('MAPS-044f2: uses Wikimedia and never calls Google for an OSM placeId (node:/way:/relation:)', async () => {
+    // OSM ids aren't Google place ids. Sending them to the Places API returns 400
+    // INVALID_ARGUMENT on every marker, which spammed the logs enough to trip
+    // Railway's log-rate limit. The lookup must skip Google (no places.googleapis.com
+    // call) and go straight to the coordinate-based Wikimedia fallback.
+    mockDbGet.mockReturnValueOnce({ maps_api_key: 'gkey' });
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          query: { pages: { '1': { thumbnail: { source: 'https://wiki.org/osm-photo.jpg' } } } },
+        }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        arrayBuffer: async () => new ArrayBuffer(120),
+      });
+    vi.stubGlobal('fetch', fetchMock);
+    const { getPlacePhoto } = await import('../../../src/services/mapsService');
+    const osmId = `node:${Date.now()}`;
+    const result = await getPlacePhoto(1, osmId, 48.8, 2.3, 'OSM Place');
+    expect(result.photoUrl).toBe(`/api/maps/place-photo/${encodeURIComponent(osmId)}/bytes`);
+    // No request was made to the Google Places API.
+    const calledGoogle = fetchMock.mock.calls.some(([url]) => String(url).includes('places.googleapis.com'));
+    expect(calledGoogle).toBe(false);
+  });
+
   it('MAPS-044g: falls back to Wikipedia/OSM for a Google place_id when the Google photo call fails', async () => {
     // A key is present and the placeId is a Google id, but Google rejects the
     // photo request (e.g. 403). The lookup must still return an image via the
