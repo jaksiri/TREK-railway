@@ -3,6 +3,7 @@ import path from 'path';
 import { db, canAccessTrip } from '../db/database';
 import { broadcastToUser } from '../websocket';
 import { checkPermission } from './permissions';
+import { deleteFile as deleteS3File } from './s3';
 import type {
   Collection,
   CollectionDetailResponse,
@@ -42,6 +43,8 @@ function serializeLinks(links: CollectionLink[] | undefined): string | null {
  */
 function deleteOldCollectionCover(coverImage: string | null | undefined): void {
   if (!coverImage) return;
+  // Covers now live in S3 — delete there (fire-and-forget), then any local fallback.
+  void deleteS3File(`covers/${path.basename(coverImage)}`);
   const coversDir = path.resolve(__dirname, '../../uploads/covers');
   const resolved = path.resolve(path.join(coversDir, path.basename(coverImage)));
   if (resolved.startsWith(coversDir + path.sep) && fs.existsSync(resolved)) fs.unlinkSync(resolved);

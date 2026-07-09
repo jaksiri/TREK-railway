@@ -26,6 +26,7 @@ import { CollectionsAddonGuard } from './collections-addon.guard';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CurrentUser } from '../auth/current-user.decorator';
 import { ZodValidationPipe } from '../common/zod-validation.pipe';
+import { persistUploadToS3 } from '../../services/s3';
 import { isDemoEmail } from '../../services/demo';
 import {
   collectionCreateRequestSchema,
@@ -329,11 +330,18 @@ export class CollectionsController {
 
   @Post(':id/cover')
   @UseInterceptors(FileInterceptor('cover', COVER_UPLOAD))
-  uploadCover(@CurrentUser() user: User, @Param('id') id: string, @UploadedFile() file: Express.Multer.File | undefined, @Headers('x-socket-id') socketId?: string) {
+  async uploadCover(@CurrentUser() user: User, @Param('id') id: string, @UploadedFile() file: Express.Multer.File | undefined, @Headers('x-socket-id') socketId?: string) {
     if (process.env.DEMO_MODE?.toLowerCase() === 'true' && isDemoEmail(user.email)) {
       throw new HttpException({ error: 'Uploads are disabled in demo mode. Self-host TREK for full functionality.' }, 403);
     }
     if (!file) throw new HttpException({ error: 'No image uploaded' }, 400);
+    // Push to S3 (where covers now live) before saving. No-op without S3.
+    try {
+      await persistUploadToS3(file, 'covers');
+    } catch {
+      try { fs.unlinkSync(file.path); } catch { /* best-effort */ }
+      throw new HttpException({ error: 'Cover upload failed' }, 500);
+    }
     const coverUrl = `/uploads/covers/${file.filename}`;
     return this.collections.setCollectionCover(user.id, Number(id), coverUrl, socketId);
   }

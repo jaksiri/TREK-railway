@@ -144,6 +144,16 @@ export class TripsController {
     if (isUnsplashCoverUrl(body.cover_image)) {
       try {
         const filename = await saveUnsplashCover(body.cover_image, coversDir);
+        // Push the downloaded cover to S3 (where covers now live). On failure the
+        // local copy remains (served via the local fallback), so don't fail the
+        // whole trip update. No-op without S3.
+        const ext = path.extname(filename).toLowerCase();
+        const mimetype = ext === '.png' ? 'image/png' : ext === '.webp' ? 'image/webp' : ext === '.gif' ? 'image/gif' : 'image/jpeg';
+        try {
+          await persistUploadToS3({ path: path.join(coversDir, filename), filename, mimetype }, 'covers');
+        } catch (e) {
+          console.error('Unsplash cover S3 upload failed, keeping local copy:', e);
+        }
         body.cover_image = `/uploads/covers/${filename}`;
       } catch (e) {
         console.error('Unsplash cover download failed:', e);
