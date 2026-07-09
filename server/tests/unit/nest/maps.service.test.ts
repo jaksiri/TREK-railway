@@ -2403,6 +2403,7 @@ describe('isGooglePlaceId', () => {
     expect(isGooglePlaceId('ChIJLU7jZClu5kcR4PcOOO6p3I0')).toBe(true);
     expect(isGooglePlaceId('coords:48.8,2.3')).toBe(false);
     expect(isGooglePlaceId('node:5255005321')).toBe(false);
+    expect(isGooglePlaceId('custom-provider:123')).toBe(false);
     expect(isGooglePlaceId('way:84527326')).toBe(false);
     expect(isGooglePlaceId('relation:345407')).toBe(false);
     expect(isGooglePlaceId('https://lh3.googleusercontent.com/photo.jpg')).toBe(false);

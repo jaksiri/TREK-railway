@@ -746,7 +746,7 @@ const NON_GOOGLE_PLACE_ID =
 export const OSM_PLACE_ID = /^(?:node|way|relation):\d+$/i;
 
 export function isGooglePlaceId(placeId: string): boolean {
-  return !NON_GOOGLE_PLACE_ID.test(placeId);
+  return !placeId.includes(':') && !NON_GOOGLE_PLACE_ID.test(placeId);
 }
 
 // ── Ranking Commons candidates ───────────────────────────────────────────────
