@@ -10,6 +10,46 @@ import { fail, success } from './helpersService';
 import { encrypt_api_key, decrypt_api_key } from '../apiKeyCrypto';
 import * as photoCache from './trekPhotoCache';
 import { ensureLocalThumbnail } from './thumbnailService';
+import { isS3Configured, getFileStream, uploadFile } from '../s3';
+
+// Stream an S3 object to the response, honouring Range (206 + Content-Range) when
+// asked. Returns false (headers untouched) on any miss so the caller can fall back
+// to a local file. Never throws.
+async function serveFromS3(res: Response, key: string, cacheControl: string, range?: string): Promise<boolean> {
+  try {
+    const { stream, contentType, contentLength, contentRange, acceptRanges, statusCode } = await getFileStream(key, range);
+    res.status(statusCode);
+    if (contentType) res.setHeader('Content-Type', contentType);
+    if (contentLength != null) res.setHeader('Content-Length', String(contentLength));
+    if (contentRange) res.setHeader('Content-Range', contentRange);
+    if (acceptRanges) res.setHeader('Accept-Ranges', acceptRanges);
+    res.setHeader('Cache-Control', cacheControl);
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    stream.pipe(res);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+// Pull an S3 object down to a local path (used so Jimp can read an original that
+// only lives in S3 when generating a thumbnail). Returns false on any failure.
+async function downloadFromS3(key: string, destAbs: string): Promise<boolean> {
+  try {
+    const { stream } = await getFileStream(key);
+    await fs.promises.mkdir(path.dirname(destAbs), { recursive: true });
+    await new Promise<void>((resolve, reject) => {
+      const out = fs.createWriteStream(destAbs);
+      stream.on('error', reject);
+      out.on('error', reject);
+      out.on('finish', () => resolve());
+      stream.pipe(out);
+    });
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 // ── Lookup / Register ────────────────────────────────────────────────────
 
@@ -114,12 +154,24 @@ export async function streamPhoto(
       // Only raster images get a lazily-generated Jimp thumbnail; Jimp can't decode
       // video, so a video relies on the poster captured at upload (#823).
       if (!thumbRel && !isVideo) {
-        const result = await ensureLocalThumbnail(uploadsRoot, photo.file_path);
-        if (result) {
-          thumbRel = result.thumbnailRelPath;
-          db.prepare(
-            'UPDATE trek_photos SET thumbnail_path = ?, width = COALESCE(width, ?), height = COALESCE(height, ?) WHERE id = ?'
-          ).run(thumbRel, result.width, result.height, photo.id);
+        const originalAbs = path.join(uploadsRoot, photo.file_path);
+        // Jimp needs the original on local disk. When it lives only in S3
+        // (volume-less deploy), pull it down first and drop the temp copy after.
+        const hadLocal = fs.existsSync(originalAbs);
+        const pulled = !hadLocal && isS3Configured && await downloadFromS3(photo.file_path, originalAbs);
+        if (hadLocal || pulled) {
+          const result = await ensureLocalThumbnail(uploadsRoot, photo.file_path);
+          if (result) {
+            thumbRel = result.thumbnailRelPath;
+            db.prepare(
+              'UPDATE trek_photos SET thumbnail_path = ?, width = COALESCE(width, ?), height = COALESCE(height, ?) WHERE id = ?'
+            ).run(thumbRel, result.width, result.height, photo.id);
+            // Persist the freshly-generated thumbnail to S3 so it survives.
+            if (isS3Configured) {
+              try { await uploadFile(thumbRel, path.join(uploadsRoot, thumbRel), 'image/jpeg'); } catch { /* best-effort */ }
+            }
+          }
+          if (pulled) { try { fs.unlinkSync(originalAbs); } catch { /* best-effort */ } }
         }
       }
       if (thumbRel) {
@@ -130,6 +182,7 @@ export async function streamPhoto(
           res.sendFile(thumbAbs);
           return;
         }
+        if (isS3Configured && await serveFromS3(res, thumbRel, 'public, max-age=86400, immutable')) return;
       }
       // A poster-less video must NOT fall through to streaming the whole file as a
       // "thumbnail"; let the client render its own placeholder instead.
@@ -147,6 +200,9 @@ export async function streamPhoto(
       res.sendFile(localPath);
       return;
     }
+    // Original lives only in S3 (volume-less deploy): stream it, honouring Range so
+    // video seeking works (206 + Content-Range).
+    if (isS3Configured && await serveFromS3(res, photo.file_path, 'public, max-age=86400', range)) return;
   }
 
   switch (photo.provider) {

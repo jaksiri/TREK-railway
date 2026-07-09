@@ -93,15 +93,27 @@ export async function uploadBuffer(key: string, buffer: Buffer, contentType?: st
 }
 
 export async function getFileStream(
-  key: string
-): Promise<{ stream: Readable; contentType?: string; contentLength?: number }> {
+  key: string,
+  range?: string,
+): Promise<{
+  stream: Readable;
+  contentType?: string;
+  contentLength?: number;
+  contentRange?: string;
+  acceptRanges?: string;
+  statusCode: 200 | 206;
+}> {
   if (!isS3Configured) throw new Error('S3 is not configured');
 
-  const response = await s3.send(new GetObjectCommand({ Bucket: bucket, Key: key }));
+  const response = await s3.send(new GetObjectCommand({ Bucket: bucket, Key: key, Range: range }));
   return {
     stream: response.Body as Readable,
     contentType: response.ContentType,
     contentLength: response.ContentLength,
+    contentRange: response.ContentRange,
+    acceptRanges: response.AcceptRanges,
+    // S3 answers a satisfiable Range with 206 + Content-Range; otherwise it's a full 200.
+    statusCode: response.ContentRange ? 206 : 200,
   };
 }
 

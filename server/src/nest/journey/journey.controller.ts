@@ -26,7 +26,10 @@ import { JourneyAddonGuard } from './journey-addon.guard';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CurrentUser } from '../auth/current-user.decorator';
 import { getAllowedExtensions, isVideoMime, isVideoExtension, MAX_VIDEO_SIZE } from '../../services/fileService';
+import { isS3Configured, persistUploadToS3, uploadFile } from '../../services/s3';
+import { ensureLocalThumbnail } from '../../services/memories/thumbnailService';
 
+const uploadsRoot = path.join(__dirname, '../../../uploads');
 const uploadsBase = path.join(__dirname, '../../../uploads/journey');
 const IMAGE_UPLOAD = {
   storage: diskStorage({
@@ -85,6 +88,30 @@ const VIDEO_UPLOAD = {
     cb(null, true);
   },
 };
+
+// Generate a journey image's thumbnail while its local original still exists,
+// returning the thumbnail's relative path. Only when S3 is configured: on
+// local-disk installs thumbnails stay lazily generated at serve time (unchanged).
+async function eagerJourneyThumbnail(relativePath: string): Promise<string | undefined> {
+  if (!isS3Configured) return undefined;
+  const result = await ensureLocalThumbnail(uploadsRoot, relativePath);
+  return result?.thumbnailRelPath;
+}
+
+// Push a freshly-uploaded journey file (and its eager thumbnail, if any) to S3.
+// No-op without S3. MUST run after thumbnail generation and Immich mirroring,
+// since persistUploadToS3 removes the local original on success.
+async function persistJourneyUpload(file: Express.Multer.File, thumbRel?: string): Promise<void> {
+  if (!isS3Configured) return;
+  if (thumbRel) {
+    try {
+      await uploadFile(thumbRel, path.join(uploadsRoot, thumbRel), 'image/jpeg');
+    } catch {
+      // best-effort thumbnail upload; serving can regenerate it from the original
+    }
+  }
+  await persistUploadToS3(file, 'journey');
+}
 
 /**
  * /api/journeys — cross-trip travel narrative (journeys, entries, photo gallery
@@ -157,7 +184,9 @@ export class JourneyController {
     const results: unknown[] = [];
     for (const file of files) {
       const relativePath = `journey/${file.filename}`;
-      const photo = this.journey.addPhoto(Number(entryId), user.id, relativePath, undefined, body?.caption);
+      // Generate the thumbnail before the original leaves local disk (Jimp reads it).
+      const thumbRel = await eagerJourneyThumbnail(relativePath);
+      const photo = this.journey.addPhoto(Number(entryId), user.id, relativePath, thumbRel, body?.caption);
       if (!photo) continue;
       // Mirror to Immich only when the user explicitly opted in (#730).
       if (this.journey.immichAutoUploadEnabled(user.id)) {
@@ -171,6 +200,8 @@ export class JourneyController {
           // best-effort mirror; the local photo is already saved
         }
       }
+      // Thumbnail + Immich have read the local original; safe to move it to S3 now.
+      await persistJourneyUpload(file, thumbRel);
       results.push(photo);
     }
     if (!results.length) {
@@ -246,21 +277,29 @@ export class JourneyController {
   // ── Gallery (prefix /:id/gallery — before /:id) ─────────────────────────
   @Post(':id/gallery/photos')
   @UseInterceptors(FilesInterceptor('photos', undefined, IMAGE_UPLOAD))
-  uploadGalleryPhotos(@CurrentUser() user: User, @Param('id') id: string, @UploadedFiles() files: Express.Multer.File[] | undefined) {
+  async uploadGalleryPhotos(@CurrentUser() user: User, @Param('id') id: string, @UploadedFiles() files: Express.Multer.File[] | undefined) {
     if (!files?.length) {
       throw new HttpException({ error: 'No files uploaded' }, 400);
     }
-    const filePaths = files.map((f) => ({ path: `journey/${f.filename}` }));
+    // Generate each thumbnail before the originals leave local disk (Jimp reads them).
+    const prepared = await Promise.all(files.map(async (f) => ({
+      file: f,
+      thumbnail: await eagerJourneyThumbnail(`journey/${f.filename}`),
+    })));
+    const filePaths = prepared.map((p) => ({ path: `journey/${p.file.filename}`, thumbnail: p.thumbnail }));
     const photos = this.journey.uploadGalleryPhotos(Number(id), user.id, filePaths);
     if (!photos.length) {
       throw new HttpException({ error: 'Not allowed' }, 403);
+    }
+    for (const p of prepared) {
+      await persistJourneyUpload(p.file, p.thumbnail);
     }
     return { photos };
   }
 
   @Post(':id/gallery/video')
   @UseInterceptors(FileFieldsInterceptor([{ name: 'video', maxCount: 1 }, { name: 'poster', maxCount: 1 }], VIDEO_UPLOAD))
-  uploadGalleryVideo(
+  async uploadGalleryVideo(
     @CurrentUser() user: User,
     @Param('id') id: string,
     @UploadedFiles() files: { video?: Express.Multer.File[]; poster?: Express.Multer.File[] } | undefined,
@@ -290,6 +329,10 @@ export class JourneyController {
       cleanup();
       throw new HttpException({ error: 'Not allowed' }, 403);
     }
+    // Move both parts to S3: the video (streamed with Range on serve) and the
+    // poster, which is the video's thumbnail_path.
+    await persistUploadToS3(video, 'journey');
+    if (poster) await persistUploadToS3(poster, 'journey');
     return { photos };
   }
 
@@ -349,7 +392,7 @@ export class JourneyController {
   @Post(':id/cover')
   @HttpCode(200) // Express answers cover with res.json (200).
   @UseInterceptors(FileInterceptor('cover', IMAGE_UPLOAD))
-  cover(@CurrentUser() user: User, @Param('id') id: string, @UploadedFile() file: Express.Multer.File | undefined) {
+  async cover(@CurrentUser() user: User, @Param('id') id: string, @UploadedFile() file: Express.Multer.File | undefined) {
     if (!file) {
       throw new HttpException({ error: 'No file uploaded' }, 400);
     }
@@ -357,6 +400,8 @@ export class JourneyController {
     if (!result) {
       throw new HttpException({ error: 'Journey not found' }, 404);
     }
+    // Covers serve via the generic /uploads/journey/* S3 route (local fallback).
+    await persistUploadToS3(file, 'journey');
     return result;
   }
 

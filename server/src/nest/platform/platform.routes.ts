@@ -36,14 +36,12 @@ export const PUBLIC_DIR = path.join(__dirname, '../../../public');
  * (identical to its original position near the top of createApp).
  */
 export function applyPlatformUploads(app: express.Application): void {
-  // Static: avatars, covers, and journey photos.
-  //
-  // Security model (audit SEC-M9): these paths are unauthenticated by
-  // design. All filenames are server-chosen UUID v4 (see `uuid()` in
-  // the multer storage config for avatars / covers / journey uploads),
-  // which gives each asset >122 bits of namespace entropy — not
-  // guessable via enumeration. An attacker would need to have already
-  // seen the URL (email, shared journey, etc.) to request the file.
+  // Security model (audit SEC-M9): the avatars / covers / journey paths are
+  // unauthenticated by design. All filenames are server-chosen UUID v4 (see the
+  // multer storage config for avatars / covers / journey uploads), which gives
+  // each asset >122 bits of namespace entropy — not guessable via enumeration. An
+  // attacker would need to have already seen the URL (email, shared journey, etc.)
+  // to request the file.
   //
   // Moving these behind auth would also break:
   //   - Unauthenticated trip-card rendering on public share links
@@ -54,9 +52,9 @@ export function applyPlatformUploads(app: express.Application): void {
   // not embedded in unauthenticated UI contexts, so that endpoint IS
   // gated (session JWT with pv, or a share token scoped to the photo's
   // trip).
-  // Journey photos stay on plain local static serving (public share pages
-  // embed them and they are not migrated to S3).
-  app.use('/uploads/journey', express.static(path.join(UPLOADS_DIR, 'journey')));
+  //
+  // Journey covers are served by the generic /uploads/:type/* handler below
+  // (S3 with local fallback), same as avatars and covers.
 
   // Block direct access to /uploads/files — downloads go through the
   // authenticated /api/.../files/:id/download route. Must stay AHEAD of the
@@ -65,15 +63,15 @@ export function applyPlatformUploads(app: express.Application): void {
     res.status(401).send('Authentication required');
   });
 
-  // Avatars, covers, and photos are served from S3 (where uploads now live),
-  // falling back to any local file still on disk when S3 misses or is not
-  // configured. Photos remain gated (session JWT with pv, or a share token
-  // scoped to the photo's trip). Avatars/covers are unauthenticated by design
-  // (server-chosen UUID filenames give >122 bits of entropy — SEC-M9).
+  // Avatars, covers, journey covers, and photos are served from S3 (where uploads
+  // now live), falling back to any local file still on disk when S3 misses or is
+  // not configured. Photos remain gated (session JWT with pv, or a share token
+  // scoped to the photo's trip). Avatars/covers/journey are unauthenticated by
+  // design (server-chosen UUID filenames give >122 bits of entropy — SEC-M9).
   app.get('/uploads/:type/*', async (req: Request, res: Response) => {
     const { type } = req.params;
     const keyPath = (req.params as Record<string, string>)[0];
-    if (!['avatars', 'covers', 'photos'].includes(type) || !keyPath) {
+    if (!['avatars', 'covers', 'journey', 'photos'].includes(type) || !keyPath) {
       return res.status(404).send('Not found');
     }
 
