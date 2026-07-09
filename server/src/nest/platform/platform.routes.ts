@@ -70,7 +70,12 @@ export function applyPlatformUploads(app: express.Application): void {
   // design (server-chosen UUID filenames give >122 bits of entropy — SEC-M9).
   app.get('/uploads/:type/*path', async (req: Request, res: Response) => {
     const { type } = req.params;
-    const keyPath = (req.params as Record<string, string>).path;
+    // Express 5's named wildcard (`*path`) captures the matched segments as an
+    // ARRAY of decoded parts (path-to-regexp v8), not a string. Re-join them so
+    // path.join / getFileStream receive a real string — passing the array straight
+    // to path.join throws ERR_INVALID_ARG_TYPE → 500 for every asset (covers, etc.).
+    const rawPath = (req.params as Record<string, string | string[]>).path;
+    const keyPath = Array.isArray(rawPath) ? rawPath.join('/') : rawPath;
     if (!['avatars', 'covers', 'journey', 'photos'].includes(type) || !keyPath) {
       return res.status(404).send('Not found');
     }

@@ -162,6 +162,24 @@ describe('applyPlatformUploads', () => {
     expect(res.headers['Content-Type']).toBe('image/jpeg');
   });
 
+  // Express 5's `*path` wildcard hands `req.params.path` as an ARRAY of segments,
+  // not a string. Joining it must produce the S3 key — passing the array straight
+  // to path.join throws ERR_INVALID_ARG_TYPE and 500s the asset (the real cover bug).
+  it('re-joins the Express 5 array wildcard param into an S3 key', async () => {
+    h.getFileStream.mockResolvedValue({ stream: fakeStream(), contentType: 'image/jpeg', contentLength: 3 });
+    const res = makeRes();
+    await getHandler()({ params: { type: 'covers', path: ['1596b9c1.JPG'] }, headers: {}, query: {} }, res);
+    expect(h.getFileStream).toHaveBeenCalledWith('covers/1596b9c1.JPG');
+    expect(res.headers['Content-Type']).toBe('image/jpeg');
+  });
+
+  it('re-joins a multi-segment array wildcard param', async () => {
+    h.getFileStream.mockResolvedValue({ stream: fakeStream(), contentType: 'image/jpeg', contentLength: 3 });
+    const res = makeRes();
+    await getHandler()({ params: { type: 'journey', path: ['sub', 'dir', 'a.jpg'] }, headers: {}, query: {} }, res);
+    expect(h.getFileStream).toHaveBeenCalledWith('journey/sub/dir/a.jpg');
+  });
+
   it('403 when the resolved path escapes the type dir', async () => {
     const res = makeRes();
     await getHandler()({ params: { type: 'covers', path: '../../etc/passwd' }, headers: {}, query: {} }, res);
