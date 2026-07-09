@@ -4,6 +4,7 @@ import { db } from '../db/database';
 import { CollabNote, CollabPoll, CollabMessage, TripFile } from '../types';
 import { checkSsrf, createPinnedDispatcher } from '../utils/ssrfGuard';
 import { avatarUrl } from './avatarUrl';
+import { deleteFile as deleteS3File } from './s3';
 
 /* ------------------------------------------------------------------ */
 /*  Internal row types                                                 */
@@ -162,9 +163,11 @@ export function deleteNote(tripId: string | number, noteId: string | number): bo
   const existing = db.prepare('SELECT id FROM collab_notes WHERE id = ? AND trip_id = ?').get(noteId, tripId);
   if (!existing) return false;
 
-  // Clean up attached files from disk
+  // Clean up attached files: delete from S3 (where they now live) and any
+  // local fallback copy still on disk.
   const noteFiles = db.prepare('SELECT id, filename FROM trip_files WHERE note_id = ?').all(noteId) as NoteFileRow[];
   for (const f of noteFiles) {
+    void deleteS3File(f.filename.startsWith('files/') ? f.filename : `files/${f.filename}`);
     const filePath = path.join(__dirname, '../../uploads', f.filename);
     try { fs.unlinkSync(filePath); } catch { /* ignore */ }
   }
@@ -199,6 +202,7 @@ export function deleteNoteFile(noteId: string | number, fileId: string | number)
   const file = db.prepare('SELECT * FROM trip_files WHERE id = ? AND note_id = ?').get(fileId, noteId) as TripFile | undefined;
   if (!file) return false;
 
+  void deleteS3File(file.filename.startsWith('files/') ? file.filename : `files/${file.filename}`);
   const filePath = path.join(__dirname, '../../uploads', file.filename);
   try { fs.unlinkSync(filePath); } catch { /* ignore */ }
 

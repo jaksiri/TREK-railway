@@ -23,6 +23,7 @@ import type { User } from '../../types';
 import { CollabService } from './collab.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CurrentUser } from '../auth/current-user.decorator';
+import { persistUploadToS3 } from '../../services/s3';
 import { BLOCKED_EXTENSIONS } from '../../services/fileService';
 
 const MAX_NOTE_FILE_SIZE = 50 * 1024 * 1024;
@@ -132,13 +133,23 @@ export class CollabController {
 
   @Post('notes/:id/files')
   @UseInterceptors(FileInterceptor('file', NOTE_UPLOAD))
-  addNoteFile(@CurrentUser() user: User, @Param('tripId') tripId: string, @Param('id') id: string, @UploadedFile() file: Express.Multer.File | undefined, @Headers('x-socket-id') socketId?: string) {
+  async addNoteFile(@CurrentUser() user: User, @Param('tripId') tripId: string, @Param('id') id: string, @UploadedFile() file: Express.Multer.File | undefined, @Headers('x-socket-id') socketId?: string) {
     const trip = this.requireTrip(tripId, user);
     if (!this.collab.canUploadFiles(trip, user)) {
+      if (file?.path) { try { fs.unlinkSync(file.path); } catch { /* best-effort */ } }
       throw new HttpException({ error: 'No permission to upload files' }, 403);
     }
     if (!file) {
       throw new HttpException({ error: 'No file uploaded' }, 400);
+    }
+    // Push to S3 (files store) before creating the DB row, matching the trip
+    // file manager. persistUploadToS3 removes the local temp on success; no-op
+    // without S3. The stored filename carries the `files/` prefix.
+    try {
+      await persistUploadToS3(file, 'files');
+    } catch {
+      try { fs.unlinkSync(file.path); } catch { /* best-effort */ }
+      throw new HttpException({ error: 'File upload failed' }, 500);
     }
     const result = this.collab.addNoteFile(tripId, id, file);
     if (!result) {
