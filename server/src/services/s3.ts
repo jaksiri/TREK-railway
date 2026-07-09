@@ -27,6 +27,14 @@ const s3 = new S3Client({
     secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || '',
   },
   forcePathStyle: true,
+  // AWS SDK v3 (>= 3.729) turns on flexible-checksum integrity by default: it adds
+  // `x-amz-checksum-mode=ENABLED` on GetObject and validates a checksum in the
+  // response. Non-AWS S3-compatible stores (storageapi.dev/Tigris, R2, MinIO) don't
+  // return those checksums, so validation throws and the download 500s even though
+  // the object exists. WHEN_REQUIRED restores the pre-3.729 behaviour (only checksum
+  // when the operation actually requires it), fixing GET while leaving PUT working.
+  requestChecksumCalculation: 'WHEN_REQUIRED',
+  responseChecksumValidation: 'WHEN_REQUIRED',
 });
 
 export async function uploadFile(key: string, filePath: string, contentType?: string): Promise<void> {

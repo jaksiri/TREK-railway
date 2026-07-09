@@ -1,6 +1,6 @@
 ---
 name: trek-fork-sync
-description: Synchronize this TREK fork with its upstream repository and carry fork-specific work forward safely. Use when the user asks to update the fork from the base branch, rebase local work onto the latest upstream changes, merge upstream into the fork's main branch, rebuild a stale feature branch on top of refreshed main, or resolve the recurring TREK fork sync conflicts in app/storage/CI files. If the skill is invoked without explicit user direction about history strategy, default to applying the user's branch on top of the latest upstream changes with the rebase/rebuild workflow.
+description: Synchronize this TREK fork with its upstream repository and carry fork-specific work forward safely. Use when the user asks to update the fork from the base branch, rebase local work onto the latest upstream changes, merge upstream into the fork's main branch, rebuild a stale feature branch on top of refreshed main, or resolve the recurring TREK fork sync conflicts in the NestJS upload controllers, S3 storage services, CI workflow, or Railway deploy files. If the skill is invoked without explicit user direction about history strategy, default to applying the user's branch on top of the latest upstream changes with the rebase/rebuild workflow.
 ---
 
 # TREK Fork Sync
@@ -12,11 +12,54 @@ Update this repository from `upstream`, preserve fork-specific work, and leave t
 ## Repo assumptions
 
 - Treat this repo as a fork with:
-  - `origin` = the user's fork
+  - `origin` = the user's fork (`jaksiri/TREK-railway`)
   - `upstream` = `mauriceboe/TREK`
 - Default base branch is `main`.
-- Common local integration branch is `chore/updating-from-main`.
+- The backend is **NestJS** (`server/src/nest/**`), not the old Express `server/src/app.ts`. Any guidance mentioning `app.ts`, `demoUploadBlock`, or Express route files is obsolete.
+- This is an **npm-workspaces monorepo** with a single root `package-lock.json`. There are no per-workspace lockfiles (`client/package-lock.json` / `server/package-lock.json` do not exist).
 - Never destroy user work. Create backup branches before rewriting history.
+
+## What this fork carries over upstream
+
+Every sync must preserve these three groups of fork-specific work. Knowing them turns most conflicts into "keep both sides": upstream's logic plus the fork's hook next to it.
+
+### 1. S3-backed uploads (with local-disk fallback)
+
+All upload types — avatars, covers, trip files, collab note files, and journey media (gallery/entry photos, videos, posters, covers) — are stored in S3 when configured, and fall back to local disk when S3 env vars are unset (self-host without object storage). Journey was the last type still pinned to disk; as of `feat: migrate journey media to S3` nothing is local-only anymore.
+
+- New file, never conflicts — ensure it survives every sync: `server/src/services/s3.ts`. Exports `isS3Configured`, `persistUploadToS3(file, subdir)`, `getFileStream(key, range?)`, `deleteFile(key)` (imported elsewhere as `deleteS3File`), plus `uploadFile/uploadStream/uploadBuffer/listFiles` and `tempDir`. `getFileStream` takes an optional HTTP `Range` and returns `{ stream, contentType, contentLength, contentRange, acceptRanges, statusCode }` — S3 answers a satisfiable range with `206` + `Content-Range` (video seeking); no-range callers still get `200`.
+- **Upload path** — each handler became `async` and calls `persistUploadToS3(file, subdir)` before the DB write; on failure it unlinks the local temp and throws a 500. Subdirs: `avatars`, `covers`, `files`, `journey`.
+  - `server/src/nest/auth/auth.controller.ts` — avatars
+  - `server/src/nest/trips/trips.controller.ts` — covers (upload handler + the Unsplash-cover download, which persists to S3 non-fatally)
+  - `server/src/nest/collections/collections.controller.ts` — covers
+  - `server/src/nest/collab/collab.controller.ts` — note files (`files`)
+  - `server/src/nest/files/files.controller.ts` — trip files (`files`)
+  - `server/src/nest/journey/journey.controller.ts` — journey originals, eagerly-generated thumbnails, gallery-video posters, and covers (`journey`). Covers are stored with a `journey/<filename>` URL and served by the generic route below.
+- **Serve path** — stream from S3 via `getFileStream(key, range?)`, falling back to a local file with `res.sendFile(path.basename(x), { root: path.dirname(x) })` (the `{ root }` form is required under the Nest ExpressAdapter). Thread the request `Range` through for journey videos so seeking returns `206`.
+  - `server/src/nest/files/files-download.controller.ts` — authenticated download; key is `files/<filename>`.
+  - `server/src/services/memories/photoResolverService.ts` — `stream()` serves journey originals/thumbnails from S3 with local fallback, threading `Range` for 206 video responses, and lazily regenerates a missing thumbnail by pulling the original from S3 when it isn't on disk.
+  - `server/src/nest/journey/journey-public.controller.ts` / `server/src/nest/journey/journey.service.ts` — thread `Range` into the public share-photo proxy so shared journey videos honour seeking.
+  - `server/src/nest/platform/platform.routes.ts` (`applyPlatformUploads`) — a generic `app.get('/uploads/:type/*path', ...)` handler serves `avatars`, `covers`, `journey`, and `photos` from S3 with local fallback. **The route uses the Express 5 named wildcard `*path` (read via `req.params.path`), not `*`/`req.params[0]`.** **The `type` allowlist must be `['avatars', 'covers', 'journey', 'photos']`** — a `type` not on the list returns 404 before any serving, so a dropped entry silently breaks that whole upload type. Keep the `/uploads/files` 401 block AHEAD of the generic handler so it isn't shadowed. There is no longer a `/uploads/journey` `express.static` line — journey is served by the generic handler. Photos keep their auth gate (session JWT with pv, or a share token scoped to the photo's trip); avatars/covers/journey are unauthenticated by design.
+- **Delete path** — import `deleteFile as deleteS3File` from `../services/s3`, delete from S3 first (fire-and-forget / awaited best-effort), then remove any local fallback file.
+  - `server/src/services/fileService.ts` — `permanentDeleteFile`, `emptyTrash`
+  - `server/src/services/authService.ts` — `saveAvatar`, `deleteAvatar`
+  - `server/src/services/collabService.ts` — `deleteNote`, `deleteNoteFile`
+  - `server/src/services/collectionsService.ts` — `deleteOldCollectionCover`
+  - `server/src/services/tripService.ts` — `deleteOldCover`
+- **S3 key convention** — for trip files the stored `filename` may already include the `files/` prefix, so guard: `const key = file.filename.startsWith('files/') ? file.filename : \`files/${file.filename}\``. Covers/avatars use `covers/<basename>` and `avatars/<filename>`.
+- **Dependencies / config** (`server/package.json`): `@aws-sdk/client-s3` and `@aws-sdk/lib-storage` in `dependencies`, `s3rver` in `devDependencies`. Env vars in `server/.env.example`: `AWS_ENDPOINT_URL`, `AWS_S3_BUCKET_NAME`, `AWS_DEFAULT_REGION`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`.
+
+### 2. Railway deploy layer
+
+New files, they do not conflict — just confirm they survive the sync:
+
+- `Dockerfile.railway` — npm-workspaces monorepo build mirroring the upstream Dockerfile, with the Railway volume entrypoint swapped into the run stage.
+- `docker-entrypoint.sh` — symlinks `/app/data` and `/app/uploads` into the single Railway volume at `/app/storage`.
+- `railway.toml` — points the build at `Dockerfile.railway`; healthcheck `/api/health`.
+
+### 3. Fork CI change
+
+`.github/workflows/docker.yml` — the fork removed the in-CI version-bump commit (upstream runs `npm version --workspaces ...`, commits `chore: bump version to X [skip ci]`, and pushes to `main`). The fork instead captures the build SHA, builds from that SHA, and pushes only a git tag after the build succeeds. This file conflicts on nearly every sync — re-apply the fork's no-bump behavior (see resolution rules below).
 
 ## Preflight
 
@@ -46,7 +89,7 @@ git branch backup/main-before-upstream-<date> main
 git branch backup/<branch>-before-rewrite-<date> <branch>
 ```
 
-Use an ISO date like `2026-05-22`.
+Use an ISO date like `2026-07-09`.
 
 ## Choose the history strategy
 
@@ -73,39 +116,39 @@ If Git requires an editor during `rebase --continue`, run:
 GIT_EDITOR=true git rebase --continue
 ```
 
-### 2. Resolve the recurring TREK conflicts
+### 2. Resolve the recurring conflicts
 
-The usual conflicts are:
+The files that conflict are the ones the fork touches AND upstream actively develops:
 
-- `server/src/app.ts`
-- `server/src/services/tripService.ts`
+- The five upload controllers under `server/src/nest/` (auth, trips, collections, collab, files) and `server/src/nest/files/files-download.controller.ts`
+- `server/src/nest/platform/platform.routes.ts`
+- The touched services: `fileService.ts`, `authService.ts`, `collabService.ts`, `collectionsService.ts`, `tripService.ts`
+- `.github/workflows/docker.yml`
+- `server/package.json`, root `package-lock.json`, `server/.env.example`
 
-Resolve them with these rules:
+General rule: the fork's changes are **additive** — an S3 import plus a push/serve/delete hook alongside the existing local-disk logic. Resolve by keeping **both** upstream's new logic and the fork's S3 hook. Concretely:
 
-- In `server/src/app.ts`, keep the generic `app.get('/uploads/:type/*', ...)` S3-backed upload serving path. Do not reintroduce the older dedicated `'/uploads/photos/:filename'` route if the generic path already covers it.
-- Keep the `/uploads/files` block ahead of the generic upload handler.
-- In `server/src/services/tripService.ts`, preserve both:
-  - upstream's `shiftOwnerEntriesForTripWindow` behavior
-  - fork cleanup via `deleteFile as deleteS3File`
-- Keep `deleteOldCover()` deleting from S3 and removing the local fallback file under `uploads/` when present.
+- Keep the `import ... from '../../services/s3'` (or `../services/s3`) line the fork added.
+- In upload handlers, keep the method `async` and keep the `persistUploadToS3(file, subdir)` block (with its local-temp cleanup + 500 on failure) before the DB write.
+- In `platform.routes.ts`, keep the generic `app.get('/uploads/:type/*path', ...)` S3-backed handler and keep the `/uploads/files` 401 block AHEAD of it. Do not reintroduce the old dedicated `'/uploads/photos/:filename'` route or the `/uploads/journey` `express.static` line. This handler is a high-risk merge point: it has been touched by both an Express 5 wildcard fix (`*path` / `req.params.path`) and the journey-S3 change (adding `journey` to the allowlist), so a careless resolution drops one. After resolving, verify the route reads `req.params.path` AND the allowlist is exactly `['avatars', 'covers', 'journey', 'photos']`.
+- In services, keep the `deleteS3File(...)` call before the local `fs.rm`/`unlinkSync` fallback.
+- Preserve any upstream additions to these files (new routes, new behavior); do not drop them while re-applying the S3 hooks.
 
-### 3. Skip obsolete fork-only version bump commits
+### 3. Re-apply the fork CI change
 
-If replaying an automated version-bump commit like `chore: bump version to 0.0.1 [skip ci]`, skip it. Keep current upstream version numbers in:
+When `.github/workflows/docker.yml` conflicts, keep the fork's behavior, not upstream's:
 
-- `charts/trek/Chart.yaml`
-- `client/package.json`
-- `client/package-lock.json`
-- `server/package.json`
-- `server/package-lock.json`
+- Do NOT reintroduce the `npm version "$NEW_VERSION" --workspaces ...`, the `chore: bump version ... [skip ci]` commit, or the `git push origin main --follow-tags` in the `version-bump` job.
+- Keep the fork's `SHA=$(git rev-parse HEAD) >> $GITHUB_OUTPUT` output and the downstream jobs checking out `ref: ${{ needs.version-bump.outputs.sha }}` instead of `ref: main`.
+- Keep the "Push git tag" step that tags `v$VERSION` after the build.
 
-### 4. Keep the fork CI change, but not stale versions
+### 4. Keep manifests at the current upstream version
 
-If replaying `ci: stop version bump commits in fork`, keep the CI behavior but resolve manifest conflicts to the current upstream version, not an old fork version.
+Resolve `server/package.json` and root `package-lock.json` to the current upstream version numbers (plus the fork's added S3 dependencies). Never carry an old fork version number forward. The fork no longer produces `chore: bump version` commits, so you should not see fork-only version-bump commits to skip; if an old one appears in the replay, drop it.
 
 ### 5. Rebuild stale branches from refreshed `main`
 
-If a branch like `chore/updating-from-main` is far behind upstream and contains merge noise, rebuild it cleanly:
+If a branch like `chore/updating-from-main` (or `feat/journey-s3`) is far behind upstream and carries merge noise, rebuild it cleanly:
 
 ```bash
 git checkout -b rebase/<branch>-<date> main
@@ -115,25 +158,12 @@ git cherry main <branch>
 Replay only `+` commits from `git cherry`. Skip:
 
 - duplicate fixes already present on rebased `main`
-- outdated README-only sync commits
-- older S3 migration variants that are superseded by `main`
+- older S3-migration variants superseded by `main`
+- README-only or version-bump sync commits
 
-Cherry-pick only the remaining unique work. In this repo that often leaves just the branch-only CI/test hardening commit.
+Cherry-pick only the remaining unique work, resolving any upload-path conflicts with the same "keep both, keep the S3 hook" rule above.
 
-### 6. Resolve the branch-only hardening merge shape
-
-If replaying the server CI/test hardening work, prefer these branch-side resolutions:
-
-- Middleware order:
-  - `avatarUpload.single(...)` before `demoUploadBlock`
-  - file upload `upload.single(...)` before `demoUploadBlock`
-  - cover upload `uploadCover.single(...)` before `demoUploadBlock`
-- In `demoUploadBlock`, keep temp-file cleanup for `req.file?.path`.
-- Preserve repo-specific messaging that says `TREK`, not `NOMAD`.
-- Keep `server/tests/globalSetup.ts` with the S3rver-based setup.
-- Keep newer notification and ntfy functionality if already present on the refreshed base; do not drop upstream additions while resolving the hardening commit.
-
-### 7. Move the original branch name to the rebuilt history
+### 6. Move the original branch name to the rebuilt history
 
 After the rebuilt branch is clean:
 
@@ -163,7 +193,14 @@ git checkout main
 git merge upstream/main
 ```
 
-Resolve the same recurring `server/src/app.ts` and `server/src/services/tripService.ts` conflicts with the same rules from the rebase workflow.
+Resolve the recurring conflicts with the same rules as the rebase workflow (keep both upstream logic and the fork's S3 hooks; re-apply the fork CI change; keep manifests at the upstream version). Typical overlap files:
+
+- `server/src/nest/{auth,trips,collections,collab,files}/*.controller.ts`
+- `server/src/nest/files/files-download.controller.ts`
+- `server/src/nest/platform/platform.routes.ts`
+- `server/src/services/{fileService,authService,collabService,collectionsService,tripService}.ts`
+- `.github/workflows/docker.yml`
+- `server/package.json`, root `package-lock.json`, `server/.env.example`
 
 Finish with:
 
@@ -178,22 +215,7 @@ git commit --no-edit
 git merge <branch>
 ```
 
-Typical overlap files:
-
-- `server/src/app.ts`
-- `server/src/middleware/auth.ts`
-- `server/src/routes/auth.ts`
-- `server/src/routes/files.ts`
-- `server/src/routes/trips.ts`
-- `server/tests/globalSetup.ts`
-
-Resolve those by keeping the branch-side upload-hardening behavior:
-
-- place upload middleware before `demoUploadBlock`
-- keep `demoUploadBlock` temp-file cleanup
-- keep the branch-side `globalSetup.ts`
-
-Then finish with:
+Resolve overlaps by keeping the branch-side upload behavior, then finish with:
 
 ```bash
 git add <resolved-files>
@@ -216,11 +238,22 @@ If updating a feature branch too:
 git rev-list --left-right --count <branch>...main
 ```
 
+Then sanity-check the fork work survived:
+
+```bash
+git ls-files server/src/services/s3.ts Dockerfile.railway docker-entrypoint.sh railway.toml
+grep -rl "persistUploadToS3\|getFileStream\|deleteS3File" server/src/nest server/src/services | sort
+# Uploads route must keep the Express 5 wildcard AND the full type allowlist:
+grep -n "uploads/:type/\*path\|'avatars', 'covers', 'journey', 'photos'" server/src/nest/platform/platform.routes.ts
+```
+
 Success means:
 
 - working tree is clean
 - the intended branch is checked out
 - `main` is no longer behind `upstream/main`
+- `server/src/services/s3.ts`, the Railway files, and the S3 hooks in the controllers/services are all still present
+- `.github/workflows/docker.yml` still has the fork's no-bump behavior
 - the user's carried-forward branch is based on the refreshed `main`
 
 ## Push guidance

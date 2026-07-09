@@ -103,7 +103,7 @@ export function applyGlobalMiddleware(
       directives: {
         defaultSrc: ["'self'"],
         scriptSrc: ["'self'", "'wasm-unsafe-eval'", "'unsafe-eval'"],
-        styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com", "https://unpkg.com"],
+        styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
         imgSrc: ["'self'", "data:", "blob:", "https:"],
         connectSrc: [
           "'self'", "ws:", "wss:",
@@ -111,7 +111,7 @@ export function applyGlobalMiddleware(
           "https://places.googleapis.com", "https://api.openweathermap.org",
           "https://en.wikipedia.org", "https://commons.wikimedia.org",
           "https://*.basemaps.cartocdn.com", "https://*.tile.openstreetmap.org",
-          "https://unpkg.com", "https://open-meteo.com", "https://api.open-meteo.com",
+          "https://open-meteo.com", "https://api.open-meteo.com",
           "https://geocoding-api.open-meteo.com", "https://api.frankfurter.dev",
           "https://router.project-osrm.org/route/v1/", "https://routing.openstreetmap.de/",
           "https://api.mapbox.com", "https://*.tiles.mapbox.com", "https://events.mapbox.com",

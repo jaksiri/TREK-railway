@@ -13,6 +13,9 @@ import '@fontsource/poppins/700.css'
 import '@fontsource/geist-sans/400.css'
 import '@fontsource/geist-sans/500.css'
 import '@fontsource/geist-sans/600.css'
+// Leaflet's stylesheet, bundled from the npm package rather than the unpkg CDN so
+// it can't fail as a cross-origin opaque Service Worker cache entry and works offline.
+import 'leaflet/dist/leaflet.css'
 import './index.css'
 // Native HTML5 drag-and-drop never fires on touch input, so the planner's place /
 // day reordering was dead on Android and iOS. This polyfill synthesises the standard

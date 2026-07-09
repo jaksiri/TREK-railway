@@ -8,6 +8,7 @@ const h = vi.hoisted(() => ({
   getMcpSafeUrl: vi.fn(() => 'https://trek.example.test'),
   dbPrepare: vi.fn(),
   existsSync: vi.fn(),
+  getFileStream: vi.fn(),
   // SDK middleware spies — each returns a tagged handler so we can identify which
   // app.use call received it.
   metaRouter: vi.fn(),
@@ -22,6 +23,7 @@ vi.mock('../../../src/mcp', () => ({ mcpHandler: h.mcpHandler }));
 vi.mock('../../../src/mcp/oauthProvider', () => ({ trekOAuthProvider: {}, trekClientsStore: {} }));
 vi.mock('../../../src/services/adminService', () => ({ isAddonEnabled: h.isAddonEnabled }));
 vi.mock('../../../src/services/notifications', () => ({ getMcpSafeUrl: h.getMcpSafeUrl }));
+vi.mock('../../../src/services/s3', () => ({ getFileStream: h.getFileStream }));
 
 // SDK router/handler factories return distinct tagged middleware so we never hit
 // real new URL(...) wiring during registration.
@@ -86,14 +88,29 @@ function makeRes() {
     statusCode: 200,
     body: undefined as unknown,
     headers: {} as Record<string, string>,
+    headersSent: false,
     status: vi.fn(function (this: typeof res, c: number) { this.statusCode = c; return this; }),
     json: vi.fn(function (this: typeof res, b: unknown) { this.body = b; return this; }),
     send: vi.fn(function (this: typeof res, b: unknown) { this.body = b; return this; }),
     end: vi.fn(function (this: typeof res) { return this; }),
     sendFile: vi.fn(function (this: typeof res, p: string) { this.body = `FILE:${p}`; return this; }),
     setHeader: vi.fn(function (this: typeof res, k: string, v: string) { this.headers[k] = v; return this; }),
+    on: vi.fn(function (this: typeof res) { return this; }),
   };
   return res;
+}
+
+// A fake S3 body stream. `.pipe()` returns a chainable whose 'finish' listener
+// fires on the next microtask so the handler's await-pipe promise resolves.
+function fakeStream() {
+  const chain: { on: (ev: string, cb: () => void) => typeof chain } = {
+    on: vi.fn((ev: string, cb: () => void) => { if (ev === 'finish') queueMicrotask(cb); return chain; }),
+  };
+  return {
+    on: vi.fn(function (this: unknown) { return this; }),
+    pipe: vi.fn(() => chain),
+    destroy: vi.fn(),
+  };
 }
 
 beforeEach(() => {
@@ -102,124 +119,144 @@ beforeEach(() => {
 });
 
 describe('applyPlatformUploads', () => {
-  it('registers the static avatar/cover/journey mounts + the files block', () => {
+  // Uploads are now served by a single generic GET /uploads/:type/*path handler
+  // that streams from S3 with a local-disk fallback (the per-type express.static
+  // mounts were removed in the S3 migration). Only /uploads/files keeps a dedicated
+  // 401 block ahead of it.
+  function getHandler() {
     const { app, calls } = fakeApp();
     applyPlatformUploads(app);
-    const paths = calls.filter((c) => c.method === 'use').map((c) => c.path);
-    expect(paths).toEqual(
-      expect.arrayContaining(['/uploads/avatars', '/uploads/covers', '/uploads/journey', '/uploads/files']),
-    );
+    return calls.find((c) => c.method === 'get' && c.path === '/uploads/:type/*path')!.handlers[0] as
+      (req: unknown, res: unknown) => Promise<unknown>;
+  }
+
+  it('registers a single generic /uploads/:type/*path GET handler', () => {
+    const { app, calls } = fakeApp();
+    applyPlatformUploads(app);
+    expect(calls.filter((c) => c.method === 'get').map((c) => c.path)).toEqual(['/uploads/:type/*path']);
   });
 
   it('the /uploads/files block always answers 401', () => {
     const { app, calls } = fakeApp();
     applyPlatformUploads(app);
-    const filesBlock = calls.find((c) => c.path === '/uploads/files')!.handlers[0];
+    const filesBlock = calls.find((c) => c.method === 'use' && c.path === '/uploads/files')!.handlers[0];
     const res = makeRes();
     filesBlock({}, res);
     expect(res.statusCode).toBe(401);
     expect(res.body).toBe('Authentication required');
   });
 
-  describe('GET /uploads/photos/:filename', () => {
-    function photoHandler() {
-      const { app, calls } = fakeApp();
-      applyPlatformUploads(app);
-      return calls.find((c) => c.method === 'get' && c.path === '/uploads/photos/:filename')!.handlers[0];
-    }
+  it('404 for a type outside the allowlist', async () => {
+    const res = makeRes();
+    await getHandler()({ params: { type: 'secrets', path: 'a.jpg' }, headers: {}, query: {} }, res);
+    expect(res.statusCode).toBe(404);
+    expect(res.body).toBe('Not found');
+    expect(h.getFileStream).not.toHaveBeenCalled();
+  });
 
-    it('403 when the resolved path escapes the photos dir', () => {
-      // basename() strips the traversal, but feed a name that resolves outside by
-      // stubbing path indirectly is hard — instead exercise the existsSync 404 etc.
-      // The startsWith guard is defensive; cover it via a filename of '..'.
-      const handler = photoHandler();
-      const res = makeRes();
-      // path.basename('..') === '..' -> join(photos,'..') resolves to uploads -> not under photos
-      handler({ params: { filename: '..' }, headers: {}, query: {} }, res);
-      expect(res.statusCode).toBe(403);
-      expect(res.body).toBe('Forbidden');
-    });
+  it.each(['avatars', 'covers', 'journey'])('streams %s from S3', async (type) => {
+    h.getFileStream.mockResolvedValue({ stream: fakeStream(), contentType: 'image/jpeg', contentLength: 3 });
+    const res = makeRes();
+    await getHandler()({ params: { type, path: 'a.jpg' }, headers: {}, query: {} }, res);
+    expect(h.getFileStream).toHaveBeenCalledWith(`${type}/a.jpg`);
+    expect(res.headers['Content-Type']).toBe('image/jpeg');
+  });
 
-    it('404 when the file does not exist', () => {
-      h.existsSync.mockReturnValue(false);
-      const res = makeRes();
-      photoHandler()({ params: { filename: 'a.jpg' }, headers: {}, query: {} }, res);
-      expect(res.statusCode).toBe(404);
-      expect(res.body).toBe('Not found');
-    });
+  it('403 when the resolved path escapes the type dir', async () => {
+    const res = makeRes();
+    await getHandler()({ params: { type: 'covers', path: '../../etc/passwd' }, headers: {}, query: {} }, res);
+    expect(res.statusCode).toBe(403);
+    expect(res.body).toBe('Forbidden');
+    expect(h.getFileStream).not.toHaveBeenCalled();
+  });
 
-    it('401 when no token is supplied', () => {
-      h.existsSync.mockReturnValue(true);
+  it('falls back to a local file when S3 misses', async () => {
+    h.getFileStream.mockRejectedValue(new Error('S3 is not configured'));
+    h.existsSync.mockReturnValue(true);
+    const res = makeRes();
+    await getHandler()({ params: { type: 'covers', path: 'a.jpg' }, headers: {}, query: {} }, res);
+    expect(String(res.body)).toContain('FILE:');
+  });
+
+  it('404 when S3 misses and there is no local file', async () => {
+    h.getFileStream.mockRejectedValue(new Error('S3 is not configured'));
+    h.existsSync.mockReturnValue(false);
+    const res = makeRes();
+    await getHandler()({ params: { type: 'covers', path: 'a.jpg' }, headers: {}, query: {} }, res);
+    expect(res.statusCode).toBe(404);
+    expect(res.body).toBe('Not found');
+  });
+
+  describe('photos gating', () => {
+    it('401 when no token is supplied', async () => {
       const res = makeRes();
-      photoHandler()({ params: { filename: 'a.jpg' }, headers: {}, query: {} }, res);
+      await getHandler()({ params: { type: 'photos', path: 'a.jpg' }, headers: {}, query: {} }, res);
       expect(res.statusCode).toBe(401);
       expect(res.body).toBe('Authentication required');
+      expect(h.getFileStream).not.toHaveBeenCalled();
     });
 
-    it('serves the file for a valid JWT session (Bearer header)', () => {
-      h.existsSync.mockReturnValue(true);
+    it('streams for a valid JWT session (Bearer header)', async () => {
       h.verifyJwtAndLoadUser.mockReturnValue({ id: 1 });
+      h.getFileStream.mockResolvedValue({ stream: fakeStream(), contentType: 'image/jpeg', contentLength: 3 });
       const res = makeRes();
-      photoHandler()(
-        { params: { filename: 'a.jpg' }, headers: { authorization: 'Bearer jwt123' }, query: {} },
+      await getHandler()(
+        { params: { type: 'photos', path: 'a.jpg' }, headers: { authorization: 'Bearer jwt123' }, query: {} },
         res,
       );
       expect(h.verifyJwtAndLoadUser).toHaveBeenCalledWith('jwt123');
-      expect(String(res.body)).toContain('FILE:');
+      expect(h.getFileStream).toHaveBeenCalledWith('photos/a.jpg');
     });
 
-    it('reads the token from the query string when there is no Bearer header', () => {
-      h.existsSync.mockReturnValue(true);
+    it('reads the token from the query string when there is no Bearer header', async () => {
       h.verifyJwtAndLoadUser.mockReturnValue({ id: 1 });
+      h.getFileStream.mockResolvedValue({ stream: fakeStream(), contentType: 'image/jpeg', contentLength: 3 });
       const res = makeRes();
-      photoHandler()({ params: { filename: 'a.jpg' }, headers: {}, query: { token: 'qtok' } }, res);
+      await getHandler()({ params: { type: 'photos', path: 'a.jpg' }, headers: {}, query: { token: 'qtok' } }, res);
       expect(h.verifyJwtAndLoadUser).toHaveBeenCalledWith('qtok');
-      expect(String(res.body)).toContain('FILE:');
+      expect(h.getFileStream).toHaveBeenCalledWith('photos/a.jpg');
     });
 
-    it('401 when the token is not a session and the photo row is missing', () => {
-      h.existsSync.mockReturnValue(true);
+    it('401 when the token is not a session and the photo row is missing', async () => {
       h.verifyJwtAndLoadUser.mockReturnValue(null);
       h.dbPrepare.mockReturnValue({ get: vi.fn().mockReturnValue(undefined) });
       const res = makeRes();
-      photoHandler()({ params: { filename: 'a.jpg' }, headers: {}, query: { token: 'share1' } }, res);
+      await getHandler()({ params: { type: 'photos', path: 'a.jpg' }, headers: {}, query: { token: 'share1' } }, res);
       expect(res.statusCode).toBe(401);
     });
 
-    it('401 when a share token does not cover the photo trip', () => {
-      h.existsSync.mockReturnValue(true);
+    it('401 when a share token does not cover the photo trip', async () => {
       h.verifyJwtAndLoadUser.mockReturnValue(null);
       const photoStmt = { get: vi.fn().mockReturnValue({ trip_id: 7 }) };
       const shareStmt = { get: vi.fn().mockReturnValue({ trip_id: 8 }) };
       h.dbPrepare.mockImplementationOnce(() => photoStmt).mockImplementationOnce(() => shareStmt);
       const res = makeRes();
-      photoHandler()({ params: { filename: 'a.jpg' }, headers: {}, query: { token: 'share1' } }, res);
+      await getHandler()({ params: { type: 'photos', path: 'a.jpg' }, headers: {}, query: { token: 'share1' } }, res);
       expect(res.statusCode).toBe(401);
     });
 
-    it('401 when there is no matching share token at all', () => {
-      h.existsSync.mockReturnValue(true);
+    it('401 when there is no matching share token at all', async () => {
       h.verifyJwtAndLoadUser.mockReturnValue(null);
       const photoStmt = { get: vi.fn().mockReturnValue({ trip_id: 7 }) };
       const shareStmt = { get: vi.fn().mockReturnValue(undefined) };
       h.dbPrepare.mockImplementationOnce(() => photoStmt).mockImplementationOnce(() => shareStmt);
       const res = makeRes();
-      photoHandler()({ params: { filename: 'a.jpg' }, headers: {}, query: { token: 'share1' } }, res);
+      await getHandler()({ params: { type: 'photos', path: 'a.jpg' }, headers: {}, query: { token: 'share1' } }, res);
       expect(res.statusCode).toBe(401);
     });
 
-    it('serves the file when the share token covers the photo trip', () => {
-      h.existsSync.mockReturnValue(true);
+    it('streams when the share token covers the photo trip', async () => {
       h.verifyJwtAndLoadUser.mockReturnValue(null);
       const photoStmt = { get: vi.fn().mockReturnValue({ trip_id: 7 }) };
       const shareStmt = { get: vi.fn().mockReturnValue({ trip_id: 7 }) };
       h.dbPrepare.mockImplementationOnce(() => photoStmt).mockImplementationOnce(() => shareStmt);
+      h.getFileStream.mockResolvedValue({ stream: fakeStream(), contentType: 'image/jpeg', contentLength: 3 });
       const res = makeRes();
-      photoHandler()(
-        { params: { filename: 'a.jpg' }, headers: { authorization: 'Bearer share1' }, query: {} },
+      await getHandler()(
+        { params: { type: 'photos', path: 'a.jpg' }, headers: { authorization: 'Bearer share1' }, query: {} },
         res,
       );
-      expect(String(res.body)).toContain('FILE:');
+      expect(h.getFileStream).toHaveBeenCalledWith('photos/a.jpg');
     });
   });
 });
