@@ -58,7 +58,7 @@ Keep `Dockerfile.railway`, `docker-entrypoint.sh`, and `railway.toml`.
 
 `Dockerfile.railway` mirrors the current upstream Dockerfile, including Node version, workspace build stages, native dependencies, runtime assets, and upstream entrypoint. Its additions copy the Railway entrypoint, create `/app/storage`, and run the Railway script between dumb-init and the upstream entrypoint.
 
-`docker-entrypoint.sh` maps data/uploads into the single Railway volume at `/app/storage`, creates upload category directories including journey and places, and then executes upstream's entrypoint. Upstream owns startup checks and dropping privileges to `node`. `railway.toml` selects the Railway Dockerfile and `/api/health`.
+`docker-entrypoint.sh` maps data/uploads into the single Railway volume at `/app/storage`, creates upload category directories including journey and places, repairs ownership on the actual volume data/uploads directories, and then executes upstream's entrypoint. Recursive chown on the `/app/data` symlink alone does not make the existing encryption key readable by `node`. Upstream owns startup checks and dropping privileges to `node`. `railway.toml` selects the Railway Dockerfile and `/api/health`.
 
 When upstream changes its Dockerfile, carry those changes into the Railway copy. Keeping an old image layout while updating the app can silently omit runtime assets or break native SQLite.
 

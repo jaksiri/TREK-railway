@@ -28,4 +28,9 @@ rm -rf /app/server/uploads /app/server/data
 ln -sf "$STORAGE/uploads" /app/server/uploads
 ln -sf "$STORAGE/data" /app/server/data
 
+# Upstream drops to node, but chown -R on /app/data and /app/uploads
+# only changes those symlinks. Repair the actual volume trees so legacy
+# root-owned files (including the mode-600 encryption key) remain readable.
+chown -R node:node "$STORAGE/data" "$STORAGE/uploads"
+
 exec "$@"
