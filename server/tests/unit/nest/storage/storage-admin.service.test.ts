@@ -61,10 +61,10 @@ const S3_OPTIONS = {
 };
 
 /** Real registry + real service over the in-memory DB. */
-function makeService(opts: { uploadsRoot?: string } = {}) {
+function makeService(opts: { uploadsRoot?: string; legacyS3?: typeof S3_OPTIONS } = {}) {
   const uploadsRoot = opts.uploadsRoot ?? makeTmpDir();
   setSetting(BACKENDS_KEY, JSON.stringify([{ name: 'uploads-local', type: 'local', options: { root: uploadsRoot } }]));
-  const env = { env: () => ({ paths: {} }) } as unknown as RuntimeEnvService;
+  const env = { env: () => ({ paths: {}, legacyS3: opts.legacyS3 }) } as unknown as RuntimeEnvService;
   const registry = new StorageRegistryService(db, env, new StorageEventsService());
   registry.onModuleInit();
   const storage = new StorageService(registry);
@@ -467,4 +467,19 @@ describe('StorageAdminService.testBackend', () => {
     // would reject the whole call (decryptBackendSecrets throws), not mark a target.
     expect(result.targets[1]!.error).not.toContain('could not decrypt');
   });
+});
+
+
+it('preserves an environment S3 secret through the first masked admin save', () => {
+  const { service, registry, uploadsRoot } = makeService({ legacyS3: S3_OPTIONS });
+  expect(service.state().backends.find(b => b.name === 'fork-s3')?.options.secretAccessKey).toBe(MASKED_SETTING_VALUE);
+  put(service, configWith(uploadsRoot, {
+    backends: [{ name: 'fork-s3', type: 's3', options: { ...S3_OPTIONS, secretAccessKey: MASKED_SETTING_VALUE } }],
+    categories: { files: 'uploads-local' },
+  }));
+  expect(readRow(BACKENDS_KEY)).not.toContain('sk-plain');
+  expect(readRow(BACKENDS_KEY)).toContain('enc:v1:');
+  expect(registry.resolve('files').backendName).toBe('uploads-local');
+  expect(registry.resolve('journey').backendName).toBe('fork-s3');
+  expect(registry.lastLoadError()).toBeNull();
 });

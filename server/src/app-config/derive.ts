@@ -327,6 +327,20 @@ export function derivePaths(raw: RawEnv) {
   };
 }
 
+export function deriveLegacyS3(raw: RawEnv) {
+  if (!raw.AWS_ENDPOINT_URL || !raw.AWS_S3_BUCKET_NAME || !raw.AWS_ACCESS_KEY_ID || !raw.AWS_SECRET_ACCESS_KEY) return undefined;
+  return {
+    endpoint: raw.AWS_ENDPOINT_URL,
+    bucket: raw.AWS_S3_BUCKET_NAME,
+    accessKeyId: raw.AWS_ACCESS_KEY_ID,
+    secretAccessKey: raw.AWS_SECRET_ACCESS_KEY,
+    region: raw.AWS_DEFAULT_REGION || 'us-east-1',
+    keyPrefix: '',
+    retries: 1,
+    timeoutMs: 30000,
+  };
+}
+
 export function deriveNet(raw: RawEnv) {
   return {
     allowInternalNetwork: parseBool(raw.ALLOW_INTERNAL_NETWORK) === true,
@@ -352,6 +366,7 @@ export function deriveAll(raw: RawEnv) {
     backup: deriveBackup(raw),
     db: deriveDb(raw),
     paths: derivePaths(raw),
+    legacyS3: deriveLegacyS3(raw),
     net: deriveNet(raw),
   };
 }

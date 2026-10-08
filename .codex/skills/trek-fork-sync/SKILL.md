@@ -1,253 +1,114 @@
 ---
 name: trek-fork-sync
-description: Synchronize this TREK fork with its upstream repository and carry fork-specific work forward safely. Use when the user asks to update the fork from the base branch, rebase local work onto the latest upstream changes, merge upstream into the fork's main branch, rebuild a stale feature branch on top of refreshed main, or resolve the recurring TREK fork sync conflicts in app/storage/CI files. If the skill is invoked without explicit user direction about history strategy, default to applying the user's branch on top of the latest upstream changes with the rebase/rebuild workflow.
+description: Synchronize this TREK fork with its upstream repository and carry fork-specific work forward safely. Use when the user asks to update the fork from the base branch, rebase local work onto the latest upstream changes, merge upstream into the fork's main branch, rebuild a stale feature branch on top of refreshed main, or resolve the recurring TREK fork sync conflicts in the NestJS upload controllers, S3 storage services, CI workflow, or Railway deploy files. If the skill is invoked without explicit user direction about history strategy, default to applying the user's branch on top of the latest upstream changes with the rebase/rebuild workflow.
 ---
 
-# TREK Fork Sync
+# TREK fork sync
 
-## Overview
+Synchronize this fork with upstream, preserve its deployment and storage behavior, and finish on the intended branch with a clean working tree. Default to rebase/rebuild unless the user explicitly asks for merge history. Do not push unless asked.
 
-Update this repository from `upstream`, preserve fork-specific work, and leave the user on the correct branch with a clean git state. Prefer doing the work end to end: inspect remotes and divergence, create safety backups, execute the chosen history strategy, resolve conflicts, and report the exact push command needed.
+## Repository and history
 
-## Repo assumptions
-
-- Treat this repo as a fork with:
-  - `origin` = the user's fork
-  - `upstream` = `mauriceboe/TREK`
-- Default base branch is `main`.
-- Common local integration branch is `chore/updating-from-main`.
-- Never destroy user work. Create backup branches before rewriting history.
-
-## Preflight
-
-Run these first:
+- `origin` is `jaksiri/TREK-railway`; `upstream` is `mauriceboe/TREK`, which GitHub redirects to the current upstream repository. Inspect remotes before fetching.
+- Base branch is `main`. This is an npm-workspaces monorepo with one root `package-lock.json`; do not introduce per-workspace lockfiles or change package managers as part of the sync.
+- Create dated backup branches before rewriting. Preserve dirty work and leave branches checked out in other worktrees alone unless the user includes them in the request.
+- Fetch upstream, inspect divergence and fork-only commits, then replay unique work. Keep manifest versions at the current upstream version.
 
 ```bash
 git status --short --branch
 git remote -v
 git branch -vv
+git worktree list
 git fetch upstream
 git rev-list --left-right --count main...upstream/main
-```
-
-Also inspect any branch the user wants carried forward:
-
-```bash
-git rev-list --left-right --count <branch>...upstream/main
-git cherry main <branch>
 git log --oneline upstream/main..main
-git log --oneline main..<branch>
-```
-
-Before any rebase or branch rebuild, create backups:
-
-```bash
 git branch backup/main-before-upstream-<date> main
-git branch backup/<branch>-before-rewrite-<date> <branch>
 ```
 
-Use an ISO date like `2026-05-22`.
+Use an ISO date and a suffix if the backup name already exists. For an included feature branch, also back it up and inspect `git cherry main <branch>` and `git log main..<branch>`.
 
-## Choose the history strategy
+## Storage after the v4.3 sync
 
-Use the user's wording to choose the path:
+Upstream now implements S3 and local storage through NestJS `StorageService`, `StorageRegistryService`, and drivers under `server/src/nest/storage/`. The old fork's controller hooks and legacy service imports are superseded. Do not resurrect deleted services or add a second upload call beside `storage.put`.
 
-- If they ask to "apply my changes on top", "rebase from upstream", or "update the repo from the base branch and replay my work", use the rebase/rebuild workflow.
-- If they ask to "just merge these changes into main" or want to keep merge history, use the merge workflow.
+Preserve these fork-specific additions:
 
-If the request is ambiguous or the skill is invoked without extra user input, default to the rebase/rebuild workflow. Only choose merge by default when the user explicitly asks to keep merge history or explicitly asks to merge into `main`.
+- `server/src/app-config/derive.ts`: `deriveLegacyS3` reads `AWS_ENDPOINT_URL`, `AWS_S3_BUCKET_NAME`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, and optional `AWS_DEFAULT_REGION`. All four required values enable S3; incomplete configuration keeps local storage. Region defaults to `us-east-1`.
+- `server/src/nest/storage/storage-registry.service.ts`: defines the `fork-s3` backend from those variables. Defaults `files`, `journey`, `covers`, `avatars`, and legacy `photos` to it, using unchanged `<category>/<filename>` keys. Explicit backend/category settings take precedence. Backups and new upstream cache categories retain upstream defaults.
+- `server/src/services/s3.ts`: now exports `LegacyS3Driver`, extending upstream's S3 driver. Writes go to S3. Reads/stat fall back to existing local files, while S3 wins over stale local copies. Deletes attempt S3 then local cleanup. Listing includes local-only objects without duplicating remote keys so backups and migrations see them.
+- `server/src/nest/storage/storage-admin.service.ts`: resolves masked environment credentials during the first admin save, then encrypts them using upstream secret handling. Stored settings take precedence.
+- `server/.env.example`: documents the AWS compatibility variables.
+- Regression coverage: `server/tests/unit/nest/storage/legacy-s3.test.ts` and the AWS compatibility cases in `storage-registry.service.test.ts`.
 
-## Rebase and rebuild workflow
+The native driver uses upstream's `@aws-lite/client` and `@aws-lite/s3` dependencies. The older `@aws-sdk/*` dependencies, `persistUploadToS3`, and `getFileStream` exports are no longer required. Preserve behavior through the current abstraction, not obsolete symbols.
 
-Use this when the user wants their fork-specific commits replayed on top of current upstream.
+Verify upstream keeps storage calls for avatars, trip/collection/Unsplash covers, trip files, collab attachments, and journey originals/thumbnails/posters/covers. Relevant modules are `auth`, `trips`, `collections`, `unsplash`, `files`, `collab`, `journey`, and `memories` under `server/src/nest/`.
 
-### 1. Rebase `main` onto `upstream/main`
+Serving also uses upstream's storage abstraction now:
+
+- `StorageService.sendToResponse` handles Range/206, HEAD, conditional requests, streaming cleanup, and root-relative local `sendFile`.
+- `platform.routes.ts` uses storage-backed mounts for avatars, covers, journey, and places. Photos retain their authorization gate; direct `/uploads/files` stays blocked.
+- The old generic `/uploads/:type/*path` route and exact four-type allowlist are superseded. Do not replace upstream's authenticated routes or drop the new `places` category to recreate that old route.
+- Authenticated file downloads tolerate legacy `files/`-prefixed filenames using `path.basename`.
+- Shared journey serving and lazy thumbnail generation must continue through `StorageService`, so remote media and video seeking work.
+
+## Railway deployment
+
+Keep `Dockerfile.railway`, `docker-entrypoint.sh`, and `railway.toml`.
+
+`Dockerfile.railway` mirrors the current upstream Dockerfile, including Node version, workspace build stages, native dependencies, runtime assets, and upstream entrypoint. Its additions copy the Railway entrypoint, create `/app/storage`, and run the Railway script between dumb-init and the upstream entrypoint.
+
+`docker-entrypoint.sh` maps data/uploads into the single Railway volume at `/app/storage`, creates upload category directories including journey and places, and then executes upstream's entrypoint. Upstream owns startup checks and dropping privileges to `node`. `railway.toml` selects the Railway Dockerfile and `/api/health`.
+
+When upstream changes its Dockerfile, carry those changes into the Railway copy. Keeping an old image layout while updating the app can silently omit runtime assets or break native SQLite.
+
+## CI and other fork behavior
+
+Preserve `.github/workflows/docker.yml`'s no-bump behavior:
+
+- Capture `SHA=$(git rev-parse HEAD)` in the version job.
+- Downstream checkout uses `needs.version-bump.outputs.sha`.
+- Tag only after the image build succeeds.
+- Do not reintroduce `npm version`, a bump commit, or `git push origin main --follow-tags`.
+
+Keep the non-Google-ID guard in `server/src/nest/maps/maps.helpers.ts`: colon-delimited IDs must not call Google Places. Preserve upstream's additional coordinate/photo-index checks. Leaflet self-hosting is already upstream; do not reintroduce the old CDN stylesheet.
+
+## Execute the selected strategy
+
+For a straightforward replay:
 
 ```bash
 git rebase upstream/main main
-```
-
-If Git requires an editor during `rebase --continue`, run:
-
-```bash
+# Resolve conflicts by combining current upstream behavior with the fork additions.
 GIT_EDITOR=true git rebase --continue
 ```
 
-### 2. Resolve the recurring TREK conflicts
+When major upstream refactoring supersedes most old patches, abort a conflicted replay and rebuild on a temporary branch from upstream instead. Cherry-pick still-relevant commits and port the remaining behavior into current modules. Compare against the backup so no unique work disappears. Commit the port, validate, then move `main` to the rebuilt history and check it out.
 
-The usual conflicts are:
+For included stale feature branches, create a backup, rebuild from refreshed `main`, and replay only remaining unique work. Skip duplicate fixes and superseded migration/version-sync commits. Move the original branch name only after validation.
 
-- `server/src/app.ts`
-- `server/src/services/tripService.ts`
+If the user explicitly requests merge history, merge upstream into `main` instead, resolve with the same behavior-preservation rules, then merge any included feature branch. Do not switch strategies solely to avoid resolving overlaps.
 
-Resolve them with these rules:
+## Validation and completion
 
-- In `server/src/app.ts`, keep the generic `app.get('/uploads/:type/*', ...)` S3-backed upload serving path. Do not reintroduce the older dedicated `'/uploads/photos/:filename'` route if the generic path already covers it.
-- Keep the `/uploads/files` block ahead of the generic upload handler.
-- In `server/src/services/tripService.ts`, preserve both:
-  - upstream's `shiftOwnerEntriesForTripWindow` behavior
-  - fork cleanup via `deleteFile as deleteS3File`
-- Keep `deleteOldCover()` deleting from S3 and removing the local fallback file under `uploads/` when present.
-
-### 3. Skip obsolete fork-only version bump commits
-
-If replaying an automated version-bump commit like `chore: bump version to 0.0.1 [skip ci]`, skip it. Keep current upstream version numbers in:
-
-- `charts/trek/Chart.yaml`
-- `client/package.json`
-- `client/package-lock.json`
-- `server/package.json`
-- `server/package-lock.json`
-
-### 4. Keep the fork CI change, but not stale versions
-
-If replaying `ci: stop version bump commits in fork`, keep the CI behavior but resolve manifest conflicts to the current upstream version, not an old fork version.
-
-### 5. Rebuild stale branches from refreshed `main`
-
-If a branch like `chore/updating-from-main` is far behind upstream and contains merge noise, rebuild it cleanly:
-
-```bash
-git checkout -b rebase/<branch>-<date> main
-git cherry main <branch>
-```
-
-Replay only `+` commits from `git cherry`. Skip:
-
-- duplicate fixes already present on rebased `main`
-- outdated README-only sync commits
-- older S3 migration variants that are superseded by `main`
-
-Cherry-pick only the remaining unique work. In this repo that often leaves just the branch-only CI/test hardening commit.
-
-### 6. Resolve the branch-only hardening merge shape
-
-If replaying the server CI/test hardening work, prefer these branch-side resolutions:
-
-- Middleware order:
-  - `avatarUpload.single(...)` before `demoUploadBlock`
-  - file upload `upload.single(...)` before `demoUploadBlock`
-  - cover upload `uploadCover.single(...)` before `demoUploadBlock`
-- In `demoUploadBlock`, keep temp-file cleanup for `req.file?.path`.
-- Preserve repo-specific messaging that says `TREK`, not `NOMAD`.
-- Keep `server/tests/globalSetup.ts` with the S3rver-based setup.
-- Keep newer notification and ntfy functionality if already present on the refreshed base; do not drop upstream additions while resolving the hardening commit.
-
-### 7. Move the original branch name to the rebuilt history
-
-After the rebuilt branch is clean:
-
-```bash
-git branch -f <branch> rebase/<branch>-<date>
-git checkout <branch>
-```
-
-Report if the branch now diverges from `origin/<branch>` and give the required `--force-with-lease` push command.
-
-## Merge workflow
-
-Use this when the user wants upstream changes merged into their fork without rewriting history.
-
-### 1. Start from a pre-rewrite main if needed
-
-If `main` was already rebased locally and the user explicitly wants merge history, repoint `main` to the backup branch created before the rebase:
-
-```bash
-git branch -f main backup/main-before-upstream-<date>
-git checkout main
-```
-
-### 2. Merge upstream into `main`
-
-```bash
-git merge upstream/main
-```
-
-Resolve the same recurring `server/src/app.ts` and `server/src/services/tripService.ts` conflicts with the same rules from the rebase workflow.
-
-Finish with:
-
-```bash
-git add <resolved-files>
-git commit --no-edit
-```
-
-### 3. Merge the user's branch into `main`
-
-```bash
-git merge <branch>
-```
-
-Typical overlap files:
-
-- `server/src/app.ts`
-- `server/src/middleware/auth.ts`
-- `server/src/routes/auth.ts`
-- `server/src/routes/files.ts`
-- `server/src/routes/trips.ts`
-- `server/tests/globalSetup.ts`
-
-Resolve those by keeping the branch-side upload-hardening behavior:
-
-- place upload middleware before `demoUploadBlock`
-- keep `demoUploadBlock` temp-file cleanup
-- keep the branch-side `globalSetup.ts`
-
-Then finish with:
-
-```bash
-git add <resolved-files>
-git commit --no-edit
-```
-
-## Validation
-
-After either workflow, confirm:
+Check the working tree, ancestry, and divergence:
 
 ```bash
 git status --short --branch
-git log --oneline --decorate --graph --max-count=10
+git merge-base --is-ancestor upstream/main main
 git rev-list --left-right --count origin/main...main
+git log --oneline --decorate --graph --max-count=10
+git ls-files server/src/services/s3.ts Dockerfile.railway docker-entrypoint.sh railway.toml
+git diff --check
+sh -n docker-entrypoint.sh
 ```
 
-If updating a feature branch too:
+Run server typechecking and relevant storage, platform, upload-controller, and maps tests. Use a Node runtime compatible with installed native modules. Shared package artifacts must match the new source; if builds are restricted, use temporary test/typecheck aliases to `shared/src`, including the distinct `@trek/shared/roadtrip` entry at `shared/src/roadtrip/planning.ts`. Remove temporary validation configuration and generated alternate lockfiles before finishing. Do not claim a Docker build or live S3 test passed unless it actually ran.
+
+Report the strategy, backup branch names, current branch, validation result, and pending push. A rewritten remote main needs:
 
 ```bash
-git rev-list --left-right --count <branch>...main
+git push --force-with-lease origin main
 ```
 
-Success means:
-
-- working tree is clean
-- the intended branch is checked out
-- `main` is no longer behind `upstream/main`
-- the user's carried-forward branch is based on the refreshed `main`
-
-## Push guidance
-
-Do not push unless the user asks.
-
-Use:
-
-```bash
-git push origin main
-```
-
-If a rewritten branch must replace the remote:
-
-```bash
-git push --force-with-lease origin <branch>
-```
-
-If both rebased `main` and a rebuilt branch need publishing:
-
-```bash
-git push --force-with-lease origin main <branch>
-```
-
-In the final response, state:
-
-- which strategy you used: rebase/rebuild or merge
-- which backup branches you created
-- which branch is currently checked out
-- whether anything still needs to be pushed
+For an ordinary merge, use `git push origin main`. If an included feature branch was also rewritten, include that branch in the force-with-lease push guidance. Do not push automatically.

@@ -27,6 +27,8 @@ import type { RuntimeEnvService } from '../../../../src/nest/app-config/runtime-
 import { encrypt_api_key } from '../../../../src/nest/common/crypto/apiKeyCrypto';
 import { StorageEventsService } from '../../../../src/nest/storage/storage-events.service';
 import { StorageRegistryService } from '../../../../src/nest/storage/storage-registry.service';
+import { deriveLegacyS3 } from '../../../../src/app-config/derive';
+import { LegacyS3Driver } from '../../../../src/services/s3';
 import { LocalDriver } from '../../../../src/nest/storage/drivers/local.driver';
 import { MirrorDriver, type ReplicaFailure } from '../../../../src/nest/storage/drivers/mirror.driver';
 import { S3Driver } from '../../../../src/nest/storage/drivers/s3.driver';
@@ -56,12 +58,13 @@ function makeTmpDir(): string {
 
 interface EnvPaths {
   placePhotoDir?: string;
+  legacyS3?: ReturnType<typeof deriveLegacyS3>;
 }
 
 function makeEnvStub(initial: EnvPaths): { env: RuntimeEnvService } {
   const paths = initial;
   return {
-    env: { env: () => ({ paths }) } as unknown as RuntimeEnvService,
+    env: { env: () => ({ paths, legacyS3: initial.legacyS3 }) } as unknown as RuntimeEnvService,
   };
 }
 
@@ -74,6 +77,7 @@ function uploadsOverride(root: string): unknown {
 }
 
 interface RegistryOpts {
+  legacyS3?: ReturnType<typeof deriveLegacyS3>;
   uploadsRoot?: string;
   placePhotoDir?: string;
   boot?: boolean;
@@ -92,7 +96,7 @@ function makeRegistry(opts: RegistryOpts = {}) {
   const uploadsRoot = opts.uploadsRoot ?? makeTmpDir();
   setSetting('storage.backends', JSON.stringify([uploadsOverride(uploadsRoot), ...(opts.backends ?? [])]));
   if (opts.categories) setSetting('storage.categories', JSON.stringify(opts.categories));
-  const stub = makeEnvStub({ placePhotoDir: opts.placePhotoDir });
+  const stub = makeEnvStub({ placePhotoDir: opts.placePhotoDir, legacyS3: opts.legacyS3 });
   const registry = new StorageRegistryService(db, stub.env, new StorageEventsService());
   if (opts.boot !== false) registry.onModuleInit();
   return { registry, uploadsRoot, setUploadsRoot: (root: string) => rewriteUploadsOverride(root) };
@@ -967,5 +971,39 @@ describe('snapshot()', () => {
     setSetting('storage.categories', 'garbage {');
     registry.reload();
     expect(registry.snapshot()).toEqual(before);
+  });
+});
+
+
+describe('Railway AWS environment compatibility', () => {
+  const raw = {
+    AWS_ENDPOINT_URL: 'https://s3.example.com',
+    AWS_S3_BUCKET_NAME: 'trek',
+    AWS_ACCESS_KEY_ID: 'test-key',
+    AWS_SECRET_ACCESS_KEY: 'test-secret',
+  };
+
+  it('keeps incomplete configuration on local storage', () => {
+    expect(deriveLegacyS3({ ...raw, AWS_SECRET_ACCESS_KEY: '' })).toBeUndefined();
+    const { registry } = makeRegistry({ legacyS3: deriveLegacyS3({}) });
+    expect(registry.resolve('files').driver).toBeInstanceOf(LocalDriver);
+  });
+
+  it('routes existing upload categories to the same bucket keys without changing backups', () => {
+    const { registry } = makeRegistry({ legacyS3: deriveLegacyS3(raw) });
+    for (const category of ['avatars', 'covers', 'files', 'journey', 'photos'] as const) {
+      const resolved = registry.resolve(category);
+      expect(resolved.driver).toBeInstanceOf(LegacyS3Driver);
+      expect(resolved.keyPrefix).toBe(`${category}/`);
+    }
+    expect(registry.resolve('backups').backendName).toBe('backups-local');
+    expect(registry.snapshot().backends.find(b => b.name === 'fork-s3')?.source).toBe('env');
+    expect(registry.lastLoadError()).toBeNull();
+  });
+
+  it('lets explicit category settings override the environment default', () => {
+    const { registry } = makeRegistry({ legacyS3: deriveLegacyS3(raw), categories: { files: 'uploads-local' } });
+    expect(registry.resolve('files').driver).toBeInstanceOf(LocalDriver);
+    expect(registry.resolve('journey').driver).toBeInstanceOf(LegacyS3Driver);
   });
 });

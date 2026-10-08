@@ -7,6 +7,7 @@ import { decrypt_api_key } from '../common/crypto/apiKeyCrypto';
 import { LocalDriver } from './drivers/local.driver';
 import { MirrorDriver, type ReplicaFailure } from './drivers/mirror.driver';
 import { S3Driver } from './drivers/s3.driver';
+import { LegacyS3Driver } from '../../services/s3';
 import { StorageEventsService } from './storage-events.service';
 import { DEFAULT_BACKUPS_ROOT, DEFAULT_UPLOADS_ROOT, GLOBAL_TEMP_DIR, SEED_CONFIG_PATH } from './storage-paths';
 import { assertNoMaskSentinels, encryptStorageSecrets } from './storage-secrets';
@@ -371,7 +372,7 @@ export class StorageRegistryService implements OnModuleInit {
 
   private build(settings: { backends: unknown; categories: unknown }, boot: boolean): RegistryState {
     // 1. Env is read fresh on every load (never snapshotted — RuntimeEnvService rule).
-    const placePhotoDir = this.env.env().paths.placePhotoDir;
+    const { paths: { placePhotoDir }, legacyS3 } = this.env.env();
 
     // 2. Built-in defaults; settings entries with the same name/category override.
     //    uploads-local's root is the computed default; relocation is a settings
@@ -387,6 +388,10 @@ export class StorageRegistryService implements OnModuleInit {
       backends.set('place-photos-local', { name: 'place-photos-local', type: 'local', options: { root: placePhotoDir } });
       backendSources.set('place-photos-local', 'env');
     }
+    if (legacyS3) {
+      backends.set('fork-s3', { name: 'fork-s3', type: 's3', options: legacyS3 });
+      backendSources.set('fork-s3', 'env');
+    }
     for (const config of parseBackendList(settings.backends)) {
       backends.set(config.name, config);
       backendSources.set(config.name, 'settings');
@@ -395,6 +400,11 @@ export class StorageRegistryService implements OnModuleInit {
     const categoryBackends = new Map<ServedCategory, string>();
     for (const category of SERVED_CATEGORIES) categoryBackends.set(category, 'uploads-local');
     categoryBackends.set('backups', 'backups-local');
+    if (legacyS3) {
+      for (const category of ['files', 'journey', 'covers', 'avatars', 'photos'] as const) {
+        categoryBackends.set(category, 'fork-s3');
+      }
+    }
     if (placePhotoDir) categoryBackends.set('photos-google', 'place-photos-local');
     const categorySources = new Map<ServedCategory, 'default' | 'settings'>();
     for (const [category, backendName] of parseCategoryMap(settings.categories)) {
@@ -429,7 +439,12 @@ export class StorageRegistryService implements OnModuleInit {
       if (config.type !== 's3') continue;
       drivers.set(
         config.name,
-        new S3Driver({ id: config.name, ...config.options, secretAccessKey: decryptedSecret(config) }),
+        config.name === 'fork-s3'
+          ? new LegacyS3Driver(
+              { id: config.name, ...config.options, secretAccessKey: decryptedSecret(config) },
+              drivers.get('uploads-local')!,
+            )
+          : new S3Driver({ id: config.name, ...config.options, secretAccessKey: decryptedSecret(config) }),
       );
     }
     for (const config of backends.values()) {
