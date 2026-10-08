@@ -15,7 +15,7 @@ import {
 } from '../../../../src/nest/storage/storage-paths';
 import { StorageRegistryService } from '../../../../src/nest/storage/storage-registry.service';
 import { deriveLegacyS3 } from '../../../../src/app-config/boot-derive';
-import { LegacyS3Driver } from '../../../../src/services/s3';
+import { LegacyS3Driver } from '../../../../src/nest/storage/drivers/legacy-s3.driver';
 import { STORAGE_CATEGORIES } from '../../../../src/nest/storage/storage.types';
 import { deleteRows, findRow } from '../../../helpers/factories/rows';
 import { setAppSetting } from '../../../helpers/factories/settings';

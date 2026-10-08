@@ -8,7 +8,7 @@ import { UnitOfWork } from '../database/unit-of-work';
 import { LocalDriver } from './drivers/local.driver';
 import { MirrorDriver, type ReplicaFailure } from './drivers/mirror.driver';
 import { S3Driver } from './drivers/s3.driver';
-import { LegacyS3Driver } from '../../services/s3';
+import { LegacyS3Driver } from './drivers/legacy-s3.driver';
 import { StorageEventsService } from './storage-events.service';
 import { getSeedConfigPath } from './storage-paths';
 import { assertNoMaskSentinels, encryptStorageSecrets } from './storage-secrets';
