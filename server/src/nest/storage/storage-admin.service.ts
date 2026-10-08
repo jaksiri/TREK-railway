@@ -182,11 +182,15 @@ export class StorageAdminService {
   /** The raw stored backends row — the unmask source (tolerates absent/garbage rows). */
   private async storedBackendsRow(): Promise<unknown> {
     const value = await this.appSettings.getValue(BACKENDS_KEY);
-    if (!value) return [];
+    // Env backends also appear masked in the admin form. Resolve their masks
+    // from the effective config on first save; persisted settings win thereafter.
+    const inherited = this.registry.snapshot().backends.filter((backend) => backend.source === 'env');
+    if (!value) return inherited;
     try {
-      return JSON.parse(value) as unknown;
+      const stored: unknown = JSON.parse(value);
+      return Array.isArray(stored) ? [...inherited, ...stored] : inherited;
     } catch {
-      return [];
+      return inherited;
     }
   }
 }

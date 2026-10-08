@@ -14,6 +14,8 @@ import {
   setSeedConfigPathForTests,
 } from '../../../../src/nest/storage/storage-paths';
 import { StorageRegistryService } from '../../../../src/nest/storage/storage-registry.service';
+import { deriveLegacyS3 } from '../../../../src/app-config/boot-derive';
+import { LegacyS3Driver } from '../../../../src/services/s3';
 import { STORAGE_CATEGORIES } from '../../../../src/nest/storage/storage.types';
 import { deleteRows, findRow } from '../../../helpers/factories/rows';
 import { setAppSetting } from '../../../helpers/factories/settings';
@@ -46,10 +48,11 @@ function makeTmpDir(): string {
 
 interface EnvPaths {
   placePhotoDir?: string;
+  legacyS3?: ReturnType<typeof deriveLegacyS3>;
 }
 
-function makeEnvStub(initial: EnvPaths): { env: { placePhotoDir: string | undefined } } {
-  return { env: { placePhotoDir: initial.placePhotoDir } };
+function makeEnvStub(initial: EnvPaths): { env: EnvPaths } {
+  return { env: { placePhotoDir: initial.placePhotoDir, legacyS3: initial.legacyS3 } };
 }
 
 async function setSetting(key: string, value: string): Promise<void> {
@@ -66,6 +69,7 @@ function uploadsOverride(root: string): unknown {
 }
 
 interface RegistryOpts {
+  legacyS3?: ReturnType<typeof deriveLegacyS3>;
   uploadsRoot?: string;
   placePhotoDir?: string;
   boot?: boolean;
@@ -84,7 +88,7 @@ async function makeRegistry(opts: RegistryOpts = {}) {
   const uploadsRoot = opts.uploadsRoot ?? makeTmpDir();
   await setSetting('storage.backends', JSON.stringify([uploadsOverride(uploadsRoot), ...(opts.backends ?? [])]));
   if (opts.categories) await setSetting('storage.categories', JSON.stringify(opts.categories));
-  const stub = makeEnvStub({ placePhotoDir: opts.placePhotoDir });
+  const stub = makeEnvStub({ placePhotoDir: opts.placePhotoDir, legacyS3: opts.legacyS3 });
   const registry = new StorageRegistryService(
     await createTestAppSettingsRepo(testDb),
     stub.env,
@@ -1071,5 +1075,39 @@ describe('snapshot()', () => {
     await setSetting('storage.categories', 'garbage {');
     await registry.reload();
     expect(registry.snapshot()).toEqual(before);
+  });
+});
+
+
+describe('Railway AWS environment compatibility', () => {
+  const raw = {
+    AWS_ENDPOINT_URL: 'https://s3.example.com',
+    AWS_S3_BUCKET_NAME: 'trek',
+    AWS_ACCESS_KEY_ID: 'test-key',
+    AWS_SECRET_ACCESS_KEY: 'test-secret',
+  };
+
+  it('keeps incomplete configuration on local storage', async () => {
+    expect(deriveLegacyS3({ ...raw, AWS_SECRET_ACCESS_KEY: '' })).toBeUndefined();
+    const { registry } = await makeRegistry({ legacyS3: deriveLegacyS3({}) });
+    expect(registry.resolve('files').driver).toBeInstanceOf(LocalDriver);
+  });
+
+  it('routes existing upload categories to the same bucket keys without changing backups', async () => {
+    const { registry } = await makeRegistry({ legacyS3: deriveLegacyS3(raw) });
+    for (const category of ['avatars', 'covers', 'files', 'journey', 'photos'] as const) {
+      const resolved = registry.resolve(category);
+      expect(resolved.driver).toBeInstanceOf(LegacyS3Driver);
+      expect(resolved.keyPrefix).toBe(`${category}/`);
+    }
+    expect(registry.resolve('backups').backendName).toBe('backups-local');
+    expect(registry.snapshot().backends.find(b => b.name === 'fork-s3')?.source).toBe('env');
+    expect(registry.lastLoadError()).toBeNull();
+  });
+
+  it('lets explicit category settings override the environment default', async () => {
+    const { registry } = await makeRegistry({ legacyS3: deriveLegacyS3(raw), categories: { files: 'uploads-local' } });
+    expect(registry.resolve('files').driver).toBeInstanceOf(LocalDriver);
+    expect(registry.resolve('journey').driver).toBeInstanceOf(LegacyS3Driver);
   });
 });

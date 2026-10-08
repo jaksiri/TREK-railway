@@ -13,7 +13,9 @@ mkdir -p "$STORAGE/data/backups" \
          "$STORAGE/uploads/files" \
          "$STORAGE/uploads/covers" \
          "$STORAGE/uploads/avatars" \
-         "$STORAGE/uploads/photos"
+         "$STORAGE/uploads/photos" \
+         "$STORAGE/uploads/journey" \
+         "$STORAGE/uploads/places"
 
 # Remove any existing dirs/symlinks and point to the volume
 rm -rf /app/data /app/uploads
