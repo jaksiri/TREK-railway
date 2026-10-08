@@ -28,7 +28,7 @@ import { encrypt_api_key } from '../../../../src/nest/common/crypto/apiKeyCrypto
 import { StorageEventsService } from '../../../../src/nest/storage/storage-events.service';
 import { StorageRegistryService } from '../../../../src/nest/storage/storage-registry.service';
 import { deriveLegacyS3 } from '../../../../src/app-config/derive';
-import { LegacyS3Driver } from '../../../../src/services/s3';
+import { LegacyS3Driver } from '../../../../src/nest/storage/drivers/legacy-s3.driver';
 import { LocalDriver } from '../../../../src/nest/storage/drivers/local.driver';
 import { MirrorDriver, type ReplicaFailure } from '../../../../src/nest/storage/drivers/mirror.driver';
 import { S3Driver } from '../../../../src/nest/storage/drivers/s3.driver';

@@ -35,7 +35,7 @@ Preserve these fork-specific additions:
 
 - `server/src/app-config/derive.ts`: `deriveLegacyS3` reads `AWS_ENDPOINT_URL`, `AWS_S3_BUCKET_NAME`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, and optional `AWS_DEFAULT_REGION`. All four required values enable S3; incomplete configuration keeps local storage. Region defaults to `us-east-1`.
 - `server/src/nest/storage/storage-registry.service.ts`: defines the `fork-s3` backend from those variables. Defaults `files`, `journey`, `covers`, `avatars`, and legacy `photos` to it, using unchanged `<category>/<filename>` keys. Explicit backend/category settings take precedence. Backups and new upstream cache categories retain upstream defaults.
-- `server/src/services/s3.ts`: now exports `LegacyS3Driver`, extending upstream's S3 driver. Writes go to S3. Reads/stat fall back to existing local files, while S3 wins over stale local copies. Deletes attempt S3 then local cleanup. Listing includes local-only objects without duplicating remote keys so backups and migrations see them.
+- `server/src/nest/storage/drivers/legacy-s3.driver.ts`: now exports `LegacyS3Driver`, extending upstream's S3 driver. Writes go to S3. Reads/stat fall back to existing local files, while S3 wins over stale local copies. Deletes attempt S3 then local cleanup. Listing includes local-only objects without duplicating remote keys so backups and migrations see them.
 - `server/src/nest/storage/storage-admin.service.ts`: resolves masked environment credentials during the first admin save, then encrypts them using upstream secret handling. Stored settings take precedence.
 - `server/.env.example`: documents the AWS compatibility variables.
 - Regression coverage: `server/tests/unit/nest/storage/legacy-s3.test.ts` and the AWS compatibility cases in `storage-registry.service.test.ts`.
@@ -98,12 +98,12 @@ git status --short --branch
 git merge-base --is-ancestor upstream/main main
 git rev-list --left-right --count origin/main...main
 git log --oneline --decorate --graph --max-count=10
-git ls-files server/src/services/s3.ts Dockerfile.railway docker-entrypoint.sh railway.toml
+git ls-files server/src/nest/storage/drivers/legacy-s3.driver.ts Dockerfile.railway docker-entrypoint.sh railway.toml
 git diff --check
 sh -n docker-entrypoint.sh
 ```
 
-Run server typechecking and relevant storage, platform, upload-controller, and maps tests. Use a Node runtime compatible with installed native modules. Shared package artifacts must match the new source; if builds are restricted, use temporary test/typecheck aliases to `shared/src`, including the distinct `@trek/shared/roadtrip` entry at `shared/src/roadtrip/planning.ts`. Remove temporary validation configuration and generated alternate lockfiles before finishing. Do not claim a Docker build or live S3 test passed unless it actually ran.
+Run server typechecking, `lint:check`, and relevant storage, platform, upload-controller, and maps tests. Use a Node runtime compatible with installed native modules. Shared package artifacts must match the new source; if builds are restricted, use temporary test/typecheck aliases to `shared/src`, including the distinct `@trek/shared/roadtrip` entry at `shared/src/roadtrip/planning.ts`. Remove temporary validation configuration and generated alternate lockfiles before finishing. Do not claim a Docker build or live S3 test passed unless it actually ran.
 
 Report the strategy, backup branch names, current branch, validation result, and pending push. A rewritten remote main needs:
 

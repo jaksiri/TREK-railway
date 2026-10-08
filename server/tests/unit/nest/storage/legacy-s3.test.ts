@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { Readable } from 'node:stream';
-import { LegacyS3Driver } from '../../../../src/services/s3';
+import { LegacyS3Driver } from '../../../../src/nest/storage/drivers/legacy-s3.driver';
 import { LocalDriver } from '../../../../src/nest/storage/drivers/local.driver';
 import type { S3Api } from '../../../../src/nest/storage/drivers/s3.driver';
 

@@ -7,7 +7,7 @@ import { decrypt_api_key } from '../common/crypto/apiKeyCrypto';
 import { LocalDriver } from './drivers/local.driver';
 import { MirrorDriver, type ReplicaFailure } from './drivers/mirror.driver';
 import { S3Driver } from './drivers/s3.driver';
-import { LegacyS3Driver } from '../../services/s3';
+import { LegacyS3Driver } from './drivers/legacy-s3.driver';
 import { StorageEventsService } from './storage-events.service';
 import { DEFAULT_BACKUPS_ROOT, DEFAULT_UPLOADS_ROOT, GLOBAL_TEMP_DIR, SEED_CONFIG_PATH } from './storage-paths';
 import { assertNoMaskSentinels, encryptStorageSecrets } from './storage-secrets';

@@ -1,7 +1,7 @@
 import type { Readable } from 'node:stream';
-import { S3Driver, type S3DriverOptions } from '../nest/storage/drivers/s3.driver';
-import { assertValidKey } from '../nest/storage/storage-keys';
-import type { ByteRange, ObjectStat, StorageDriver } from '../nest/storage/storage.types';
+import { S3Driver, type S3DriverOptions } from './s3.driver';
+import { assertValidKey } from '../storage-keys';
+import type { ByteRange, ObjectStat, StorageDriver } from '../storage.types';
 
 /**
  * Compatibility for the fork's AWS_* configuration and existing object keys.
