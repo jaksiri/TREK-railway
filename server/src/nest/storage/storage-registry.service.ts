@@ -5,10 +5,10 @@ import { storageConfig } from '../app-config/tokens';
 import { decrypt_api_key } from '../common/crypto/apiKeyCrypto';
 import { withRequestContext } from '../database/request-context';
 import { UnitOfWork } from '../database/unit-of-work';
+import { LegacyS3Driver } from './drivers/legacy-s3.driver';
 import { LocalDriver } from './drivers/local.driver';
 import { MirrorDriver, type ReplicaFailure } from './drivers/mirror.driver';
 import { S3Driver } from './drivers/s3.driver';
-import { LegacyS3Driver } from './drivers/legacy-s3.driver';
 import { StorageEventsService } from './storage-events.service';
 import { getSeedConfigPath } from './storage-paths';
 import { assertNoMaskSentinels, encryptStorageSecrets } from './storage-secrets';
@@ -489,12 +489,13 @@ export class StorageRegistryService implements OnModuleInit {
     }
     for (const config of backends.values()) {
       if (config.type !== 's3') continue;
+      const uploadsLocal = drivers.get('uploads-local');
       drivers.set(
         config.name,
-        config.name === 'fork-s3'
+        config.name === 'fork-s3' && uploadsLocal
           ? new LegacyS3Driver(
               { id: config.name, ...config.options, secretAccessKey: decryptedSecret(config) },
-              drivers.get('uploads-local')!,
+              uploadsLocal,
             )
           : new S3Driver({ id: config.name, ...config.options, secretAccessKey: decryptedSecret(config) }),
       );

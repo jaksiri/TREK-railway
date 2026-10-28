@@ -170,6 +170,13 @@ export const envSchema = z.object({
   TREK_DB_PRE_MIGRATE_SNAPSHOT_KEEP: integer(1, 100),
   TREK_WIKI_DIR: anyString,
   TREK_PLACE_PHOTO_DIR: anyString,
+  // Fork: env-configured S3 backend for uploads (Railway bucket). All four of
+  // endpoint/bucket/key/secret must be set, else uploads stay on local disk.
+  AWS_ENDPOINT_URL: url,
+  AWS_S3_BUCKET_NAME: anyString,
+  AWS_DEFAULT_REGION: anyString,
+  AWS_ACCESS_KEY_ID: anyString,
+  AWS_SECRET_ACCESS_KEY: anyString,
   BACKUP_UPLOAD_LIMIT_MB: positiveNumber,
   FILE_UPLOAD_LIMIT_MB: positiveNumber,
   BACKUP_MAX_DECOMPRESSED_MB: positiveNumber,

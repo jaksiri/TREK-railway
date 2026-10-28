@@ -526,14 +526,18 @@ describe('StorageAdminService.testBackend', () => {
   });
 });
 
-
 it('preserves an environment S3 secret through the first masked admin save', async () => {
   const { service, registry, uploadsRoot } = await makeService({ legacyS3: S3_OPTIONS });
-  expect((await service.state()).backends.find(b => b.name === 'fork-s3')?.options.secretAccessKey).toBe(MASKED_SETTING_VALUE);
-  await put(service, configWith(uploadsRoot, {
-    backends: [{ name: 'fork-s3', type: 's3', options: { ...S3_OPTIONS, secretAccessKey: MASKED_SETTING_VALUE } }],
-    categories: { files: 'uploads-local' },
-  }));
+  expect((await service.state()).backends.find((b) => b.name === 'fork-s3')?.options.secretAccessKey).toBe(
+    MASKED_SETTING_VALUE,
+  );
+  await put(
+    service,
+    configWith(uploadsRoot, {
+      backends: [{ name: 'fork-s3', type: 's3', options: { ...S3_OPTIONS, secretAccessKey: MASKED_SETTING_VALUE } }],
+      categories: { files: 'uploads-local' },
+    }),
+  );
   expect(await readRow(BACKENDS_KEY)).not.toContain('sk-plain');
   expect(await readRow(BACKENDS_KEY)).toContain('enc:v1:');
   expect(registry.resolve('files').backendName).toBe('uploads-local');

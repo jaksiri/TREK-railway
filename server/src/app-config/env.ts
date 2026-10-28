@@ -32,6 +32,8 @@ export const SECRET_ENV_KEYS: ReadonlySet<string> = new Set([
   'MAPBOX_ACCESS_TOKEN',
   'CARTO_API_KEY',
   'DEMO_ADMIN_PASS',
+  'AWS_ACCESS_KEY_ID',
+  'AWS_SECRET_ACCESS_KEY',
 ]);
 
 /** How a variable's value appears in the boot report. */

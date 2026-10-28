@@ -1,7 +1,8 @@
-import type { Readable } from 'node:stream';
-import { S3Driver, type S3DriverOptions } from './s3.driver';
 import { assertValidKey } from '../storage-keys';
 import type { ByteRange, ObjectStat, StorageDriver } from '../storage.types';
+import { S3Driver, type S3DriverOptions } from './s3.driver';
+
+import type { Readable } from 'node:stream';
 
 /**
  * Compatibility for the fork's AWS_* configuration and existing object keys.
@@ -9,7 +10,10 @@ import type { ByteRange, ObjectStat, StorageDriver } from '../storage.types';
  * Do not expose a local fast path: an S3 object must win over a stale disk copy.
  */
 export class LegacyS3Driver extends S3Driver {
-  constructor(options: S3DriverOptions, private readonly local: StorageDriver) {
+  constructor(
+    options: S3DriverOptions,
+    private readonly local: StorageDriver,
+  ) {
     super(options);
   }
 

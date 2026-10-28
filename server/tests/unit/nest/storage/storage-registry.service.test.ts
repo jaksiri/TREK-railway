@@ -1,7 +1,9 @@
+import { deriveLegacyS3 } from '../../../../src/app-config/boot-derive';
 import { db as testDb } from '../../../../src/db/database';
 import { AppSettings } from '../../../../src/db/entities/AppSettings.entity';
 import { DataPathsService } from '../../../../src/nest/app-config/data-paths.service';
 import { encrypt_api_key } from '../../../../src/nest/common/crypto/apiKeyCrypto';
+import { LegacyS3Driver } from '../../../../src/nest/storage/drivers/legacy-s3.driver';
 import { LocalDriver } from '../../../../src/nest/storage/drivers/local.driver';
 import { MirrorDriver, type ReplicaFailure } from '../../../../src/nest/storage/drivers/mirror.driver';
 import { S3Driver } from '../../../../src/nest/storage/drivers/s3.driver';
@@ -14,8 +16,6 @@ import {
   setSeedConfigPathForTests,
 } from '../../../../src/nest/storage/storage-paths';
 import { StorageRegistryService } from '../../../../src/nest/storage/storage-registry.service';
-import { deriveLegacyS3 } from '../../../../src/app-config/boot-derive';
-import { LegacyS3Driver } from '../../../../src/nest/storage/drivers/legacy-s3.driver';
 import { STORAGE_CATEGORIES } from '../../../../src/nest/storage/storage.types';
 import { deleteRows, findRow } from '../../../helpers/factories/rows';
 import { setAppSetting } from '../../../helpers/factories/settings';
@@ -51,7 +51,7 @@ interface EnvPaths {
   legacyS3?: ReturnType<typeof deriveLegacyS3>;
 }
 
-function makeEnvStub(initial: EnvPaths): { env: EnvPaths } {
+function makeEnvStub(initial: EnvPaths): { env: { placePhotoDir: string | undefined } & EnvPaths } {
   return { env: { placePhotoDir: initial.placePhotoDir, legacyS3: initial.legacyS3 } };
 }
 
@@ -1078,7 +1078,6 @@ describe('snapshot()', () => {
   });
 });
 
-
 describe('Railway AWS environment compatibility', () => {
   const raw = {
     AWS_ENDPOINT_URL: 'https://s3.example.com',
@@ -1101,7 +1100,7 @@ describe('Railway AWS environment compatibility', () => {
       expect(resolved.keyPrefix).toBe(`${category}/`);
     }
     expect(registry.resolve('backups').backendName).toBe('backups-local');
-    expect(registry.snapshot().backends.find(b => b.name === 'fork-s3')?.source).toBe('env');
+    expect(registry.snapshot().backends.find((b) => b.name === 'fork-s3')?.source).toBe('env');
     expect(registry.lastLoadError()).toBeNull();
   });
 

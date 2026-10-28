@@ -36,7 +36,10 @@ export function deriveHttpBoot(raw: RawEnv) {
 }
 
 /** Where the storage registry puts its conditional place-photo backend, and the fork's env-configured S3 backend. */
-export function deriveStorage(raw: RawEnv) {
+export function deriveStorage(raw: RawEnv): {
+  placePhotoDir: string | undefined;
+  legacyS3?: ReturnType<typeof deriveLegacyS3>;
+} {
   return {
     placePhotoDir: raw.TREK_PLACE_PHOTO_DIR,
     legacyS3: deriveLegacyS3(raw),
@@ -44,7 +47,8 @@ export function deriveStorage(raw: RawEnv) {
 }
 
 export function deriveLegacyS3(raw: RawEnv) {
-  if (!raw.AWS_ENDPOINT_URL || !raw.AWS_S3_BUCKET_NAME || !raw.AWS_ACCESS_KEY_ID || !raw.AWS_SECRET_ACCESS_KEY) return undefined;
+  if (!raw.AWS_ENDPOINT_URL || !raw.AWS_S3_BUCKET_NAME || !raw.AWS_ACCESS_KEY_ID || !raw.AWS_SECRET_ACCESS_KEY)
+    return undefined;
   return {
     endpoint: raw.AWS_ENDPOINT_URL,
     bucket: raw.AWS_S3_BUCKET_NAME,

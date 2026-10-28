@@ -1,14 +1,17 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
-import fs from 'node:fs';
-import os from 'node:os';
-import path from 'node:path';
-import { Readable } from 'node:stream';
 import { LegacyS3Driver } from '../../../../src/nest/storage/drivers/legacy-s3.driver';
 import { LocalDriver } from '../../../../src/nest/storage/drivers/local.driver';
 import type { S3Api } from '../../../../src/nest/storage/drivers/s3.driver';
 
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { Readable } from 'node:stream';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+
 const dirs: string[] = [];
-afterEach(() => { for (const dir of dirs.splice(0)) fs.rmSync(dir, { recursive: true, force: true }); });
+afterEach(() => {
+  for (const dir of dirs.splice(0)) fs.rmSync(dir, { recursive: true, force: true });
+});
 
 function setup() {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'trek-legacy-s3-'));
@@ -22,13 +25,27 @@ function setup() {
     HeadObject: vi.fn().mockRejectedValue(missing),
     GetObject: vi.fn().mockRejectedValue(missing),
     DeleteObject: vi.fn().mockResolvedValue({}),
-    ListObjectsV2: vi.fn().mockResolvedValue((async function* () { yield { Contents: [] }; })()),
+    ListObjectsV2: vi.fn().mockResolvedValue(
+      (async function* () {
+        yield { Contents: [] };
+      })(),
+    ),
   } satisfies S3Api;
-  const driver = new LegacyS3Driver({
-    id: 'fork-s3', endpoint: 'https://s3.example.com', bucket: 'trek',
-    region: 'us-east-1', keyPrefix: '', accessKeyId: 'test', secretAccessKey: 'test',
-    retries: 0, timeoutMs: 1000, clientFactory: async () => api,
-  }, local);
+  const driver = new LegacyS3Driver(
+    {
+      id: 'fork-s3',
+      endpoint: 'https://s3.example.com',
+      bucket: 'trek',
+      region: 'us-east-1',
+      keyPrefix: '',
+      accessKeyId: 'test',
+      secretAccessKey: 'test',
+      retries: 0,
+      timeoutMs: 1000,
+      clientFactory: async () => api,
+    },
+    local,
+  );
   return { driver, local, api, root };
 }
 
@@ -47,7 +64,9 @@ describe('legacy S3 uploads', () => {
     expect((await driver.stat('journey/video.mp4'))?.size).toBe(8);
     const result = await driver.getStream('journey/video.mp4', { start: 2, end: 4 });
     expect(await contents(result.stream)).toBe('new');
-    expect(api.GetObject).toHaveBeenCalledWith(expect.objectContaining({ Key: 'journey/video.mp4', Range: 'bytes=2-4' }));
+    expect(api.GetObject).toHaveBeenCalledWith(
+      expect.objectContaining({ Key: 'journey/video.mp4', Range: 'bytes=2-4' }),
+    );
   });
 
   it('serves a local-only file with the requested byte range', async () => {
@@ -93,12 +112,14 @@ describe('legacy S3 uploads', () => {
     const { driver, local, api } = setup();
     await local.put('journey/both.jpg', Readable.from('old'));
     await local.put('journey/local.jpg', Readable.from('local'));
-    api.ListObjectsV2.mockResolvedValue((async function* () {
-      yield { Contents: [{ Key: 'journey/both.jpg', Size: 10 }] };
-    })());
+    api.ListObjectsV2.mockResolvedValue(
+      (async function* () {
+        yield { Contents: [{ Key: 'journey/both.jpg', Size: 10 }] };
+      })(),
+    );
     const objects = [];
     for await (const stat of driver.list('journey/')) objects.push(stat);
-    expect(objects.map(s => s.key).sort()).toEqual(['journey/both.jpg', 'journey/local.jpg']);
-    expect(objects.find(s => s.key === 'journey/both.jpg')?.size).toBe(10);
+    expect(objects.map((s) => s.key).sort()).toEqual(['journey/both.jpg', 'journey/local.jpg']);
+    expect(objects.find((s) => s.key === 'journey/both.jpg')?.size).toBe(10);
   });
 });
