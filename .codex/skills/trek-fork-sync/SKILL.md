@@ -55,15 +55,15 @@ Serving also uses upstream's storage abstraction now:
 
 ## Railway deployment
 
-Keep `Dockerfile.railway`, `docker-entrypoint.sh`, and `railway.toml`.
+Keep `Dockerfile.railway`, `docker-entrypoint.sh`, and `.railway/railway.ts`.
 
 `Dockerfile.railway` mirrors the current upstream Dockerfile, including Node version, workspace build stages, native dependencies, runtime assets, and upstream entrypoint. Its additions copy the Railway entrypoint, create `/app/storage`, and run the Railway script between dumb-init and the upstream entrypoint.
 
-`docker-entrypoint.sh` maps data/uploads into the single Railway volume at `/app/storage`, creates upload category directories including journey and places, repairs ownership on the actual volume data/uploads directories, and then executes upstream's entrypoint. Recursive chown on the `/app/data` symlink alone does not make the existing encryption key readable by `node`. Upstream owns startup checks and dropping privileges to `node`. `railway.toml` selects the Railway Dockerfile and `/api/health`.
+`docker-entrypoint.sh` maps data/uploads into the single Railway volume at `/app/storage`, creates upload category directories including journey and places, repairs ownership on the actual volume data/uploads directories, and then executes upstream's entrypoint. Recursive chown on the `/app/data` symlink alone does not make the existing encryption key readable by `node`. Upstream owns startup checks and dropping privileges to `node`.
 
 When upstream changes its Dockerfile, regenerate the Railway copy from it rather than patching the old one: copy `Dockerfile`, then replace its single `ENTRYPOINT ["dumb-init", "--"]` line with the Railway `COPY docker-entrypoint.sh`, `chmod`/`mkdir -p /app/storage` and `ENTRYPOINT ["dumb-init", "--", "/usr/local/bin/railway-entrypoint"]` lines. `diff Dockerfile Dockerfile.railway` must show only that hunk. Keeping an old image layout while updating the app can silently omit runtime assets or break native SQLite. The v5.0 sync found the old copy still copying the removed `client/scripts/patch-maplibre.mjs` and building the server without upstream's 4 GB heap flag.
 
-Railway config is moving from `railway.toml` (read until 2026-12-01) to `.railway/railway.ts`. That file is a named partial (`export const partial = "TREK-railway"`) because the same Railway project holds `money-mcp` from another repo, and a whole-project apply deletes resources the file omits. It declares the service (Dockerfile builder with `Dockerfile.railway`, `/api/health`, restart policy), the `/app/storage` volume and the `integrated-duffel` bucket, with variables unmanaged. The SDK is installed in `.railway/package.json` only, outside the npm workspaces. `railway config plan` is read-only; `apply` and `railway config migrate cutover` change the live service. Keep both files consistent until cutover, then delete `railway.toml`.
+Railway service settings live in `.railway/railway.ts` (Railway infrastructure as code; the old `railway.toml` was retired in October 2026). That file is a named partial (`export const partial = "TREK-railway"`) because the same Railway project holds `money-mcp` from another repo, and a whole-project apply deletes resources the file omits. It declares the service (Dockerfile builder with `Dockerfile.railway`, `/api/health`, restart policy), the `/app/storage` volume and the `integrated-duffel` bucket, with variables unmanaged. The SDK is installed in `.railway/package.json` only, outside the npm workspaces. `railway config plan` is read-only and always shows one no-op line, `deploy.restartPolicyType (null → "ON_FAILURE")`, because Railway stores its default as null. `railway config apply` changes the live service and starts a deploy. A sync does not touch this file unless upstream adds a top-level path the build needs.
 
 ## CI and other fork behavior
 
@@ -103,7 +103,7 @@ git status --short --branch
 git merge-base --is-ancestor upstream/main main
 git rev-list --left-right --count origin/main...main
 git log --oneline --decorate --graph --max-count=10
-git ls-files server/src/nest/storage/drivers/legacy-s3.driver.ts Dockerfile.railway docker-entrypoint.sh railway.toml
+git ls-files server/src/nest/storage/drivers/legacy-s3.driver.ts Dockerfile.railway docker-entrypoint.sh .railway/railway.ts
 git diff --check
 sh -n docker-entrypoint.sh
 ```
