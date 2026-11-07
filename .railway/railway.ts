@@ -13,7 +13,7 @@ export default defineRailway(() => {
     build: { builder: "DOCKERFILE", dockerfilePath: "Dockerfile.railway" },
     healthcheck: "/api/health",
     healthcheckTimeout: 10,
-    deploy: { restartPolicyType: "ON_FAILURE", restartPolicyMaxRetries: 3 },
+    deploy: { restartPolicyType: "ON_FAILURE", restartPolicyMaxRetries: 3, sleepApplication: true },
     replicas: { "europe-west4-drams3a": 1 },
     domains: ["trek.jaksiri.com"],
     networking: { privateNetworkEndpoint: "trek-railway" },
